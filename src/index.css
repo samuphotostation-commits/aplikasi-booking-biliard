@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+/* ── Brand fonts (berkas lokal dari folder VISUAL IDENTITY) ─────────
+   Catatan optimasi (PRD §9.4): Emoland belum punya .woff2 dan Lido STF
+   belum punya format web sama sekali. Untuk produksi, konversi ke woff2
+   + subset Latin → target < 25 KB per berkas. */
+@font-face {
+  font-family: "Lido STF";
+  src: url("./assets/fonts/LidoSTF.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Lido STF";
+  src: url("./assets/fonts/LidoSTFBold.ttf") format("truetype");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Emoland";
+  src: url("./assets/fonts/Emoland-Bold.woff") format("woff");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Emoland";
+  src: url("./assets/fonts/Emoland-Black.woff") format("woff");
+  font-weight: 900; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Jazzbury";
+  src: url("./assets/fonts/Jazzbury.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+
+@theme {
+  /* Warna diambil dari sampling piksel aset merek — PRD §9.1 */
+  --color-amber: #f0a202;
+  --color-amber-deep: #d98f02;
+  --color-brick: #992212;
+  --color-brick-lit: #b8321f;
+  --color-cream: #fdf0dc;
+  --color-ink: #0b0b0c;
+  --color-ink-2: #141416;
+  --color-ink-3: #1b1b1e;
+  --color-line: #26262a;
+  --color-line-2: #3a3a40;
+  --color-mute: #a8a29b;
+  --color-dim: #7a736c;
+  --color-felt: #1f6f4a;
+
+  --font-display: "Emoland", "Arial Narrow", sans-serif;
+  --font-serif: "Lido STF", Georgia, serif;
+  --font-script: "Jazzbury", cursive;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ── Dasar ──────────────────────────────────────────────────────── */
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--color-ink);
+  color: var(--color-cream);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+/* iOS: hindari zoom otomatis saat fokus input */
+input, select, textarea { font-size: 16px; }
+
+::selection { background: var(--color-amber); color: var(--color-ink); }
+:focus-visible { outline: 2px solid var(--color-amber); outline-offset: 2px; border-radius: 4px; }
+
+/* Sembunyikan scrollbar pada strip horizontal, tetap bisa digeser */
+.no-bar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-bar::-webkit-scrollbar { display: none; }
+
+/* Area aman iPhone (notch & home indicator) */
+.safe-t { padding-top: env(safe-area-inset-top); }
+.safe-b { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Tekstur bata prosedural — menghindari BRICKS.png yang 4,9 MB (PRD §9.5) */
+.brick-tex {
+  background-color: #7d1c0f;
+  background-image:
+    linear-gradient(335deg, rgba(0,0,0,.28) 0 2px, transparent 2px),
+    linear-gradient(155deg, rgba(255,255,255,.05) 0 1px, transparent 1px),
+    repeating-linear-gradient(0deg, #8d2113 0 22px, #6f1a0e 22px 24px),
+    repeating-linear-gradient(90deg, transparent 0 58px, rgba(0,0,0,.30) 58px 62px);
+  background-size: 6px 6px, 6px 6px, 100% 24px, 124px 48px;
+}
+
+/* Kain meja biliar */
+.felt-tex {
+  background-color: #1f6f4a;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.10), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(0,0,0,.05) 0 2px, transparent 2px 4px);
+}
+
+/* Grain halus supaya bidang gelap tidak terasa datar */
+.grain::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* Saat mencetak, hanya struk yang muncul di kertas */
+@media print {
+  body * { visibility: hidden !important; }
+  #struk, #struk * { visibility: visible !important; }
+  #struk { position: fixed; inset: 0 auto auto 0; width: 58mm; background: #fff !important; }
+}

@@ -1,0 +1,30 @@
+# ═══════════════════════════════════════════════════════════════════
+# SPL — pengaturan Supabase CLI (dipakai `npm run pasang-fungsi`)
+#
+# Yang penting di sini cuma satu: FUNGSI MANA YANG BOLEH DIPANGGIL
+# TANPA TOKEN. Dua fungsi harus begitu, dan bukan karena longgar:
+#   • qris-webhook — yang memanggil adalah GATEWAY (DOKU/Midtrans) dari
+#     servernya sendiri; ia tidak punya token kita. Isinya tetap aman
+#     karena lunas/tidaknya ditentukan dengan bertanya balik ke gateway,
+#     bukan dengan percaya isi kiriman.
+#   • terbit, stok-tutup — dipanggil pemicu/cron database lewat pg_net,
+#     juga tanpa
+#     token. Keduanya hanya MENGHITUNG ULANG dari jejak yang sudah ada
+#     (ringkasan publik / tutup buku stok); tidak ada data pribadi yang
+#     keluar dan pemanggil tidak bisa menitipkan apa pun.
+# `qris-buat` sengaja TIDAK didaftarkan → tetap butuh kunci publik
+# aplikasi seperti sekarang.
+# ═══════════════════════════════════════════════════════════════════
+project_id = "fhoxdsxabpohafilqxoz"
+
+[functions.qris-webhook]
+verify_jwt = false
+
+[functions.terbit]
+verify_jwt = false
+
+[functions.pesan-kirim]
+verify_jwt = false
+
+[functions.stok-tutup]
+verify_jwt = false

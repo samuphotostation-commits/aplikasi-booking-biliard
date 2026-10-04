@@ -1,0 +1,9 @@
+/* Webfont: Jazzbury-Regular */@font-face {
+    font-family: 'Jazzbury';
+    src: url('Jazzbury.woff2') format('woff2'), /* Modern Browsers */
+         url('Jazzbury.otf') format('opentype'); /* Safari, Android, iOS */
+             font-style: normal;
+    font-weight: normal;
+    text-rendering: optimizeLegibility;
+}
+

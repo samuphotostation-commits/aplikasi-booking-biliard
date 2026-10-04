@@ -1,0 +1,8 @@
+{
+  "//": "Berkas di supabase/ TIDAK ikut tsconfig proyek (yang hanya memuat src), dan itu pernah kecolongan: argumen replay() tertukar, lolos bundel, lalu fungsi yang sudah terpasang mati. Konfigurasi kecil ini yang memeriksanya; dijalankan oleh scripts/bundel-terbit.mjs sebelum membundel.",
+  "extends": "../../../tsconfig.json",
+  "include": [
+    "terbit.ts",
+    "stok.ts"
+  ]
+}

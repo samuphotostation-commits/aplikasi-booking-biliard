@@ -1,0 +1,90 @@
+{
+  "name": "aplikasi-booking-bliard",
+  "version": "1.0.0",
+  "description": "",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "test": "esbuild test/occupancy.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t1.mjs --log-level=error && node node_modules/.cache/t1.mjs && esbuild test/billing.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t2.mjs --log-level=error && node node_modules/.cache/t2.mjs && esbuild test/simulation.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t3.mjs --log-level=error && node node_modules/.cache/t3.mjs && esbuild test/sync.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t4.mjs --log-level=error && node node_modules/.cache/t4.mjs && esbuild test/soak.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t5.mjs --log-level=error && node node_modules/.cache/t5.mjs && esbuild test/remote.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t6.mjs --log-level=error && node node_modules/.cache/t6.mjs && esbuild test/tamu.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t7.mjs --log-level=error && node node_modules/.cache/t7.mjs && esbuild test/stok.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t8.mjs --log-level=error && node node_modules/.cache/t8.mjs",
+    "test:utc": "node scripts/uji-utc.mjs",
+    "test:pola": "node scripts/cek-pola-mutasi.mjs",
+    "test:remote": "esbuild test/remote.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t6.mjs --log-level=error && node node_modules/.cache/t6.mjs",
+    "test:soak": "esbuild test/soak.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t5.mjs --log-level=error && node node_modules/.cache/t5.mjs",
+    "test:sync": "esbuild test/sync.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t4.mjs --log-level=error && node node_modules/.cache/t4.mjs",
+    "test:sim": "esbuild test/simulation.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t3.mjs --log-level=error && node node_modules/.cache/t3.mjs",
+    "app": "node scripts/build-app.mjs",
+    "app:win": "node scripts/build-app.mjs && electron-builder --win",
+    "app:jalan": "node scripts/build-app.mjs && electron .",
+    "apk": "node scripts/apk.mjs tamu",
+    "apk:kasir": "node scripts/apk.mjs kasir",
+    "terbitkan": "node scripts/terbitkan.mjs",
+    "pasang-fungsi": "node scripts/pasang-fungsi.mjs",
+    "test:tamu": "esbuild test/tamu.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t7.mjs --log-level=error && node node_modules/.cache/t7.mjs",
+    "test:stok": "esbuild test/stok.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t8.mjs --log-level=error && node node_modules/.cache/t8.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/core": "^6.2.2",
+    "@supabase/supabase-js": "^2.117.0",
+    "framer-motion": "^13.1.1",
+    "qrcode-generator": "^2.0.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.2",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  },
+  "build": {
+    "appId": "id.spl.kasir",
+    "productName": "SPL Kasir",
+    "copyright": "SPL Sports Pool Lounge & Smokehouse",
+    "files": [
+      "electron/**/*",
+      "web/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "dir"
+      ],
+      "icon": "web/ikon-1080.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "SPL Kasir",
+      "artifactName": "SPL-Kasir-Setup-${version}.${ext}"
+    },
+    "electronVersion": "40.10.2",
+    "extraFiles": [
+      {
+        "from": "installer",
+        "to": "."
+      }
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+
+.env
+.env.*
+!.env.example
+
+node_modules/
+.cache/
+.vite/
+.wrangler/
+.claude/
+supabase/.temp/
+**/__MACOSX/
+.DS_Store
+
+dist/
+build/
+release/
+out/
+/web/
+/web-tamu/
+/foto/
+/MENU-*/
+/Table Number-*/
+docs/spl-app.html
+*.zip
+*.log
+
+# Proyek Android hasil Capacitor: dibuat ulang dengan `npx cap add android`,
+# tapi ikon & konfigurasinya ada di dalamnya — jadi yang diabaikan hanya
+# hasil build dan berkas lokal mesin.
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties

@@ -1,0 +1,11 @@
+{
+  "appId": "id.spl.tamu",
+  "appName": "SPL Sports Pool Lounge",
+  "webDir": "web-tamu",
+  "android": { "allowMixedContent": false },
+  "server": {
+    "url": "https://spl-tamu.pages.dev",
+    "cleartext": false,
+    "androidScheme": "https"
+  }
+}

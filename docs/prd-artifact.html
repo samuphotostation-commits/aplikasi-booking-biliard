@@ -1,0 +1,1044 @@
+<title>SPL Booking PRD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,700&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* ── Tokens: complete light palette on bare :root ─────────────────── */
+:root{
+  --ground:#FAF8F5; --surface:#FFFFFF; --surface-2:#F3EFE9; --sunken:#F0EBE3;
+  --text:#1A1614; --text-mid:#5A5048; --text-dim:#857A70;
+  --amber:#8A5D02; --amber-solid:#F0A202; --brick:#992212;
+  --rule:#E4DCD1; --rule-strong:#CFC3B4;
+  --ok:#166534; --warn:#92400E; --bad:#9F1239;
+  --shadow:0 1px 2px rgba(26,22,20,.06),0 8px 24px -12px rgba(26,22,20,.18);
+  --measure:68ch;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0B0B0C; --surface:#141416; --surface-2:#1B1B1E; --sunken:#0E0E10;
+    --text:#F5F3F0; --text-mid:#A8A29B; --text-dim:#7A736C;
+    --amber:#F0A202; --amber-solid:#F0A202; --brick:#C4472A;
+    --rule:#26262A; --rule-strong:#3A3A40;
+    --ok:#4ADE80; --warn:#FBBF24; --bad:#F87171;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0B0B0C; --surface:#141416; --surface-2:#1B1B1E; --sunken:#0E0E10;
+  --text:#F5F3F0; --text-mid:#A8A29B; --text-dim:#7A736C;
+  --amber:#F0A202; --amber-solid:#F0A202; --brick:#C4472A;
+  --rule:#26262A; --rule-strong:#3A3A40;
+  --ok:#4ADE80; --warn:#FBBF24; --bad:#F87171;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px -14px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--text);
+  font-family:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:16.5px; line-height:1.68; -webkit-font-smoothing:antialiased;
+}
+
+/* ── Masthead ─────────────────────────────────────────────────────── */
+.masthead{
+  border-bottom:1px solid var(--rule);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--brick) 12%,var(--ground)),var(--ground));
+  padding:clamp(2.5rem,7vw,4.5rem) 1.5rem clamp(2rem,4vw,3rem);
+}
+.masthead-in{max-width:var(--measure);margin:0 auto;display:flex;flex-direction:column;gap:1.1rem}
+.eyebrow{
+  font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;font-weight:600;
+  color:var(--brick);display:flex;align-items:center;gap:.7rem;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--rule-strong)}
+.masthead h1{
+  font-family:"Bodoni Moda",Georgia,"Times New Roman",serif;
+  font-weight:700; font-size:clamp(2.1rem,6.5vw,3.6rem); line-height:1.04;
+  margin:0; letter-spacing:-.015em; text-wrap:balance;
+}
+.masthead .sub{
+  font-size:clamp(1rem,2.4vw,1.2rem); color:var(--text-mid); margin:0; max-width:52ch;
+}
+.stamps{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.4rem}
+.stamp{
+  font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600;
+  padding:.34rem .7rem;border:1px solid var(--rule-strong);border-radius:2px;
+  color:var(--text-mid);background:var(--surface);
+}
+.stamp.hot{border-color:var(--amber);color:var(--amber)}
+
+/* ── Shell ────────────────────────────────────────────────────────── */
+.shell{max-width:96rem;margin:0 auto;padding:0 1.5rem;display:grid;gap:3rem;
+  grid-template-columns:minmax(0,1fr)}
+@media (min-width:1120px){
+  .shell{grid-template-columns:16.5rem minmax(0,1fr);align-items:start;padding-top:2.5rem}
+  .toc{position:sticky;top:1.5rem;max-height:calc(100vh - 3rem);overflow-y:auto}
+}
+.toc{display:none;font-size:.82rem;padding-bottom:3rem}
+@media (min-width:1120px){.toc{display:block}}
+.toc-head{
+  font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;font-weight:700;
+  color:var(--text-dim);padding-bottom:.7rem;margin-bottom:.7rem;border-bottom:1px solid var(--rule);
+}
+.toc a{display:block;padding:.28rem 0 .28rem .8rem;color:var(--text-mid);text-decoration:none;
+  border-left:2px solid var(--rule);line-height:1.4}
+.toc a:hover,.toc a:focus-visible{color:var(--amber);border-left-color:var(--amber);outline:none}
+.toc-kk{padding-left:1.7rem !important;font-size:.76rem;color:var(--text-dim) !important}
+.toc-kk:hover{color:var(--amber) !important}
+
+main{max-width:var(--measure);padding-bottom:6rem;min-width:0}
+@media (max-width:1119px){main{margin:0 auto;padding-top:2.5rem}}
+
+/* ── Typography ───────────────────────────────────────────────────── */
+main h1{font-family:"Bodoni Moda",Georgia,serif;font-size:2.2rem;margin:3rem 0 1rem;text-wrap:balance}
+main h2{
+  font-family:"Bodoni Moda",Georgia,serif;font-weight:700;
+  font-size:clamp(1.55rem,3.6vw,2.05rem);line-height:1.16;letter-spacing:-.01em;
+  margin:4rem 0 1.2rem;padding-top:1.6rem;border-top:2px solid var(--brick);text-wrap:balance;
+}
+main h2:first-child{margin-top:0}
+main h3{font-size:1.16rem;font-weight:700;margin:2.4rem 0 .7rem;letter-spacing:-.005em;text-wrap:balance}
+main h4{font-size:.99rem;font-weight:700;margin:1.8rem 0 .5rem;color:var(--text-mid)}
+main p{margin:0 0 1.1rem}
+main a{color:var(--amber);text-decoration:underline;text-underline-offset:2px;
+  text-decoration-thickness:1px;text-decoration-color:color-mix(in srgb,var(--amber) 45%,transparent)}
+main a:hover{text-decoration-color:var(--amber)}
+strong{font-weight:600;color:var(--text)}
+hr{border:0;height:1px;background:var(--rule);margin:3rem 0}
+ul,ol{margin:0 0 1.1rem;padding-left:1.3rem}
+li{margin:.3rem 0}
+li::marker{color:var(--text-dim)}
+
+/* KK decision headings — numbered chip, because it IS an ordered register */
+h3.kk{
+  display:flex;gap:.8rem;align-items:baseline;margin:3rem 0 .9rem;
+  padding-top:1.1rem;border-top:1px solid var(--rule-strong);
+}
+.kk-chip{
+  flex:none;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.72rem;font-weight:600;
+  letter-spacing:.05em;padding:.26rem .5rem;background:var(--brick);color:#fff;border-radius:2px;
+  position:relative;top:-.1rem;
+}
+.kk-title{font-size:1.16rem;font-weight:700;line-height:1.32}
+
+/* ── Tables ───────────────────────────────────────────────────────── */
+.scroller{overflow-x:auto;margin:0 0 1.5rem;border:1px solid var(--rule);
+  border-radius:3px;background:var(--surface);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;font-size:.87rem;
+  font-variant-numeric:tabular-nums;line-height:1.5}
+th{
+  text-align:left;font-weight:600;font-size:.7rem;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--text-dim);padding:.72rem .85rem;border-bottom:1px solid var(--rule-strong);
+  background:var(--surface-2);white-space:nowrap;
+}
+td{padding:.66rem .85rem;border-bottom:1px solid var(--rule);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface-2)}
+
+/* ── Code ─────────────────────────────────────────────────────────── */
+.scroller:has(pre){background:var(--sunken)}
+pre{margin:0;padding:1.1rem 1.2rem;overflow-x:auto}
+pre code{font-family:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  font-size:.795rem;line-height:1.6;color:var(--text);white-space:pre}
+:not(pre)>code{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.845em;
+  background:var(--surface-2);border:1px solid var(--rule);border-radius:2px;
+  padding:.1em .34em;color:var(--amber);
+}
+
+/* ── Callouts ─────────────────────────────────────────────────────── */
+blockquote{
+  margin:1.5rem 0;padding:1rem 1.2rem;background:var(--surface);
+  border:1px solid var(--rule);border-left:3px solid var(--amber);border-radius:0 3px 3px 0;
+  color:var(--text-mid);font-size:.93rem;
+}
+blockquote p:last-child{margin-bottom:0}
+blockquote strong{color:var(--text)}
+
+::selection{background:var(--amber-solid);color:#0B0B0C}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+@media print{.toc,.masthead{break-inside:avoid}body{font-size:11pt}}
+</style>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="eyebrow">Product Requirements Document</div>
+    <h1>SPL Sports Pool Lounge<br>&amp; Smokehouse Resto</h1>
+    <p class="sub">Aplikasi booking meja biliar dan pemesanan makanan-minuman. Mobile-first, pembayaran QRIS, papan meja real-time.</p>
+    <div class="stamps">
+      <span class="stamp">Versi 1.0</span>
+      <span class="stamp">24 Agustus 2026</span>
+      <span class="stamp hot">24 blocker diselesaikan</span>
+      <span class="stamp hot">14 pertanyaan terbuka</span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="toc" aria-label="Daftar isi">
+    <div class="toc-head">Daftar Isi</div>
+    <a href="#0-cara-membaca-dokumen-ini" class="toc-sec">0. Cara membaca dokumen ini</a>
+<a href="#1-ringkasan-eksekutif" class="toc-sec">1. Ringkasan eksekutif</a>
+<a href="#2-masalah-saat-ini" class="toc-sec">2. Masalah saat ini</a>
+<a href="#3-persona-amp-perjalanan-pengguna" class="toc-sec">3. Persona &amp;amp; perjalanan pengguna</a>
+<a href="#4-registri-keputusan-kanonik" class="toc-sec">4. Registri Keputusan Kanonik</a>
+<a href="#kk-01-kebijakan-pembatalan-satu-tabel-bukan-empat" class="toc-kk">KK-01 — Kebijakan pembatalan: SATU tabel, bukan empat</a>
+<a href="#kk-02-refund-qris-store-credit-bukan-pengembalian-uang-otoma" class="toc-kk">KK-02 — Refund QRIS: store credit, bukan pengembalian uang otomatis</a>
+<a href="#kk-03-mode-tampilan-harga-tax-inclusive" class="toc-kk">KK-03 — Mode tampilan harga: TAX-INCLUSIVE</a>
+<a href="#kk-04-anggaran-waktu-hold-15-17-19-menit" class="toc-kk">KK-04 — Anggaran waktu hold: 15 / 17 / 19 menit</a>
+<a href="#kk-05-status-booking-satu-enum-postgresql-bukan-text-bebas" class="toc-kk">KK-05 — Status booking: satu enum PostgreSQL, bukan text bebas</a>
+<a href="#kk-06-peran-pengguna-manager-bukan-admin" class="toc-kk">KK-06 — Peran pengguna: manager, bukan admin</a>
+<a href="#kk-07-booking-rombongan-multi-meja-masuk-mvp-dengan-booking_" class="toc-kk">KK-07 — Booking rombongan multi-meja: masuk MVP, dengan booking_group</a>
+<a href="#kk-08-walk-in-yang-belum-selesai-saat-jam-booking-tiba-requi" class="toc-kk">KK-08 — Walk-in yang belum selesai saat jam booking tiba: requirement MVP</a>
+<a href="#kk-09-skema-harga-satu-bentuk-kanonik" class="toc-kk">KK-09 — Skema harga: satu bentuk kanonik</a>
+<a href="#kk-10-exclusion-constraint-harus-mengabaikan-hold-yang-kedal" class="toc-kk">KK-10 — Exclusion constraint harus mengabaikan hold yang kedaluwarsa</a>
+<a href="#kk-11-satu-qr-aktif-per-booking-bukan-satu-pembayaran-per-bo" class="toc-kk">KK-11 — Satu QR aktif per booking, bukan satu pembayaran per booking</a>
+<a href="#kk-12-role-dan-saldo-store-credit-tidak-boleh-berada-di-tabe" class="toc-kk">KK-12 — role dan saldo store credit TIDAK boleh berada di tabel profiles</a>
+<a href="#kk-13-satu-tabel-audit_log-bukan-dua" class="toc-kk">KK-13 — Satu tabel audit_log, bukan dua</a>
+<a href="#kk-14-gateway-pembayaran-midtrans-saja-di-mvp" class="toc-kk">KK-14 — Gateway pembayaran: Midtrans saja di MVP</a>
+<a href="#kk-15-kitchen-display-system-kds-masuk-mvp" class="toc-kk">KK-15 — Kitchen Display System (KDS): masuk MVP</a>
+<a href="#kk-16-offline-mode-darurat-masuk-mvp-versi-termurah" class="toc-kk">KK-16 — Offline: mode darurat masuk MVP (versi termurah)</a>
+<a href="#kk-17-modul-autentikasi-dan-modul-pembayaran-harus-ditulis" class="toc-kk">KK-17 — Modul Autentikasi dan modul Pembayaran harus ditulis</a>
+<a href="#kk-18-prefix-id-dan-registri-global" class="toc-kk">KK-18 — Prefix ID dan registri global</a>
+<a href="#kk-19-zona-waktu-dan-hari-operasional" class="toc-kk">KK-19 — Zona waktu dan hari operasional</a>
+<a href="#kk-20-model-waktu-tstzrange-half-open-bukan-slot-diskrit" class="toc-kk">KK-20 — Model waktu: tstzrange half-open, bukan slot diskrit</a>
+<a href="#kk-21-mdr-dihitung-berjenjang-bukan-flat" class="toc-kk">KK-21 — MDR dihitung berjenjang, bukan flat</a>
+<a href="#kk-22-hosting-cloudflare-pages-supabase-bukan-vercel-hobby-b" class="toc-kk">KK-22 — Hosting: Cloudflare Pages + Supabase. Bukan Vercel Hobby, bukan GitHub Pages</a>
+<a href="#kk-23-akun-infrastruktur-harus-baru-dan-terpisah" class="toc-kk">KK-23 — Akun infrastruktur harus BARU dan terpisah</a>
+<a href="#kk-24-prinsip-rekayasa-wajib-gagal-tertutup" class="toc-kk">KK-24 — Prinsip rekayasa wajib: GAGAL TERTUTUP</a>
+<a href="#5-konstanta-global" class="toc-sec">5. Konstanta Global</a>
+<a href="#6-ruang-lingkup-mvp-cut-line" class="toc-sec">6. Ruang lingkup — MVP Cut Line</a>
+<a href="#7-spesifikasi-fungsional" class="toc-sec">7. Spesifikasi fungsional</a>
+<a href="#8-arsitektur-teknis" class="toc-sec">8. Arsitektur teknis</a>
+<a href="#9-design-system" class="toc-sec">9. Design system</a>
+<a href="#10-rencana-rilis-amp-estimasi" class="toc-sec">10. Rencana rilis &amp;amp; estimasi</a>
+<a href="#11-risiko-amp-mitigasi" class="toc-sec">11. Risiko &amp;amp; mitigasi</a>
+<a href="#12-pertanyaan-terbuka-untuk-pemilik" class="toc-sec">12. Pertanyaan terbuka untuk pemilik</a>
+<a href="#13-lampiran" class="toc-sec">13. Lampiran</a>
+  </nav>
+  <main><h1 id="prd-spl-sports-pool-lounge-amp-smokehouse-resto">PRD — SPL Sports Pool Lounge &amp; Smokehouse Resto</h1><h3 id="aplikasi-booking-meja-biliar-pemesanan-fampb">Aplikasi Booking Meja Biliar + Pemesanan F&amp;B</h3><div class="scroller"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Versi</strong></td><td>1.0 — draft untuk persetujuan pemilik</td></tr><tr><td><strong>Tanggal</strong></td><td>24 Agustus 2026</td></tr><tr><td><strong>Status</strong></td><td>Menunggu keputusan pemilik atas 14 pertanyaan terbuka (§12)</td></tr><tr><td><strong>Merek</strong></td><td>SPL — Sports Pool Lounge (biliar) · Smokehouse Resto (F&amp;B)</td></tr></tbody></table></div><hr>
+<h2 id="0-cara-membaca-dokumen-ini">0. Cara membaca dokumen ini</h2><p>Dokumen ini adalah <strong>satu-satunya sumber keputusan</strong>. Ia disusun dari tujuh draft detail dan empat dokumen riset, lalu diaudit oleh tiga peninjau independen (pemilik usaha skeptis, senior engineer/security, dan kritikus kelengkapan) yang menghasilkan <strong>85 temuan, 24 di antaranya blocker</strong>. Semua blocker itu sudah diselesaikan dan keputusannya dicatat di <strong>§4 Registri Keputusan Kanonik</strong>.</p>
+<p>Draft detailnya tetap disimpan sebagai lampiran di <code>docs/lampiran/</code> karena isinya kaya dan berguna untuk developer. Tapi lampiran itu <strong>saling bertentangan di banyak tempat</strong> — itulah sebabnya §4 dan §5 ada.</p>
+<blockquote>
+<p><strong>Aturan presedensi, tidak bisa ditawar:</strong>
+<strong>§4 Registri Keputusan Kanonik</strong> dan <strong>§5 Konstanta Global</strong> mengalahkan isi lampiran mana pun.
+Kalau developer menemukan angka berbeda di lampiran, yang dipakai adalah angka di dokumen ini.</p>
+</blockquote>
+<p><strong>Penanda yang dipakai:</strong></p>
+<div class="scroller"><table><thead><tr><th>Penanda</th><th>Arti</th></tr></thead><tbody><tr><td><strong>[PERLU KONFIRMASI]</strong></td><td>Asumsi yang harus dijawab pemilik sebelum coding dimulai. Terkumpul di §12.</td></tr><tr><td><strong>ASUMSI:</strong></td><td>Angka yang saya tetapkan sendiri agar dokumen bisa dihitung. Boleh diganti.</td></tr><tr><td><code>KK-xx</code></td><td>Keputusan Kanonik — mengunci satu pilihan dari beberapa yang bertentangan</td></tr><tr><td><code>AT/BK/FB/PAY/AD/FN-xx</code></td><td>ID requirement per modul</td></tr><tr><td><strong>R1 / R2 / R3</strong></td><td>Rilis 1, 2, 3 — lihat §10</td></tr></tbody></table></div><hr>
+<h2 id="1-ringkasan-eksekutif">1. Ringkasan eksekutif</h2><p>SPL Sports Pool Lounge dan Smokehouse Resto adalah satu venue dengan dua sub-merek: area biliar dan dapur smokehouse. Keduanya berjalan tanpa sistem transaksi. Booking masuk lewat WhatsApp, dicatat di papan tulis, dan omzet baru diketahui saat uang tunai dihitung dini hari.</p>
+<p>Produk ini adalah <strong>web app mobile-first (PWA)</strong> yang memindahkan tiga transaksi inti ke satu inventaris tunggal:</p>
+<ol>
+<li><strong>Booking sesi meja</strong> dengan pembayaran QRIS di muka — slot terkunci hanya setelah uang masuk</li>
+<li><strong>Pemesanan F&amp;B</strong> yang menempel ke sesi meja yang sama, satu tagihan</li>
+<li><strong>Pencatatan walk-in oleh kasir</strong> di sistem yang sama persis — tanpa ini, papan meja online akan selalu berbohong</li>
+</ol>
+<p>Ditambah panel admin real-time, pengaturan meja &amp; harga tanpa deploy ulang, dan dashboard keuangan yang memisahkan omzet kotor, potongan gateway, pajak, dan uang yang benar-benar masuk rekening.</p>
+<p><strong>Yang membuat dokumen ini berbeda dari PRD biasa:</strong> tiga hal paling mahal di produk semacam ini — double-booking, uang masuk tapi slot hilang, dan laporan keuangan yang menyesatkan — sudah dirancang solusinya sampai level DDL PostgreSQL dan urutan operasi webhook, bukan sekadar disebut sebagai &quot;harus dicegah&quot;.</p>
+<h3 id="kenapa-ini-layak-dibangun">Kenapa ini layak dibangun</h3><p>Angka berikut memakai <strong>data nyata dari pemilik</strong> (34 meja: 30 reguler + 4 VIP) dan <strong>tarif resmi dari PRICELIST BILLIARD.pdf</strong> — bukan asumsi:</p>
+<div class="scroller"><table><thead><tr><th>Tarif</th><th>Nilai</th></tr></thead><tbody><tr><td>Reguler 11.00–18.00</td><td>Rp 29.000 / jam</td></tr><tr><td>Reguler 18.00–tutup</td><td>Rp 39.000 / jam</td></tr><tr><td>VIP Room</td><td>Rp 50.000 / jam</td></tr><tr><td>Paket Siang</td><td>Rp 50.000 (2 jam + 2 minuman, mulai s/d 16.00)</td></tr></tbody></table></div><p>Dengan jam operasional 11.00–02.00 (<strong>15 jam</strong>, 7 jam tarif siang + 8 jam tarif malam):</p>
+<div class="scroller"><table><thead><tr><th>Besaran</th><th>Perhitungan</th><th>Nilai</th></tr></thead><tbody><tr><td>Kapasitas harian</td><td>34 meja × 15 jam</td><td><strong>510 jam-meja</strong></td></tr><tr><td>Nilai kapasitas reguler</td><td>30 × (7×29.000 + 8×39.000)</td><td>Rp 15.450.000 / hari</td></tr><tr><td>Nilai kapasitas VIP</td><td>4 × 15 × 50.000</td><td>Rp 3.000.000 / hari</td></tr><tr><td>Nilai kapasitas penuh</td><td>—</td><td><strong>Rp 18,45 juta / hari</strong></td></tr><tr><td><strong>Nilai 1 poin utilisasi</strong></td><td>1% × Rp 18,45 juta × 30</td><td><strong>± Rp 5,5 juta / bulan</strong></td></tr></tbody></table></div><p>Setiap <strong>satu poin persentase</strong> kenaikan utilisasi meja bernilai sekitar <strong>Rp 5,5 juta per bulan</strong>. Naik 10 poin bernilai ±Rp 55 juta/bulan — dua digit lebih besar daripada seluruh biaya hosting berbayar (±Rp 430.000/bulan) dan seluruh potongan MDR QRIS digabung.</p>
+<p>Dengan 34 meja, argumennya justru makin kuat: <strong>mengelola 34 meja dengan papan tulis praktis mustahil</strong>. Tiap satu meja yang salah catat pada jam prime berarti Rp 39.000 hilang, dan pada skala ini kesalahan seperti itu tidak lagi sesekali.</p>
+<p>Itulah kenapa fitur yang benar-benar penting bukan yang terlihat canggih, melainkan yang <strong>mengisi jam kosong</strong> (happy hour terjadwal, booking jauh hari) dan <strong>menghentikan kebocoran</strong> (no-show tanpa konsekuensi, cash tidak tercatat).</p>
+<hr>
+<h2 id="2-masalah-saat-ini">2. Masalah saat ini</h2><p>Setiap masalah diberi ID <code>MS-xx</code> agar bisa dilacak ke requirement. Frekuensi adalah <strong>ASUMSI</strong> yang perlu dikoreksi pemilik.</p>
+<div class="scroller"><table><thead><tr><th>ID</th><th>Masalah</th><th>Kerugian</th></tr></thead><tbody><tr><td><strong>MS-01</strong></td><td>Booking WhatsApp tidak punya sumber kebenaran — chat tenggelam, shift berikutnya tidak tahu</td><td>±Rp 1,7 juta/bulan sesi hangus, belum termasuk pelanggan yang tidak kembali</td></tr><tr><td><strong>MS-02</strong></td><td>Papan tulis mati saat ganti shift — booking H+2 tidak tercatat sama sekali</td><td>Seluruh segmen &quot;rencana akhir pekan&quot; dan booking rombongan hilang. Ini justru transaksi bernilai terbesar</td></tr><tr><td><strong>MS-03</strong></td><td>Telepon masuk saat jam tersibuk</td><td>±36 menit/malam kasir tidak melayani tamu di depannya</td></tr><tr><td><strong>MS-04</strong></td><td>Double-booking &amp; salah catat</td><td>±Rp 300.000/bulan kompensasi + kerusakan reputasi. Masalah yang paling dirasakan pelanggan</td></tr><tr><td><strong>MS-05</strong></td><td>Jam mati 11:00–17:00 kosong tanpa upaya terukur</td><td>±40 jam-meja menganggur/hari. Kapasitas tidak bisa disimpan untuk besok</td></tr><tr><td><strong>MS-06</strong></td><td>Tidak tahu omzet per meja per jam</td><td>Keputusan harga diambil berdasarkan perasaan, di bisnis yang marginnya ditentukan harga. Tutup buku manual ±22 jam/bulan</td></tr><tr><td><strong>MS-07</strong></td><td>No-show tanpa konsekuensi</td><td>±Rp 1,2 juta/bulan kapasitas hilang, terutama di jam prime</td></tr><tr><td><strong>MS-08</strong></td><td>F&amp;B tidak menempel ke sesi meja</td><td>Attach rate tidak diketahui → tidak bisa dinaikkan. Padahal marginnya lebih tinggi dari sewa meja</td></tr><tr><td><strong>MS-09</strong></td><td>Kebocoran kas tidak terdeteksi</td><td>Tanpa struk berurut &amp; rekonsiliasi shift, kebocoran hanya ketahuan kalau besar</td></tr></tbody></table></div><hr>
+<h2 id="3-persona-amp-perjalanan-pengguna">3. Persona &amp; perjalanan pengguna</h2><h3 id="31-persona">3.1 Persona</h3><div class="scroller"><table><thead><tr><th>Persona</th><th>Konteks</th><th>Kebutuhan utama</th><th>Frustrasi hari ini</th></tr></thead><tbody><tr><td><strong>Reguler</strong> (Andi, 26)</td><td>Main 2–3×/minggu, selalu meja yang sama, HP Android mid-range</td><td>Booking cepat tanpa banyak ketik, tahu meja favoritnya kosong atau tidak</td><td>Harus chat dan menunggu balasan; sering meja favorit sudah diambil</td></tr><tr><td><strong>Rombongan</strong> (Dina, 31)</td><td>Ulang tahun kantor, 10 orang, butuh 2–3 meja berdekatan</td><td>Kepastian. Mau bayar di muka asal dijamin</td><td>Tidak ada yang berani menjamin lewat WA; harus datang survei dulu</td></tr><tr><td><strong>Kasir</strong> (Rian, 22)</td><td>Shift 17:00–02:00, berdiri, satu tangan pegang HP/tablet</td><td>Buka sesi walk-in dalam &lt; 10 detik, lihat semua meja sekaligus</td><td>Papan tulis, telepon, dan tamu bersamaan</td></tr><tr><td><strong>Pemilik</strong> (Pak Budi)</td><td>Datang 2–3×/minggu, cek laporan dari rumah</td><td>Angka jujur: omzet, meja terlaris, jam sepi</td><td>Harus percaya catatan tangan; tidak bisa membandingkan bulan</td></tr></tbody></table></div><h3 id="32-tiga-perjalanan-inti">3.2 Tiga perjalanan inti</h3><p><strong>JRN-A — Booking online dari rumah (Andi)</strong>
+Buka web → lihat papan meja Sabtu → pilih 20:00, 2 jam, Meja 3 → tambah 2 kopi &amp; 1 wings → total tampil final (sudah termasuk pajak) → login email (magic link) → QRIS muncul dengan countdown 15:00 → bayar dari m-banking → <strong>slot terkunci hanya setelah webhook <code>settlement</code> masuk</strong> → e-struk + kode check-in 6 digit.</p>
+<p><strong>JRN-B — Walk-in lalu pesan dari meja (tamu tanpa akun)</strong>
+Datang → kasir buka sesi walk-in di sistem (bukan di kepala) → tamu scan QR di meja → menu terbuka tanpa perlu daftar → pesan → bayar QRIS atau tandai &quot;bayar di kasir&quot; → tiket masuk dapur/bar.</p>
+<p><strong>JRN-C — Tutup buku (Pak Budi, pagi hari)</strong>
+Buka dashboard → lihat rekap hari operasional kemarin (batas 02:00, bukan tengah malam) → omzet kotor, potongan MDR, pajak terpungut, net → per kanal (QRIS/cash/EDC) → heatmap jam-vs-hari untuk memutuskan happy hour → ekspor CSV.</p>
+<hr>
+<h2 id="4-registri-keputusan-kanonik">4. Registri Keputusan Kanonik</h2><p>Ini inti dokumen. Setiap baris menyelesaikan satu kontradiksi nyata yang ditemukan auditor. <strong>Keputusan di sini final kecuali pemilik mengubahnya.</strong></p>
+<h3 id="kk-01-kebijakan-pembatalan-satu-tabel-bukan-empat" class="kk"><span class="kk-chip">KK-01</span><span class="kk-title">Kebijakan pembatalan: SATU tabel, bukan empat</span></h3><p>Auditor menemukan <strong>empat kebijakan berbeda</strong> hidup bersamaan di lampiran (&gt;4 jam, &gt;24 jam, refund 50%, hangus total). Kebijakan pembatalan adalah <strong>janji hukum kepada pelanggan yang sudah membayar</strong> dan ditampilkan sebelum ia menekan bayar — tidak boleh ada dua versi.</p>
+<div class="scroller"><table><thead><tr><th>Waktu pembatalan sebelum sesi</th><th>Yang didapat pelanggan</th></tr></thead><tbody><tr><td><strong>&gt; 12 jam</strong></td><td>Store credit <strong>100%</strong></td></tr><tr><td><strong>3–12 jam</strong></td><td>Store credit <strong>50%</strong></td></tr><tr><td><strong>&lt; 3 jam</strong></td><td>Hangus</td></tr><tr><td><strong>Reschedule</strong></td><td>Gratis 1× sampai H-3 jam, tanpa potongan</td></tr></tbody></table></div><p><strong>Tidak ada refund uang otomatis.</strong> Alasannya bukan pelit — lihat KK-02. Store credit tidak kedaluwarsa selama akun aktif, berlaku untuk sesi meja maupun F&amp;B.
+<strong>[PERLU KONFIRMASI]</strong> Angka 12/3 jam dan besaran 100%/50% adalah rekomendasi saya; pemilik berhak mengubah, tapi <strong>hanya boleh ada satu versi</strong>.</p>
+<h3 id="kk-02-refund-qris-store-credit-bukan-pengembalian-uang-otoma" class="kk"><span class="kk-chip">KK-02</span><span class="kk-title">Refund QRIS: store credit, bukan pengembalian uang otomatis</span></h3><p>Terverifikasi dari dokumentasi Midtrans:</p>
+<blockquote>
+<p>&quot;Refund request is mostly applicable in Card Payment transactions&quot;
+&quot;Refund for other payment methods can be processed by the merchant itself, usually by transferring the money back.&quot;</p>
+</blockquote>
+<p>Artinya refund QRIS <strong>tidak bisa diandalkan lewat API</strong>. Memaksakannya berarti membangun fitur yang gagal diam-diam.</p>
+<p><strong>Keputusan:</strong> MVP memakai store credit. Refund uang tunai tetap mungkin tapi sebagai <strong>proses manual</strong> oleh admin (transfer bank), dicatat sebagai pengeluaran dengan alasan wajib dan jejak audit.</p>
+<h3 id="kk-03-mode-tampilan-harga-tax-inclusive" class="kk"><span class="kk-chip">KK-03</span><span class="kk-title">Mode tampilan harga: TAX-INCLUSIVE</span></h3><p>Lampiran B/D/E memakai tax-inclusive, lampiran C merekomendasikan tax-exclusive. Sesi yang sama menghasilkan Rp 140.000 vs Rp 154.000 — dua angka berbeda ditagihkan ke pelanggan.</p>
+<p><strong>Keputusan: TAX-INCLUSIVE.</strong> Harga yang dilihat pelanggan adalah harga final yang dibayar. Alasannya mengikat: QRIS dibayar <strong>di muka</strong>, jadi angka di layar harus sama persis dengan angka di QR. Kalau exclusive, pelanggan melihat Rp 140.000 lalu ditagih Rp 154.000 — itu sengketa, bukan UX.</p>
+<p>Perhitungan mundur (contoh PBJT 10%):</p>
+<div class="scroller"><pre><code>harga_tayang = 140.000  (yang dilihat &amp; dibayar pelanggan)
+DPP          = 140.000 / 1,10 = 127.273
+PBJT         = 140.000 - 127.273 = 12.727</code></pre></div><p>Kolom <code>venue_settings.price_display_mode</code> tetap ada agar bisa diubah, <strong>default <code>inclusive</code></strong>.</p>
+<h3 id="kk-04-anggaran-waktu-hold-15-17-19-menit" class="kk"><span class="kk-chip">KK-04</span><span class="kk-title">Anggaran waktu hold: 15 / 17 / 19 menit</span></h3><p>Ditemukan empat nilai berbeda (8, 10, 15, 17), dan satu lampiran bertentangan dengan dirinya sendiri (<code>hold_duration_minutes = 15</code> <strong>dan</strong> <code>gateway_expiry_minutes = 15</code> — tabrakan di detik yang sama).</p>
+<div class="scroller"><table><thead><tr><th>Parameter</th><th>Nilai</th><th>Peran</th></tr></thead><tbody><tr><td><code>gateway_expiry_minutes</code></td><td><strong>15</strong></td><td><code>custom_expiry</code> yang dikirim ke Midtrans. Ini yang dilihat pelanggan sebagai countdown</td></tr><tr><td><code>hold_duration_minutes</code></td><td><strong>17</strong></td><td><code>hold_expires_at</code> di database</td></tr><tr><td><code>hold_grace_minutes</code></td><td><strong>2</strong></td><td>Job pelepasan efektif jalan di T+19</td></tr></tbody></table></div><p><strong>Invariant yang tidak boleh dilanggar: <code>gateway &lt; DB &lt; job</code>.</strong> Kalau ketiganya sama, skenario &quot;uang masuk, slot hilang&quot; terjadi.</p>
+<p><strong>Koreksi penting terhadap lampiran:</strong> lampiran mengklaim <em>&quot;dokumentasi Midtrans mewajibkan expiry_duration ≥ 15 menit karena batch processing&quot;</em>. <strong>Klaim itu tidak benar.</strong> Saya cek langsung — Midtrans hanya mendokumentasikan expiry <strong>maksimum</strong> (QRIS/ShopeePay 5 hari, GoPay 7 hari); tidak ada minimum. Angka 15 menit adalah <strong>pilihan produk</strong>, dengan dasar yang memang terverifikasi:</p>
+<ul>
+<li>SLA notifikasi expiry Midtrans &quot;up to 90s&quot; → itulah dasar grace 2 menit</li>
+<li>Alur bayar QRIS nyata (buka m-banking, scan, PIN, konfirmasi) realistis 2–5 menit</li>
+</ul>
+<p>Ketiga angka disimpan di tabel settings, <strong>bukan hardcode</strong>, agar bisa diturunkan ke 10/12/14 setelah ada data okupansi nyata.</p>
+<h3 id="kk-05-status-booking-satu-enum-postgresql-bukan-text-bebas" class="kk"><span class="kk-chip">KK-05</span><span class="kk-title">Status booking: satu enum PostgreSQL, bukan text bebas</span></h3><p>Ditemukan empat daftar status berbeda (<code>seated</code> vs <code>checked_in</code>, <code>expired</code> vs <code>expired_unpaid</code>, <code>cancelled</code> vs <code>cancelled_by_user</code>). Akibatnya cron <code>expire_stale_holds()</code> akan gagal tiap menit dengan constraint violation — hold tidak pernah dilepas dan tidak ada yang tahu.</p>
+<div class="scroller"><pre><code>create type booking_status as enum (
+  'hold', 'confirmed', 'checked_in', 'in_progress', 'completed',
+  'cancelled_by_user', 'cancelled_by_admin', 'expired_unpaid',
+  'no_show', 'paid_unfulfilled', 'refunded'
+);</code></pre></div><p>Dipakai tipe <strong>enum</strong>, bukan <code>text</code> + CHECK, supaya query yang menyebut nilai tak dikenal <strong>gagal saat migrasi, bukan saat runtime jam 9 malam</strong>.</p>
+<p>Pemetaan istilah lama → kanonik: <code>seated</code> → <code>in_progress</code>, <code>expired</code> → <code>expired_unpaid</code>, <code>cancelled</code> → <code>cancelled_by_user</code> atau <code>cancelled_by_admin</code> (harus dipilih eksplisit).</p>
+<h3 id="kk-06-peran-pengguna-manager-bukan-admin" class="kk"><span class="kk-chip">KK-06</span><span class="kk-title">Peran pengguna: manager, bukan admin</span></h3><p>Matriks approval anti-fraud di lampiran ditulis di atas peran <code>admin</code> yang tidak pernah didefinisikan. Policy RLS akan mengevaluasi <code>role=&#39;admin&#39;</code> yang selalu false → owner kehilangan akses tanpa error.</p>
+<div class="scroller"><pre><code>create type user_role as enum ('customer','floor','kitchen','cashier','manager','owner');</code></pre></div><p>Istilah <code>admin</code> <strong>dihapus dari seluruh dokumen</strong>. Kalau maksudnya &quot;yang boleh menyetujui&quot;, itu <code>manager</code> atau <code>owner</code>.</p>
+<h3 id="kk-07-booking-rombongan-multi-meja-masuk-mvp-dengan-booking_" class="kk"><span class="kk-chip">KK-07</span><span class="kk-title">Booking rombongan multi-meja: masuk MVP, dengan booking_group</span></h3><p>Lampiran menjanjikan Dina memesan 2 meja dalam satu QRIS, tapi modelnya tidak mendukung (satu baris <code>bookings</code> = satu meja, batas 2 hold/akun).</p>
+<p>Rombongan adalah transaksi <strong>bernilai terbesar</strong> dan justru segmen yang paling hilang hari ini (MS-02). Kalau tidak bisa mengunci 3 meja dalam satu pembayaran, pelanggan kembali ke WhatsApp.</p>
+<p><strong>Keputusan:</strong> tambahkan entitas <code>booking_groups</code>. Satu grup = N baris <code>bookings</code>, <strong>satu</strong> <code>order_id</code>, hold &amp; pembayaran <strong>atomik</strong>: kalau satu meja gagal exclusion constraint, seluruh grup gagal dan tidak ada uang ditarik. Batas hold dinaikkan ke <strong>1 grup aktif berisi maksimal 4 meja</strong> per akun.</p>
+<h3 id="kk-08-walk-in-yang-belum-selesai-saat-jam-booking-tiba-requi" class="kk"><span class="kk-chip">KK-08</span><span class="kk-title">Walk-in yang belum selesai saat jam booking tiba: requirement MVP</span></h3><p>Auditor pemilik menyebut ini &quot;kejadian nomor satu di venue biliar, bukan kasus tepi&quot; — dan <strong>tidak ada satu pun aturan</strong> untuk itu di seluruh draft. Semua jaminan anti-double-booking di level database tidak berarti kalau manusia yang menempati meja tidak bisa dipindahkan.</p>
+<p>Requirement MVP:</p>
+<ol>
+<li>Peringatan otomatis ke kasir <strong>dan</strong> ke meja walk-in pada <strong>T-10</strong> dan <strong>T-3 menit</strong></li>
+<li><strong>Relokasi satu-ketuk</strong> untuk <em>pemesan</em> (bukan hanya walk-in) ke meja setara yang kosong</li>
+<li>Kalau tidak ada meja setara: kompensasi terstruktur (store credit otomatis, nominal dari setting) + alasan wajib + jejak audit</li>
+<li>Kasir bisa menandai &quot;walk-in diperpanjang&quot; yang langsung memblokir slot berikutnya agar tidak dijual online</li>
+</ol>
+<h3 id="kk-09-skema-harga-satu-bentuk-kanonik" class="kk"><span class="kk-chip">KK-09</span><span class="kk-title">Skema harga: satu bentuk kanonik</span></h3><p>Ada <strong>tiga skema harga tidak kompatibel</strong> di tiga lampiran. Seed dari satu lampiran akan langsung ditolak CHECK constraint lampiran lain.</p>
+<p>Kanonik: tabel <code>pricing_rules</code> dengan <code>days_of_week smallint[]</code> (lebih ekspresif daripada enum <code>day_type</code>), <code>table_type_id</code> sebagai FK ke tabel <code>table_types</code> (bukan enum text), dan resolusi konflik berdasarkan <code>priority</code> lalu spesifisitas. DDL lengkap di §8.3.</p>
+<p>Tipe meja kanonik: <code>regular</code>, <code>vip</code>, <code>tournament</code>.</p>
+<h3 id="kk-10-exclusion-constraint-harus-mengabaikan-hold-yang-kedal" class="kk"><span class="kk-chip">KK-10</span><span class="kk-title">Exclusion constraint harus mengabaikan hold yang kedaluwarsa</span></h3><p>Predikat di lampiran memasukkan status <code>hold</code> <strong>tanpa</strong> syarat <code>hold_expires_at &gt; now()</code>. Akibatnya hold yang sudah mati tetap memblokir slot sampai cron jalan — padahal dokumen mengklaim &quot;ketersediaan tidak bergantung pada cron&quot;. Klaim itu hanya berlaku untuk <em>tampilan</em>, tidak untuk <em>penulisan</em>.</p>
+<p><strong>Keputusan:</strong> di dalam <code>create_booking_hold</code>, <strong>sebelum INSERT dan di transaksi yang sama</strong>, jalankan pembersihan hold kedaluwarsa untuk meja itu. Detail SQL di §8.4. Cron tetap ada sebagai jaring pengaman, bukan sebagai mekanisme utama.</p>
+<h3 id="kk-11-satu-qr-aktif-per-booking-bukan-satu-pembayaran-per-bo" class="kk"><span class="kk-chip">KK-11</span><span class="kk-title">Satu QR aktif per booking, bukan satu pembayaran per booking</span></h3><p>Index unik di lampiran melarang lebih dari satu pembayaran QRIS <code>pending</code> <strong>atau</strong> <code>paid</code> per booking. Itu langsung mematikan fitur perpanjang sesi dan F&amp;B tambahan — keduanya ditandai MUST.</p>
+<div class="scroller"><pre><code>-- SALAH (mematikan perpanjangan &amp; F&amp;B tambahan):
+-- where status in ('pending','paid')
+
+-- BENAR — hanya cegah dua QR menganggur bersamaan:
+create unique index payments_one_pending_qris_per_booking
+  on public.payments (booking_id)
+  where status = 'pending' and channel = 'qris_online';</code></pre></div><p>Idempotensi tetap dijaga oleh <code>unique(order_id)</code>.</p>
+<h3 id="kk-12-role-dan-saldo-store-credit-tidak-boleh-berada-di-tabe" class="kk"><span class="kk-chip">KK-12</span><span class="kk-title">role dan saldo store credit TIDAK boleh berada di tabel profiles</span></h3><p>Pola default Supabase adalah <code>create policy ... for update using (auth.uid() = id)</code>. Kalau <code>role</code> dan <code>store_credit_balance</code> ada di <code>profiles</code>, <strong>pelanggan bisa menaikkan perannya sendiri menjadi owner dan menambah saldonya sendiri</strong> lewat satu request PATCH. Ini eskalasi hak akses paling klasik di Supabase.</p>
+<p><strong>Keputusan tiga lapis:</strong></p>
+<ol>
+<li><code>role</code> pindah ke tabel <code>user_roles</code> yang <strong>tidak punya policy INSERT/UPDATE untuk <code>authenticated</code> sama sekali</strong></li>
+<li>Store credit pindah ke ledger <code>store_credits</code> (append-only); saldo adalah <strong>hasil SUM</strong>, bukan kolom yang bisa ditulis</li>
+<li>Policy UPDATE pada <code>profiles</code> dibatasi per-kolom (hanya <code>full_name</code>, <code>phone</code>, preferensi)</li>
+</ol>
+<h3 id="kk-13-satu-tabel-audit_log-bukan-dua" class="kk"><span class="kk-chip">KK-13</span><span class="kk-title">Satu tabel audit_log, bukan dua</span></h3><p>Dua lampiran mendefinisikan <code>public.audit_log</code> dengan skema tidak kompatibel. Migrasi kedua akan gagal <code>relation already exists</code>, atau lebih buruk: tim menjalankan salah satu dan seluruh laporan anti-fraud di lampiran lain diam-diam kosong.</p>
+<p>Kanonik: nama kolom waktu <code>occurred_at</code>, <code>actor_id uuid NULL</code> (NULL = sistem/cron) dengan CHECK <code>(actor_id is not null or action like &#39;cron.%&#39;)</code>, gabungan superset kolom keduanya. DDL di §8.3.</p>
+<h3 id="kk-14-gateway-pembayaran-midtrans-saja-di-mvp" class="kk"><span class="kk-chip">KK-14</span><span class="kk-title">Gateway pembayaran: Midtrans saja di MVP</span></h3><p>Pemilik menyebut &quot;Doku atau Midtrans&quot;. Membangun keduanya menggandakan permukaan bug rekonsiliasi <strong>tanpa menambah satu pun pelanggan yang bisa membayar</strong> — QRIS itu interoperabel, satu QR bisa dibayar dari e-wallet dan m-banking mana pun.</p>
+<p><strong>Midtrans Core API</strong> (bukan Snap), karena halaman pembayaran harus ber-brand SPL, bukan UI putih generik gateway. Abstraksi <code>PaymentProvider</code> tetap dibuat agar Doku/Xendit bisa ditambah nanti tanpa membongkar ulang.</p>
+<h3 id="kk-15-kitchen-display-system-kds-masuk-mvp" class="kk"><span class="kk-chip">KK-15</span><span class="kk-title">Kitchen Display System (KDS): masuk MVP</span></h3><p>Lampiran bertentangan (satu bilang Fase 2, satu bilang MVP dengan 20 requirement MUST).</p>
+<p><strong>Keputusan: KDS masuk MVP, tapi versi paling sederhana</strong> — satu layar daftar tiket dengan empat status dan tombol besar. Alasannya: tanpa KDS, order F&amp;B online hanya berpindah dari &quot;diteriakkan ke dapur&quot; menjadi &quot;dicetak lalu diteriakkan&quot; — masalah MS-08 tidak selesai. Yang <strong>tidak</strong> masuk MVP: pemisahan tiket dapur vs bar, estimasi waktu saji, dan routing per-station. Itu Fase 2.</p>
+<h3 id="kk-16-offline-mode-darurat-masuk-mvp-versi-termurah" class="kk"><span class="kk-chip">KK-16</span><span class="kk-title">Offline: mode darurat masuk MVP (versi termurah)</span></h3><p>Draft menaruh offline queue di Fase 2. Tapi internet mati 1–2×/bulan adalah <strong>kepastian</strong>, dan saat itu kasir sama sekali tidak bisa membuka sesi walk-in. Satu malam offline = seluruh walk-in dicatat di kertas = staf belajar bahwa &quot;sistemnya kadang tidak bisa dipakai, kertas selalu bisa&quot;. Kebiasaan itu tidak bisa dibalik.</p>
+<p><strong>MVP mendapat versi paling murah</strong>, bukan sinkronisasi dua arah:</p>
+<ol>
+<li>RPC staf <strong>wajib menerima</strong> <code>starts_at</code>/<code>ends_at</code> di masa lalu dengan flag <code>entered_late</code> + alasan</li>
+<li>Tombol <strong>&quot;Cetak Jadwal &amp; Lembar Tally Hari Ini&quot;</strong> — kertas terstruktur yang kolomnya persis field yang harus diinput ulang</li>
+<li>Banner merah jelas saat offline, dengan instruksi eksplisit</li>
+</ol>
+<p>Sinkronisasi otomatis dua arah tetap Fase 2.</p>
+<h3 id="kk-17-modul-autentikasi-dan-modul-pembayaran-harus-ditulis" class="kk"><span class="kk-chip">KK-17</span><span class="kk-title">Modul Autentikasi dan modul Pembayaran harus ditulis</span></h3><p>Auditor kelengkapan menemukan bahwa <strong>dua dari sebelas permintaan eksplisit pemilik</strong> — login email dan pembayaran QRIS, keduanya tepat di jalur uang — hanya disebut sekilas dan tidak punya seksi fungsional, ID kanonik, maupun acceptance criteria. ID <code>PAY-xx</code> dan <code>WH-xx</code> dirujuk di banyak tempat tapi <strong>tidak pernah didefinisikan di mana pun</strong>.</p>
+<p>Kedua modul ditulis di §7.1 dan §7.4 dokumen ini.</p>
+<h3 id="kk-18-prefix-id-dan-registri-global" class="kk"><span class="kk-chip">KK-18</span><span class="kk-title">Prefix ID dan registri global</span></h3><p>Prefix kanonik, tidak boleh bertabrakan:</p>
+<div class="scroller"><table><thead><tr><th>Prefix</th><th>Modul</th><th>Pemilik</th></tr></thead><tbody><tr><td><code>AT-xx</code></td><td>Autentikasi &amp; akun</td><td>§7.1</td></tr><tr><td><code>BK-xx</code></td><td>Booking meja</td><td>§7.2</td></tr><tr><td><code>FB-xx</code></td><td>F&amp;B &amp; KDS</td><td>§7.3</td></tr><tr><td><code>PAY-xx</code></td><td>Pembayaran &amp; charge</td><td>§7.4</td></tr><tr><td><code>WH-xx</code></td><td>Webhook &amp; rekonsiliasi</td><td>§7.4</td></tr><tr><td><code>AD-xx</code></td><td>Admin &amp; operasional</td><td>§7.5</td></tr><tr><td><code>FN-xx</code></td><td>Keuangan &amp; laporan</td><td>§7.6</td></tr><tr><td><code>SEC-xx</code></td><td>Keamanan</td><td>§8.6</td></tr><tr><td><code>R-*</code></td><td><strong>ID milik dokumen riset</strong> — beri prefix <code>R-</code> agar tidak tertukar</td><td>lampiran</td></tr></tbody></table></div><p>Rujukan ke ID riset di dalam lampiran <strong>harus</strong> diberi prefix <code>R-</code>.</p>
+<h3 id="kk-19-zona-waktu-dan-hari-operasional" class="kk"><span class="kk-chip">KK-19</span><span class="kk-title">Zona waktu dan hari operasional</span></h3><p>Semua timestamp disimpan <code>timestamptz</code>. Tampilan dan pelaporan memakai <code>Asia/Jakarta</code>. Hari operasional berakhir <strong>02:00 WIB</strong>, bukan tengah malam:</p>
+<div class="scroller"><pre><code>business_date = ((starts_at at time zone 'Asia/Jakarta') - interval '2 hours')::date</code></pre></div><div class="scroller"><table><thead><tr><th><code>starts_at</code> WIB</th><th><code>business_date</code></th></tr></thead><tbody><tr><td>23 Agu 20:00</td><td>23 Agu</td></tr><tr><td>24 Agu 00:30</td><td>23 Agu ← kritikal</td></tr><tr><td>24 Agu 01:59</td><td>23 Agu</td></tr><tr><td>24 Agu 02:00</td><td>24 Agu</td></tr></tbody></table></div><h3 id="kk-20-model-waktu-tstzrange-half-open-bukan-slot-diskrit" class="kk"><span class="kk-chip">KK-20</span><span class="kk-title">Model waktu: tstzrange half-open, bukan slot diskrit</span></h3><p>Sumber kebenaran adalah rentang bebas <code>tstzrange</code> per booking, dilindungi <code>EXCLUDE USING gist</code>. UI menampilkan grid 30 menit yang <strong>disintesis saat baca</strong>.</p>
+<blockquote>
+<p><strong>Aturan yang paling sering salah:</strong> bound harus <strong>half-open <code>&#39;[)&#39;</code></strong>. Dengan <code>&#39;[]&#39;</code>, sesi 20:00–21:00 dan 21:00–22:00 saling menolak dan venue kehilangan penjualan pada slot bersebelahan. Test yang hanya menguji overlap penuh tidak akan menangkap ini.</p>
+</blockquote>
+<h3 id="kk-21-mdr-dihitung-berjenjang-bukan-flat" class="kk"><span class="kk-chip">KK-21</span><span class="kk-title">MDR dihitung berjenjang, bukan flat</span></h3><p>Aturan Bank Indonesia berlaku <strong>1 Oktober 2026</strong>:</p>
+<div class="scroller"><table><thead><tr><th>Kategori merchant</th><th>Bebas MDR s/d</th><th>Di atas batas</th></tr></thead><tbody><tr><td><strong>Usaha Mikro (UMi)</strong></td><td>Rp 500.000</td><td>0,3%</td></tr><tr><td>Usaha Kecil/Menengah/Besar</td><td>Rp 100.000</td><td>0,7%</td></tr></tbody></table></div><p>Mayoritas booking biliar Rp 50.000–300.000. <strong>Kalau merchant terdaftar UMi, hampir semua transaksi kena MDR 0%.</strong> Kalau UKE, di atas Rp 100.000 kena 0,7% — pada omzet online Rp 50 juta/bulan itu Rp 350.000/bulan.</p>
+<div class="scroller"><pre><code>mdr = (gross &lt;= mdr_free_threshold) ? 0 : round(gross * mdr_rate)</code></pre></div><p><code>merchant_category</code>, <code>mdr_free_threshold</code>, dan <code>mdr_rate</code> disimpan di settings — aturan BI bisa berubah lagi.</p>
+<p><strong>Aksi bisnis:</strong> cek kelayakan pendaftaran kategori <strong>UMi</strong> saat onboarding merchant. <strong>[PERLU KONFIRMASI]</strong> BI umumnya melarang membebankan MDR ke konsumen — konfirmasi ke acquirer sebelum menambahkan biaya apa pun di sisi pelanggan.</p>
+<h3 id="kk-22-hosting-cloudflare-pages-supabase-bukan-vercel-hobby-b" class="kk"><span class="kk-chip">KK-22</span><span class="kk-title">Hosting: Cloudflare Pages + Supabase. Bukan Vercel Hobby, bukan GitHub Pages</span></h3><p>Pemilik menyebut GitHub. Keduanya <strong>melanggar ToS</strong>, bukan sekadar kurang cocok secara teknis.</p>
+<blockquote>
+<p><strong>GitHub Pages</strong> cannot be used <em>&quot;as a free web-hosting service to run your online business, e-commerce site, or any other website that is primarily directed at either facilitating commercial transactions...&quot;</em></p>
+</blockquote>
+<blockquote>
+<p><strong>Vercel Hobby</strong>: <em>&quot;Hobby teams are restricted to non-commercial personal use only. All commercial usage of the platform requires either a Pro or Enterprise plan.&quot;</em> — dan definisi commercial usage mereka mencakup <em>&quot;any method of requesting or processing payment from visitors of the site&quot;</em>.</p>
+</blockquote>
+<div class="scroller"><table><thead><tr><th>Opsi</th><th>Legal untuk usaha berbayar?</th><th>Kuota</th></tr></thead><tbody><tr><td>GitHub Pages</td><td>❌ Tidak</td><td>—</td></tr><tr><td>Vercel Hobby</td><td>❌ Tidak</td><td>—</td></tr><tr><td><strong>Cloudflare Pages/Workers</strong></td><td>✅ <strong>Ya</strong></td><td>100.000 req function/<strong>hari</strong>, static unlimited</td></tr><tr><td>Netlify Free</td><td>✅ Ya</td><td>125.000 invocation/bulan</td></tr><tr><td>Supabase Free</td><td>✅ Ya</td><td>500 MB DB, 50k MAU, 200 realtime conn</td></tr></tbody></table></div><p><strong>Keputusan: Cloudflare Pages (SPA statis) + Supabase (Postgres, Auth, Realtime, Storage, Edge Functions).</strong> Semua logika backend hidup di Supabase, sehingga hosting frontend cukup static — migrasi domain nanti jadi sepele.</p>
+<h3 id="kk-23-akun-infrastruktur-harus-baru-dan-terpisah" class="kk"><span class="kk-chip">KK-23</span><span class="kk-title">Akun infrastruktur harus BARU dan terpisah</span></h3><p>Atas permintaan pemilik: <strong>jangan memakai akun Supabase maupun Vercel milik <code>samuphotostation</code>.</strong></p>
+<p>Ini keputusan yang tepat secara teknis, bukan hanya preferensi. Akun itu menjalankan bisnis photobooth yang <strong>LIVE dengan Supabase Pro berbayar</strong>. Menumpang di org yang sama berarti: project baru masuk tagihan Pro alih-alih free tier, billing dua bisnis tercampur, dan satu insiden atau suspend menjatuhkan keduanya sekaligus.</p>
+<p>Prasyarat setup: email baru khusus venue → akun Supabase baru → akun Cloudflare baru → akun Midtrans merchant atas nama badan usaha venue.</p>
+<h3 id="kk-24-prinsip-rekayasa-wajib-gagal-tertutup" class="kk"><span class="kk-chip">KK-24</span><span class="kk-title">Prinsip rekayasa wajib: GAGAL TERTUTUP</span></h3><p>Diambil dari kejadian nyata di sistem photobooth milik pemilik yang sama. Sebuah query mengambil sebagian kolom saja, sehingga satu field bernilai <code>undefined</code> dan guard menilai item custom sebagai item biasa. Akibatnya <strong>dua sekaligus</strong>: biaya Rp 15.000 tidak dihitung (pelanggan ditagih <strong>Rp 1</strong> untuk pesanan <strong>Rp 15.001</strong>), <strong>dan</strong> seluruh pemeriksaan kepemilikan terlewati.</p>
+<p>Tiga aturan yang mengikat seluruh implementasi:</p>
+<div class="scroller"><table><thead><tr><th></th><th>Aturan</th></tr></thead><tbody><tr><td><strong>R1</strong></td><td>Setiap guard otorisasi/harga <strong>gagal TERTUTUP</strong>. Data tidak lengkap = tolak, bukan &quot;anggap normal&quot;</td></tr><tr><td><strong>R2</strong></td><td>Harga final <strong>wajib</strong> dihitung ulang di server dari baris database <strong>lengkap</strong>. Bukan dari input client, bukan dari <code>SELECT</code> sebagian kolom</td></tr><tr><td><strong>R3</strong></td><td>Sebelum charge dikirim ke gateway, bandingkan total server dengan total yang ditampilkan ke pelanggan. <strong>Selisih sekecil apa pun = batalkan + alarm</strong></td></tr></tbody></table></div><p>Kalau R3 sudah ada di sistem photobooth, bug Rp 1 vs Rp 15.001 ketahuan sebelum QR terbit.</p>
+<hr>
+<h2 id="5-konstanta-global">5. Konstanta Global</h2><p>Satu sumber kebenaran untuk setiap angka yang muncul di lebih dari satu tempat. <strong>Semua disimpan di tabel <code>venue_settings</code>, bukan hardcode.</strong> Bab mana pun yang menyebut angka ini harus <strong>merujuk</strong>, bukan menulis ulang.</p>
+<div class="scroller"><table><thead><tr><th>Konstanta</th><th>Nilai default</th><th>Catatan</th></tr></thead><tbody><tr><td><code>gateway_expiry_minutes</code></td><td><strong>15</strong></td><td>Countdown yang dilihat pelanggan</td></tr><tr><td><code>hold_duration_minutes</code></td><td><strong>17</strong></td><td><code>hold_expires_at</code> di DB</td></tr><tr><td><code>hold_grace_minutes</code></td><td><strong>2</strong></td><td>Job pelepasan efektif T+19</td></tr><tr><td><code>slot_granularity_minutes</code></td><td><strong>30</strong></td><td>Grid UI</td></tr><tr><td><code>turnaround_minutes</code></td><td><strong>10</strong></td><td>Buffer bersih-bersih &amp; rack ulang antar sesi</td></tr><tr><td><code>min_lead_time_minutes</code></td><td><strong>60</strong></td><td>Booking online paling cepat; staf dikecualikan</td></tr><tr><td><code>max_advance_days</code></td><td><strong>14</strong></td><td>Booking paling jauh</td></tr><tr><td><code>min_session_minutes</code></td><td><strong>60</strong></td><td>Durasi minimum</td></tr><tr><td><code>checkin_grace_minutes</code></td><td><strong>15</strong></td><td>Toleransi telat sebelum ditandai no-show</td></tr><tr><td><code>no_show_release_minutes</code></td><td><strong>20</strong></td><td>Meja dilepas untuk dijual ulang</td></tr><tr><td><code>business_day_cutoff</code></td><td><strong>02:00 WIB</strong></td><td>Batas hari operasional</td></tr><tr><td><code>timezone</code></td><td><code>Asia/Jakarta</code></td><td>Simpan <code>timestamptz</code></td></tr><tr><td><code>price_display_mode</code></td><td><code>inclusive</code></td><td>KK-03</td></tr><tr><td><code>tax_rate_pbjt</code></td><td><strong>10%</strong></td><td><strong>[PERLU KONFIRMASI]</strong> tarif daerah</td></tr><tr><td><code>service_charge_rate</code></td><td><strong>0%</strong></td><td><strong>[PERLU KONFIRMASI]</strong> apakah dipungut</td></tr><tr><td><code>mdr_free_threshold</code></td><td>Rp 500.000 (UMi)</td><td>KK-21</td></tr><tr><td><code>mdr_rate</code></td><td>0,3% (UMi)</td><td>KK-21</td></tr><tr><td><code>cancel_full_credit_hours</code></td><td><strong>12</strong></td><td>KK-01</td></tr><tr><td><code>cancel_half_credit_hours</code></td><td><strong>3</strong></td><td>KK-01</td></tr><tr><td><code>max_tables_per_group</code></td><td><strong>4</strong></td><td>KK-07</td></tr><tr><td><code>max_active_groups_per_account</code></td><td><strong>1</strong></td><td>Anti-abuse</td></tr><tr><td><code>webhook_response_deadline</code></td><td><strong>&lt; 5 detik</strong></td><td>Syarat Midtrans</td></tr><tr><td><code>status_poll_throttle_seconds</code></td><td><strong>10</strong></td><td>Fallback polling</td></tr><tr><td><code>relocation_warning_minutes</code></td><td><strong>10 dan 3</strong></td><td>KK-08</td></tr></tbody></table></div><hr>
+<h2 id="6-ruang-lingkup-mvp-cut-line">6. Ruang lingkup — MVP Cut Line</h2><p>Draft detail menghasilkan <strong>355 requirement</strong>, dengan seksi booking saja menandai <strong>118 item sebagai &quot;Must&quot;</strong>. Itu bukan MVP, itu roadmap dua tahun. Kalau daftar itu diserahkan apa adanya ke developer, aplikasi tidak akan pernah rilis dan pemilik kehilangan momentum.</p>
+<h3 id="61-kriteria-masuk-mvp">6.1 Kriteria masuk MVP</h3><p>Sebuah requirement masuk R1 <strong>hanya jika</strong> tanpanya venue tidak bisa melakukan salah satu dari tiga hal ini:</p>
+<div class="scroller"><table><thead><tr><th></th><th>Kriteria</th></tr></thead><tbody><tr><td><strong>(a)</strong></td><td><strong>Menerima uang</strong> dengan benar</td></tr><tr><td><strong>(b)</strong></td><td><strong>Mencegah double-booking</strong></td></tr><tr><td><strong>(c)</strong></td><td><strong>Menutup buku harian</strong> dengan angka yang jujur</td></tr></tbody></table></div><p>Semua yang lain turun ke R2/R3. Tidak dihapus — hanya tidak menghalangi rilis.</p>
+<h3 id="62-tiga-rilis">6.2 Tiga rilis</h3><div class="scroller"><table><thead><tr><th>Rilis</th><th>Target</th><th>Isi</th></tr></thead><tbody><tr><td><strong>R1 — Bisa jualan</strong></td><td>≤ 6 minggu</td><td>Booking 1 meja + QRIS + anti-double-booking + walk-in di sistem + papan meja realtime + tutup tab cash/EDC + rekap harian + login email</td></tr><tr><td><strong>R2 — Bisa dikelola</strong></td><td>+4 minggu</td><td>F&amp;B lengkap + KDS + booking rombongan + store credit + dashboard keuangan penuh + heatmap + ekspor</td></tr><tr><td><strong>R3 — Bisa tumbuh</strong></td><td>+6 minggu</td><td>Loyalty, voucher, happy hour otomatis, offline sync dua arah, integrasi WhatsApp, laporan pajak</td></tr></tbody></table></div><blockquote>
+<p><strong>[PERLU KONFIRMASI]</strong> Estimasi ini mengasumsikan <strong>satu developer full-stack penuh waktu</strong> yang sudah familiar dengan Supabase. Dengan developer paruh waktu, kalikan sekitar 2,5 kali.</p>
+</blockquote>
+<h3 id="63-tabel-in-out-nanti">6.3 Tabel IN / OUT / NANTI</h3><div class="scroller"><table><thead><tr><th>Kapabilitas</th><th style="text-align:center">R1</th><th style="text-align:center">R2</th><th style="text-align:center">R3</th><th>Alasan penempatan</th></tr></thead><tbody><tr><td>Login email (magic link)</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Syarat menerima uang atas nama seseorang</td></tr><tr><td>Booking 1 meja + QRIS</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Inti produk</td></tr><tr><td>Anti double-booking (exclusion constraint)</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Kriteria (b)</td></tr><tr><td>Papan meja realtime</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Permintaan eksplisit pemilik</td></tr><tr><td>Walk-in dicatat kasir</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Tanpa ini papan meja berbohong</td></tr><tr><td>Relokasi &amp; peringatan T-10/T-3 (KK-08)</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Kejadian nomor satu di lantai</td></tr><tr><td>Cash/EDC masuk ledger</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Kriteria (c) — tanpa ini laporan menyesatkan</td></tr><tr><td>Rekap harian + ekspor CSV</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Kriteria (c)</td></tr><tr><td>Kelola meja &amp; harga</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Permintaan eksplisit pemilik</td></tr><tr><td>Mode darurat offline (cetak tally)</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>KK-16</td></tr><tr><td>Audit log</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center"></td><td>Anti-fraud sejak hari pertama</td></tr><tr><td>F&amp;B pesan dari meja (scan QR)</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td>Butuh menu dan foto disiapkan dulu</td></tr><tr><td>KDS sederhana</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td>KK-15</td></tr><tr><td>Booking rombongan multi-meja</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td>KK-07 — bernilai besar tapi kompleks</td></tr><tr><td>Store credit &amp; pembatalan</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td>Butuh ledger dulu</td></tr><tr><td>Dashboard keuangan + heatmap</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td>Butuh data terkumpul dulu</td></tr><tr><td>Perpanjang sesi via QRIS</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td></td></tr><tr><td>Loyalty / membership</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td></td></tr><tr><td>Voucher &amp; happy hour otomatis</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td></td></tr><tr><td>Offline sync dua arah</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td></td></tr><tr><td>Notifikasi WhatsApp</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td></td></tr><tr><td>Integrasi lampu meja (relay)</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td>Butuh perangkat keras</td></tr><tr><td><strong>Aplikasi native iOS/Android</strong></td><td style="text-align:center">❌</td><td style="text-align:center">❌</td><td style="text-align:center">❌</td><td>PWA cukup; native menggandakan biaya tanpa manfaat di sini</td></tr><tr><td><strong>Multi-cabang</strong></td><td style="text-align:center">❌</td><td style="text-align:center">❌</td><td style="text-align:center">❌</td><td>Satu venue dulu. Skema tetap menyisakan <code>venue_id</code></td></tr></tbody></table></div><h3 id="64-aturan-scope">6.4 Aturan scope</h3><p><strong>Satu masuk, satu keluar.</strong> Setelah pemilik menyetujui isi R1, penambahan fitur ke R1 harus disertai pengeluaran fitur lain dengan bobot setara. Ini satu-satunya cara PRD tetap berarti setelah minggu ketiga.</p>
+<hr>
+<h2 id="7-spesifikasi-fungsional">7. Spesifikasi fungsional</h2><p>Bab ini memuat <strong>modul yang belum pernah ditulis</strong> (Autentikasi dan Pembayaran, lihat KK-17) secara lengkap, dan untuk modul lain memuat keputusan tingkat atas plus rujukan ke lampiran detail.</p>
+<h3 id="71-autentikasi-amp-akun-at-xx">7.1 Autentikasi &amp; Akun (AT-xx)</h3><p>Salah satu dari sebelas permintaan eksplisit pemilik, tapi tidak pernah punya seksi sendiri.</p>
+<p><strong>Keputusan: magic link, bukan OTP SMS, bukan password.</strong>
+Alasan: tanpa password berarti tidak ada password yang bocor atau dilupakan; magic link lewat email gratis lewat Supabase Auth, sedangkan OTP SMS berbiaya per pesan dan butuh vendor tambahan. Nomor HP tetap dikumpulkan (wajib untuk dihubungi kasir) tapi <strong>tidak</strong> dipakai sebagai kredensial di MVP.</p>
+<div class="scroller"><table><thead><tr><th>ID</th><th>Requirement</th><th>Prioritas</th><th>Rilis</th></tr></thead><tbody><tr><td>AT-01</td><td>Pelanggan mendaftar/masuk dengan email via magic link. Tidak ada password</td><td>Must</td><td>R1</td></tr><tr><td>AT-02</td><td>Magic link berlaku <strong>15 menit</strong>, sekali pakai</td><td>Must</td><td>R1</td></tr><tr><td>AT-03</td><td>Saat pertama masuk, wajib melengkapi <strong>nama</strong> dan <strong>nomor HP</strong> sebelum bisa booking</td><td>Must</td><td>R1</td></tr><tr><td>AT-04</td><td>Nomor HP divalidasi format Indonesia (+62 atau 08), disimpan ternormalisasi ke +62</td><td>Must</td><td>R1</td></tr><tr><td>AT-05</td><td><strong>Guest checkout untuk F&amp;B saja</strong> (scan QR di meja): boleh pesan tanpa akun, cukup nama dan nomor meja. Booking meja <strong>wajib</strong> akun</td><td>Must</td><td>R2</td></tr><tr><td>AT-06</td><td>Sesi pelanggan bertahan <strong>30 hari</strong>; sesi staf <strong>12 jam</strong>; sesi owner <strong>7 hari</strong></td><td>Must</td><td>R1</td></tr><tr><td>AT-07</td><td>Perangkat kasir minta <strong>PIN 4 digit</strong> untuk membuka kembali setelah 5 menit idle — mencegah tamu memakai tablet yang ditinggal</td><td>Must</td><td>R1</td></tr><tr><td>AT-08</td><td>Perangkat kasir <strong>tidak pernah</strong> otomatis login sebagai <code>owner</code></td><td>Must</td><td>R1</td></tr><tr><td>AT-09</td><td>Staf dibuat oleh <code>owner</code> atau <code>manager</code> lewat undangan email; tidak ada pendaftaran mandiri untuk peran staf</td><td>Must</td><td>R1</td></tr><tr><td>AT-10</td><td>Rate limit permintaan magic link: <strong>5 per email per jam</strong>, <strong>20 per IP per jam</strong></td><td>Must</td><td>R1</td></tr><tr><td>AT-11</td><td>Pelanggan bisa menghapus akun; data transaksi dianonimkan (bukan dihapus) demi integritas laporan keuangan</td><td>Should</td><td>R2</td></tr><tr><td>AT-12</td><td>Persetujuan pemasaran <strong>terpisah</strong> dari persetujuan layanan, <strong>opt-in</strong>, tidak tercentang default</td><td>Must</td><td>R1</td></tr></tbody></table></div><p><strong>Acceptance criteria</strong></p>
+<div class="scroller"><pre><code>AC-AT-01
+  Given  pengunjung belum punya akun
+  When   ia memasukkan email valid dan menekan "Kirim tautan masuk"
+  Then   email terkirim di bawah 30 detik, berisi tautan sekali pakai berlaku 15 menit
+  And    tautan yang sudah dipakai atau kedaluwarsa menampilkan halaman
+         "Tautan tidak berlaku lagi" dengan tombol kirim ulang — bukan error mentah
+
+AC-AT-03
+  Given  pengguna baru saja masuk pertama kali dan belum mengisi nama/HP
+  When   ia mencoba membuka halaman checkout booking
+  Then   ia dialihkan ke form lengkapi profil
+  And    keranjangnya TIDAK hilang setelah profil disimpan
+
+AC-AT-07
+  Given  tablet kasir tidak disentuh selama 5 menit
+  When   seseorang menyentuh layar
+  Then   muncul kunci PIN 4 digit
+  And    data di layar tertutup, bukan hanya ditimpa overlay transparan</code></pre></div><h3 id="72-booking-meja-bk-xx">7.2 Booking meja (BK-xx)</h3><p>Detail lengkap ada di <a href="lampiran/L2-booking-engine.md">lampiran/L2-booking-engine.md</a> — kualitasnya baik dan bisa dipakai langsung, <strong>dengan koreksi</strong>: semua angka waktu mengikuti §5, semua status mengikuti KK-05, kebijakan pembatalan mengikuti KK-01.</p>
+<p><strong>Keputusan tingkat atas:</strong></p>
+<div class="scroller"><table><thead><tr><th>Aspek</th><th>Keputusan</th><th>Ref</th></tr></thead><tbody><tr><td>Model waktu</td><td><code>tstzrange</code> half-open, grid UI 30 menit disintesis saat baca</td><td>KK-20</td></tr><tr><td>Anti-overlap</td><td><code>EXCLUDE USING gist</code> plus pembersihan hold kedaluwarsa dalam transaksi yang sama</td><td>KK-10</td></tr><tr><td>Hold pembayaran</td><td>15 / 17 / 19 menit</td><td>KK-04</td></tr><tr><td>Harga terkunci</td><td>Snapshot harga disimpan di baris booking saat hold dibuat. Perubahan harga oleh admin <strong>tidak pernah</strong> mengubah booking yang sudah ada</td><td>—</td></tr><tr><td>Rombongan</td><td><code>booking_groups</code>, atomik</td><td>KK-07</td></tr><tr><td>Walk-in bentrok</td><td>Peringatan T-10 dan T-3, relokasi satu-ketuk</td><td>KK-08</td></tr><tr><td>Pembatalan</td><td>Store credit berjenjang</td><td>KK-01</td></tr></tbody></table></div><p><strong>State machine</strong> (transisi yang diizinkan):</p>
+<div class="scroller"><pre><code>                    ┌─ expired_unpaid ← (job T+19, hold tak dibayar)
+                    │
+  [buat] → hold ────┼─ cancelled_by_user  (pelanggan batal sebelum bayar)
+                    │
+                    └─ confirmed ─┬─ checked_in → in_progress → completed
+                       (webhook   │
+                        settlement)├─ cancelled_by_user   (KK-01: store credit)
+                                  ├─ cancelled_by_admin  (alasan wajib + audit)
+                                  ├─ no_show             (job, T+15 grace)
+                                  └─ refunded            (manual owner)
+
+  paid_unfulfilled ← kasus khusus: pembayaran masuk tapi slot sudah tidak tersedia.
+                     Otomatis jadi store credit dan memicu alarm. TIDAK PERNAH senyap.</code></pre></div><div class="scroller"><table><thead><tr><th>Dari</th><th>Ke</th><th>Pemicu</th><th>Efek samping</th></tr></thead><tbody><tr><td><code>hold</code></td><td><code>confirmed</code></td><td>Webhook <code>settlement</code> terverifikasi</td><td>Ledger PAID, e-struk, kode check-in, broadcast realtime</td></tr><tr><td><code>hold</code></td><td><code>expired_unpaid</code></td><td>Job T+19</td><td>Slot dilepas, broadcast</td></tr><tr><td><code>hold</code></td><td><code>paid_unfulfilled</code></td><td>Webhook masuk <strong>setelah</strong> slot diambil orang lain</td><td>Store credit penuh otomatis dan alarm prioritas tinggi</td></tr><tr><td><code>confirmed</code></td><td><code>checked_in</code></td><td>Kasir atau pelanggan scan kode 6 digit</td><td>—</td></tr><tr><td><code>checked_in</code></td><td><code>in_progress</code></td><td>Jam mulai tercapai</td><td>Timer meja jalan</td></tr><tr><td><code>in_progress</code></td><td><code>completed</code></td><td>Kasir tutup tab</td><td>Tagihan final, ledger</td></tr><tr><td><code>confirmed</code></td><td><code>no_show</code></td><td>Job, T+15 setelah <code>starts_at</code> tanpa check-in</td><td>Meja dilepas T+20, sesi hangus sesuai KK-01</td></tr></tbody></table></div><h3 id="73-pemesanan-fampb-fb-xx">7.3 Pemesanan F&amp;B (FB-xx)</h3><p>Detail di <a href="lampiran/L3-fnb-ordering.md">lampiran/L3-fnb-ordering.md</a>, dengan koreksi <strong>KK-03 (tax-inclusive)</strong> — seluruh contoh perhitungan di lampiran itu ditulis exclusive dan <strong>harus diabaikan</strong>.</p>
+<p>Tiga mode yang didukung:</p>
+<div class="scroller"><table><thead><tr><th>Mode</th><th>Kapan</th><th>Pembayaran</th></tr></thead><tbody><tr><td><strong>Menempel booking</strong></td><td>Ditambahkan saat checkout booking online</td><td>Satu QRIS, satu total</td></tr><tr><td><strong>Scan QR di meja</strong></td><td>Tamu sudah di lokasi (walk-in maupun booking)</td><td>QRIS sendiri, atau tandai &quot;bayar di kasir&quot;</td></tr><tr><td><strong>Takeaway</strong></td><td>Tanpa meja</td><td>QRIS di muka</td></tr></tbody></table></div><p>KDS masuk MVP dalam bentuk paling sederhana (KK-15): satu layar, empat status (BARU, DIPROSES, SIAP, SELESAI), tombol besar, notifikasi suara saat tiket baru masuk.</p>
+<h3 id="74-pembayaran-pay-xx-dan-wh-xx">7.4 Pembayaran (PAY-xx dan WH-xx)</h3><p>Modul ini <strong>tidak pernah ada</strong> di draft mana pun meskipun ID-nya dirujuk di lima tempat (KK-17). Ditulis lengkap di sini karena ini jalur uang.</p>
+<h4 id="741-membuat-charge">7.4.1 Membuat charge</h4><div class="scroller"><table><thead><tr><th>ID</th><th>Requirement</th><th>Prioritas</th></tr></thead><tbody><tr><td>PAY-01</td><td>Charge dibuat <strong>hanya di server</strong> (Supabase Edge Function). Server Key tidak pernah dikirim ke client</td><td>Must</td></tr><tr><td>PAY-02</td><td>Total <strong>dihitung ulang di server</strong> dari baris DB lengkap. Angka dari client hanya usulan (KK-24 R2)</td><td>Must</td></tr><tr><td>PAY-03</td><td>Sebelum charge dikirim, bandingkan total server dengan total yang ditampilkan client. Selisih berarti batalkan dan alarm (KK-24 R3)</td><td>Must</td></tr><tr><td>PAY-04</td><td><code>order_id</code> berformat <code>SPL-{booking_code}-{attempt}</code>, unik, disimpan sebagai <code>payments.order_id UNIQUE</code></td><td>Must</td></tr><tr><td>PAY-05</td><td>Body charge: <code>payment_type: &quot;qris&quot;</code>, <code>qris: { acquirer: &quot;gopay&quot; }</code>, <code>custom_expiry</code> sebesar <code>gateway_expiry_minutes</code></td><td>Must</td></tr><tr><td>PAY-06</td><td>Ambil QR dari <code>qr_string</code>; fallback ke <code>actions[].url</code> dengan <code>name === &quot;generate-qr-code&quot;</code>. Kalau dua-duanya kosong, gagal terkendali dan hold dilepas segera</td><td>Must</td></tr><tr><td>PAY-07</td><td>Environment dideteksi otomatis dari prefix Server Key: <code>SB-Mid-</code> berarti sandbox, <code>Mid-</code> berarti production</td><td>Must</td></tr><tr><td>PAY-08</td><td>Satu QR aktif per booking (KK-11)</td><td>Must</td></tr><tr><td>PAY-09</td><td>Kalau Midtrans gagal total, hold <strong>dilepas segera</strong> — tidak menunggu 17 menit</td><td>Must</td></tr><tr><td>PAY-10</td><td>Sesi bernilai Rp 0 (tertutup penuh store credit) <strong>tidak</strong> memanggil gateway; langsung <code>confirmed</code> dan tetap dicatat di ledger</td><td>Must</td></tr><tr><td>PAY-11</td><td>Endpoint daftar metode pembayaran hanya mengembalikan boolean ketersediaan, tidak pernah mengirim key</td><td>Must</td></tr></tbody></table></div><blockquote>
+<p><strong>PAY-07 hemat berjam-jam debug.</strong> Ini diambil dari sistem photobooth pemilik, di mana komentar kodenya menyebut mekanisme ini mencegah error <code>Unknown Merchant server_key/id</code> — yaitu ketika key production dikirim ke endpoint sandbox atau sebaliknya.</p>
+</blockquote>
+<h4 id="742-webhook-wh-xx">7.4.2 Webhook (WH-xx)</h4><div class="scroller"><table><thead><tr><th>ID</th><th>Requirement</th><th>Prioritas</th></tr></thead><tbody><tr><td>WH-01</td><td>Verifikasi signature <code>SHA512(order_id + status_code + gross_amount + ServerKey)</code> <strong>sebelum menyentuh database</strong></td><td>Must</td></tr><tr><td>WH-02</td><td><strong>Signature gagal berarti HTTP 401 dan berhenti. Tidak ada fallback, tidak ada pengecualian</strong></td><td>Must</td></tr><tr><td>WH-03</td><td>Raw body disimpan mentah untuk perhitungan digest. Jangan hitung dari body yang sudah di-parse framework</td><td>Must</td></tr><tr><td>WH-04</td><td>Setiap notifikasi disimpan ke <code>payment_events</code> (append-only) <strong>sebelum</strong> diproses</td><td>Must</td></tr><tr><td>WH-05</td><td>Balas <strong>HTTP 200 dalam kurang dari 5 detik</strong>. Pemrosesan berat dilakukan setelah membalas</td><td>Must</td></tr><tr><td>WH-06</td><td>Order tidak dikenal tetap dibalas <strong>200</strong> setelah dicatat, bukan 404. Non-2xx memicu badai retry dari gateway</td><td>Must</td></tr><tr><td>WH-07</td><td>Idempoten: kalau transaksi sudah <code>paid</code>, notifikasi ulang tidak mengubah apa pun dan tidak mencatat pendapatan dua kali</td><td>Must</td></tr><tr><td>WH-08</td><td>Status tidak boleh turun: yang sudah <code>paid</code> tidak bisa dijadikan <code>expired</code> atau <code>failed</code> oleh notifikasi telat</td><td>Must</td></tr><tr><td>WH-09</td><td>Pemetaan status: <code>settlement</code> menjadi PAID. <code>capture</code> dengan <code>accept</code> menjadi PAID, <code>challenge</code> menjadi PENDING, <code>deny</code> menjadi FAILED. <code>expire</code> menjadi EXPIRED. <code>deny</code>, <code>cancel</code>, <code>failure</code> menjadi FAILED</td><td>Must</td></tr><tr><td>WH-10</td><td>Kalau webhook <code>settlement</code> tiba tapi slot sudah tidak tersedia, booking menjadi <code>paid_unfulfilled</code> dengan store credit otomatis dan alarm</td><td>Must</td></tr><tr><td>WH-11</td><td>Polling fallback <code>GET /v2/{order_id}/status</code>, throttle 10 detik, dipicu dari halaman tunggu pelanggan</td><td>Must</td></tr><tr><td>WH-12</td><td>Alert kalau ada <code>payment_events</code> yang gagal diproses. <strong>Kegagalan webhook tidak boleh senyap — ini uang</strong></td><td>Must</td></tr></tbody></table></div><blockquote>
+<p>⚠️ <strong>WH-02 adalah pelajaran langsung dari sistem photobooth pemilik.</strong> Di sana, jalur webhook DOKU memiliki &quot;resilient fallback&quot;: ketika verifikasi signature gagal, kode tetap menerima transaksi asalkan header <code>client-id</code> cocok, lalu menandainya lunas. <strong><code>Client-Id</code> bukan rahasia</strong> — ia header biasa yang dikirim di setiap request. Siapa pun yang tahu Client-Id dan sebuah nomor invoice bisa memalsukan pembayaran. Kalau signature sering gagal karena body sudah di-parse framework, obatnya adalah WH-03 (simpan raw body), <strong>bukan</strong> melewati pemeriksaannya.</p>
+</blockquote>
+<h4 id="743-urutan-aman-saat-webhook-tiba">7.4.3 Urutan aman saat webhook tiba</h4><div class="scroller"><pre><code>1. Terima POST
+2. Hitung SHA512 dari RAW body, bandingkan dengan signature_key
+   ├─ tidak cocok → INSERT payment_events(verified=false) → balas 401 → STOP
+   └─ cocok → lanjut
+3. INSERT payment_events(verified=true, payload utuh)   ← append-only, sebelum apa pun
+4. Balas HTTP 200                                        ← dalam &lt; 5 detik
+5. (async) SELECT payment FOR UPDATE WHERE order_id = ?
+   ├─ tidak ada     → catat anomali dan alarm, selesai (sudah balas 200)
+   ├─ sudah 'paid'  → selesai (idempoten, WH-07)
+   └─ 'pending'     → lanjut
+6. Map status (WH-09)
+7. Kalau PAID:
+   a. Cek apakah slot masih milik booking ini
+      ├─ ya    → UPDATE booking ke 'confirmed', ledger PAID, broadcast, kirim e-struk
+      └─ tidak → UPDATE booking ke 'paid_unfulfilled'
+                 + INSERT store_credits senilai penuh
+                 + alarm prioritas tinggi ke owner
+   b. Semua dalam SATU transaksi
+8. Kalau EXPIRED atau FAILED dan status belum 'paid' → update, lepas slot, broadcast</code></pre></div><p><strong>Kenapa langkah 7a ada:</strong> inilah skenario &quot;uang masuk, slot hilang&quot; — kejadian paling mahal di produk booking berbayar. Tanpa cabang eksplisit ini, pelanggan sudah membayar tapi tidak punya meja dan tidak punya uangnya kembali.</p>
+<h4 id="744-pembayaran-non-online">7.4.4 Pembayaran non-online</h4><div class="scroller"><table><thead><tr><th>ID</th><th>Requirement</th><th>Prioritas</th></tr></thead><tbody><tr><td>PAY-20</td><td>Kasir mencatat pembayaran <strong>cash</strong> dan <strong>EDC</strong> di sistem. Tetap masuk ledger sebagai transaksi lunas dengan <code>channel</code> berbeda</td><td>Must</td></tr><tr><td>PAY-21</td><td>Tanpa PAY-20, dashboard keuangan hanya menampilkan sebagian uang dan <strong>menyesatkan pemilik</strong></td><td>Must</td></tr><tr><td>PAY-22</td><td>Setiap pembayaran manual mencatat siapa kasirnya, shift mana, dan waktunya</td><td>Must</td></tr><tr><td>PAY-23</td><td>Void atau koreksi butuh alasan wajib dan approval <code>manager</code> atau <code>owner</code>, tercatat di <code>audit_log</code></td><td>Must</td></tr></tbody></table></div><h3 id="75-admin-amp-operasional-ad-xx">7.5 Admin &amp; operasional (AD-xx)</h3><p>Detail di <a href="lampiran/L4-admin-operasional.md">lampiran/L4-admin-operasional.md</a>, dengan koreksi <strong>KK-06</strong>: peran <code>admin</code> di lampiran itu harus dibaca sebagai <code>manager</code>.</p>
+<p><strong>Matriks peran (kanonik):</strong></p>
+<div class="scroller"><table><thead><tr><th>Kapabilitas</th><th style="text-align:center">customer</th><th style="text-align:center">floor</th><th style="text-align:center">kitchen</th><th style="text-align:center">cashier</th><th style="text-align:center">manager</th><th style="text-align:center">owner</th></tr></thead><tbody><tr><td>Lihat papan meja</td><td style="text-align:center">sebagian</td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td>Buka sesi walk-in</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td>Check-in / tutup tab</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td>Lihat tiket dapur</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td>Catat cash / EDC</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td>Beri diskon manual</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td>Void transaksi</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td><strong>Ubah harga</strong></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">❌</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td><strong>Kelola meja</strong></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">❌</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td>Kelola menu &amp; sold-out</td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td><strong>Lihat laporan keuangan penuh</strong></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">❌</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr><tr><td>Kelola staf &amp; peran</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td></tr><tr><td>Lihat audit log</td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center"></td><td style="text-align:center">✅</td><td style="text-align:center">✅</td></tr></tbody></table></div><p>Dua baris yang ditandai ❌ pada <code>cashier</code> adalah kontrol anti-fraud paling penting: <strong>kasir tidak boleh mengubah harga dan tidak boleh melihat omzet penuh.</strong></p>
+<h3 id="76-keuangan-amp-laporan-fn-xx">7.6 Keuangan &amp; laporan (FN-xx)</h3><p>Detail di <a href="lampiran/L5-keuangan-dan-laporan.md">lampiran/L5-keuangan-dan-laporan.md</a>.</p>
+<p><strong>Prinsip yang tidak boleh dilanggar</strong> — lima angka ini wajib dipisahkan, dan mencampurnya adalah kesalahan yang membuat pemilik salah baca untung:</p>
+<div class="scroller"><table><thead><tr><th>Lapisan</th><th>Arti</th></tr></thead><tbody><tr><td><strong>Gross</strong></td><td>Yang dibayar pelanggan</td></tr><tr><td><strong>Pajak terpungut (PBJT)</strong></td><td>Bukan pendapatan. Uang titipan untuk pemerintah daerah</td></tr><tr><td><strong>Service charge</strong></td><td>Kalau dipungut, punya perlakuan sendiri</td></tr><tr><td><strong>Potongan MDR</strong></td><td>Biaya gateway, dihitung berjenjang (KK-21)</td></tr><tr><td><strong>Net settlement</strong></td><td>Yang benar-benar masuk rekening</td></tr></tbody></table></div><p>Rumus utilisasi harus hati-hati pada penyebutnya:</p>
+<div class="scroller"><pre><code>utilisasi = jam-meja terjual / (jumlah meja aktif × jam operasional)</code></pre></div><p>Bukan dibagi 24 jam, dan meja berstatus maintenance dikeluarkan dari penyebut.</p>
+<hr>
+<h2 id="8-arsitektur-teknis">8. Arsitektur teknis</h2><p>Bagian §8.1–§8.6 ditulis khusus untuk dokumen ini karena draft aslinya terpotong dan kehilangan seluruh bab arsitektur, DDL, RPC, integrasi Midtrans, dan RLS. Bagian realtime, cron, observability, backup, dan estimasi biaya yang selamat ada di <a href="lampiran/L6-teknis-realtime-cron-backup.md">lampiran/L6-teknis-realtime-cron-backup.md</a>.</p>
+<h3 id="81-stack">8.1 Stack</h3><div class="scroller"><table><thead><tr><th>Lapisan</th><th>Pilihan</th><th>Alasan</th></tr></thead><tbody><tr><td>Frontend</td><td><strong>React + Vite + TypeScript</strong>, PWA</td><td>SPA statis; bisa di-host di mana saja, migrasi host jadi sepele</td></tr><tr><td>Styling</td><td><strong>Tailwind CSS</strong> dengan token merek</td><td>Cepat, dan token memaksa konsistensi warna</td></tr><tr><td>Animasi</td><td><strong>framer-motion</strong></td><td>Sudah terpasang di proyek</td></tr><tr><td>Hosting frontend</td><td><strong>Cloudflare Pages</strong></td><td>Legal untuk komersial, 100k req function/hari, static unlimited (KK-22)</td></tr><tr><td>Database</td><td><strong>Supabase Postgres</strong></td><td>Butuh <code>btree_gist</code> untuk exclusion constraint — ini alasan teknis memilih Postgres, bukan preferensi</td></tr><tr><td>Auth</td><td><strong>Supabase Auth</strong> (magic link)</td><td>Gratis, tanpa password (KK-17, §7.1)</td></tr><tr><td>Realtime</td><td><strong>Supabase Realtime Broadcast</strong></td><td>Papan meja live</td></tr><tr><td>Backend logic</td><td><strong>Supabase Edge Functions</strong> (Deno)</td><td>Webhook Midtrans, charge, cron</td></tr><tr><td>Email</td><td><strong>Brevo</strong> atau SMTP Supabase</td><td>E-struk &amp; magic link</td></tr><tr><td>Gateway</td><td><strong>Midtrans Core API QRIS</strong></td><td>KK-14</td></tr></tbody></table></div><p><strong>Semua logika berbayar hidup di Supabase</strong>, bukan di hosting frontend. Konsekuensinya bagus: frontend cuma berkas statis, jadi pindah dari Cloudflare ke mana pun tidak menyentuh backend sama sekali.</p>
+<h3 id="82-diagram">8.2 Diagram</h3><pre class="mermaid">flowchart TB
+    subgraph Klien
+        PWA["PWA — React SPA&lt;br/&gt;pelanggan · kasir · dapur"]
+    end
+    subgraph CF["Cloudflare Pages (statis, gratis)"]
+        CDN["Aset statis&lt;br/&gt;HTML/JS/CSS/font"]
+    end
+    subgraph SB["Supabase (akun BARU — KK-23)"]
+        AUTH["Auth&lt;br/&gt;magic link"]
+        PG[("Postgres&lt;br/&gt;+ btree_gist&lt;br/&gt;+ RLS")]
+        RT["Realtime&lt;br/&gt;Broadcast"]
+        EF["Edge Functions&lt;br/&gt;charge · webhook · cron"]
+    end
+    MT["Midtrans&lt;br/&gt;Core API QRIS"]
+    MAIL["Brevo&lt;br/&gt;e-struk"]
+
+    PWA --&gt; CDN
+    PWA --&gt;|"JWT"| AUTH
+    PWA --&gt;|"RPC (SECURITY DEFINER)"| PG
+    PWA &lt;--&gt;|"papan meja live"| RT
+    PWA --&gt;|"buat charge"| EF
+    EF --&gt;|"POST /v2/charge"| MT
+    MT --&gt;|"webhook settlement"| EF
+    EF --&gt; PG
+    EF --&gt; MAIL
+    PG --&gt; RT</pre><p><strong>Aturan yang tidak boleh dilanggar:</strong> client <strong>tidak pernah</strong> menulis langsung ke tabel <code>bookings</code>, <code>payments</code>, atau <code>store_credits</code>. Semua penulisan lewat RPC <code>SECURITY DEFINER</code> yang menghitung ulang harga di server (KK-24 R2).</p>
+<h3 id="83-skema-database">8.3 Skema database</h3><div class="scroller"><pre><code>-- ══════════════════════════════════════════════════════════
+-- 00_extensions.sql
+-- ══════════════════════════════════════════════════════════
+create extension if not exists btree_gist;   -- WAJIB untuk exclusion constraint
+create extension if not exists pgcrypto;
+
+-- ══════════════════════════════════════════════════════════
+-- 01_types.sql   (KK-05, KK-06)
+-- ══════════════════════════════════════════════════════════
+create type booking_status as enum (
+  'hold','confirmed','checked_in','in_progress','completed',
+  'cancelled_by_user','cancelled_by_admin','expired_unpaid',
+  'no_show','paid_unfulfilled','refunded'
+);
+
+create type user_role as enum ('customer','floor','kitchen','cashier','manager','owner');
+
+create type payment_status  as enum ('pending','paid','expired','failed','refunded');
+create type payment_channel as enum ('qris_online','cash','edc','store_credit','comp');
+create type booking_source  as enum ('online','walk_in','phone','admin');
+create type order_status    as enum ('new','preparing','ready','served','cancelled');
+
+-- ══════════════════════════════════════════════════════════
+-- 02_identity.sql   (KK-12 — role &amp; saldo TIDAK di profiles)
+-- ══════════════════════════════════════════════════════════
+create table public.profiles (
+  id                  uuid primary key references auth.users(id) on delete cascade,
+  full_name           text not null check (length(trim(full_name)) between 2 and 80),
+  phone               text check (phone ~ '^\+62[0-9]{8,13}$'),
+  is_blacklisted      boolean not null default false,
+  blacklist_reason    text,
+  internal_note       text,
+  consent_tos_at      timestamptz,
+  consent_privacy_at  timestamptz,
+  consent_marketing_at timestamptz,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+
+-- Tabel terpisah. TIDAK ADA policy INSERT/UPDATE untuk peran `authenticated`.
+-- Inilah yang mencegah pelanggan menaikkan dirinya sendiri jadi owner.
+create table public.user_roles (
+  user_id    uuid primary key references public.profiles(id) on delete cascade,
+  role       user_role not null default 'customer',
+  granted_by uuid references public.profiles(id),
+  granted_at timestamptz not null default now()
+);
+
+create or replace function public.current_role()
+returns user_role language sql stable security definer set search_path = public as $$
+  select coalesce((select role from public.user_roles where user_id = auth.uid()), 'customer')
+$$;
+
+create or replace function public.is_staff() returns boolean
+language sql stable as $$
+  select public.current_role() in ('floor','kitchen','cashier','manager','owner')
+$$;
+
+create or replace function public.is_manager() returns boolean
+language sql stable as $$
+  select public.current_role() in ('manager','owner')
+$$;
+
+-- ══════════════════════════════════════════════════════════
+-- 03_venue.sql
+-- ══════════════════════════════════════════════════════════
+create table public.venue_settings (
+  key         text primary key,
+  value       jsonb not null,
+  description text,
+  updated_by  uuid references public.profiles(id),
+  updated_at  timestamptz not null default now()
+);
+-- Seluruh Konstanta Global (§5) hidup di sini. Bukan hardcode.
+
+create table public.table_types (
+  id            smallserial primary key,
+  code          text not null unique check (code in ('regular','vip','tournament')),
+  display_name  text not null,
+  sort_order    smallint not null default 0
+);
+
+create table public.tables (
+  id             bigserial primary key,
+  code           text not null unique,          -- "M-03"
+  display_name   text not null,                 -- "Meja 3"
+  table_type_id  smallint not null references public.table_types(id),
+  capacity       smallint not null default 4 check (capacity between 1 and 20),
+  is_active      boolean not null default true,
+  sort_order     smallint not null default 0,
+  created_at     timestamptz not null default now()
+);
+
+create table public.table_maintenance (
+  id         bigserial primary key,
+  table_id   bigint not null references public.tables(id) on delete cascade,
+  during     tstzrange not null,
+  reason     text not null,
+  created_by uuid references public.profiles(id),
+  created_at timestamptz not null default now(),
+  exclude using gist (table_id with =, during with &amp;&amp;)
+);
+
+create table public.operating_hours (
+  day_of_week smallint primary key check (day_of_week between 0 and 6),
+  opens_at    time not null,
+  closes_at   time not null,          -- boleh &lt; opens_at (lewat tengah malam)
+  is_closed   boolean not null default false
+);
+
+create table public.holidays (
+  date       date primary key,
+  name       text not null,
+  treat_as   text not null default 'weekend' check (treat_as in ('weekday','weekend','closed'))
+);
+
+-- ══════════════════════════════════════════════════════════
+-- 04_pricing.sql   (KK-09 — satu skema kanonik)
+-- ══════════════════════════════════════════════════════════
+create table public.pricing_rules (
+  id              bigserial primary key,
+  name            text not null,
+  table_type_id   smallint references public.table_types(id),  -- NULL = semua tipe
+  days_of_week    smallint[] not null default '{0,1,2,3,4,5,6}',
+  start_time      time not null,
+  end_time        time not null,
+  price_per_hour  integer not null check (price_per_hour &gt;= 0),   -- rupiah, INTEGER
+  priority        smallint not null default 100,   -- kecil = menang
+  effective_from  date not null default current_date,
+  effective_to    date,
+  is_active       boolean not null default true,
+  created_by      uuid references public.profiles(id),
+  created_at      timestamptz not null default now(),
+  check (effective_to is null or effective_to &gt;= effective_from)
+);
+create index on public.pricing_rules (is_active, priority, effective_from);</code></pre></div><blockquote>
+<p><strong>Kenapa <code>integer</code>, bukan <code>numeric</code>/<code>float</code>:</strong> rupiah tidak punya sen. Integer menghapus seluruh kelas bug pembulatan floating point. Pola ini diambil dari sistem photobooth pemilik yang sudah membuktikannya di produksi.</p>
+</blockquote>
+<div class="scroller"><pre><code>-- ══════════════════════════════════════════════════════════
+-- 05_bookings.sql   (KK-07, KK-10, KK-20)
+-- ══════════════════════════════════════════════════════════
+create table public.booking_groups (
+  id           bigserial primary key,
+  group_code   text not null unique,
+  customer_id  uuid references public.profiles(id),
+  created_at   timestamptz not null default now()
+);
+
+create table public.bookings (
+  id                bigserial primary key,
+  booking_code      text not null unique,                     -- "SPL-8F3K2A"
+  group_id          bigint references public.booking_groups(id) on delete cascade,
+  table_id          bigint not null references public.tables(id),
+  customer_id       uuid references public.profiles(id),      -- NULL = walk-in tanpa akun
+
+  starts_at         timestamptz not null,
+  ends_at           timestamptz not null,
+  turnaround_minutes smallint not null default 10,
+  blocks_until      timestamptz not null,                     -- ends_at + turnaround, TERSIMPAN
+  during            tstzrange generated always as
+                      (tstzrange(starts_at, blocks_until, '[)')) stored,
+
+  -- Kolom BIASA, diisi oleh trigger. JANGAN dijadikan generated column — lihat catatan di bawah.
+  business_date     date not null,
+
+  status            booking_status not null default 'hold',
+  source            booking_source not null default 'online',
+
+  -- Snapshot harga: perubahan tarif oleh admin TIDAK mengubah booking yang sudah ada
+  price_per_hour_snapshot integer not null,
+  duration_minutes        integer not null,
+  table_subtotal          integer not null,
+
+  hold_expires_at   timestamptz,
+  checkin_code      text,
+  checked_in_at     timestamptz,
+  cancel_reason     text,
+  entered_late      boolean not null default false,          -- KK-16 mode darurat
+  created_by        uuid references public.profiles(id),
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+
+  constraint ends_after_starts check (ends_at &gt; starts_at),
+  constraint min_duration      check (ends_at - starts_at &gt;= interval '60 minutes'),
+  -- Hanya durasi yang dicek di sini: `ends_at - starts_at` bertipe interval,
+  -- dan date_part atas interval memang IMMUTABLE. Penyelarasan `starts_at` ke grid
+  -- divalidasi di RPC (§8.4), bukan di CHECK — lihat catatan IMMUTABLE di bawah.
+  constraint duration_on_grid  check (
+    extract(epoch from (ends_at - starts_at))::bigint % 1800 = 0
+  ),
+  constraint hold_needs_expiry check (
+    (status &lt;&gt; 'hold') or (hold_expires_at is not null)
+  )
+);
+
+-- INTI ANTI DOUBLE-BOOKING.
+-- Hanya status yang benar-benar menempati meja yang masuk predikat.
+-- `hold` sengaja DIMASUKKAN supaya dua orang tidak bisa hold slot sama bersamaan,
+-- dan hold kedaluwarsa dibersihkan di dalam RPC (KK-10) — bukan diserahkan ke cron.
+alter table public.bookings
+  add constraint bookings_no_overlap
+  exclude using gist (table_id with =, during with &amp;&amp;)
+  where (status in ('hold','confirmed','checked_in','in_progress'));
+
+create index on public.bookings (business_date, status);
+create index on public.bookings (table_id, starts_at);
+create index on public.bookings (customer_id, created_at desc);
+create index on public.bookings (status, hold_expires_at) where status = 'hold';</code></pre></div><blockquote>
+<p><strong>Jebakan IMMUTABLE — ini akan menggagalkan migrasi kalau ditulis dengan cara yang &quot;wajar&quot;.</strong></p>
+<p>PostgreSQL mewajibkan ekspresi di <code>generated always as</code> dan di <code>CHECK</code> bersifat <strong>IMMUTABLE</strong>. Godaan pertama siapa pun adalah menulis:</p>
+<div class="scroller"><pre><code>business_date date generated always as
+  (((starts_at at time zone 'Asia/Jakarta') - interval '2 hours')::date) stored   -- ❌ DITOLAK</code></pre></div><p>Ini gagal dengan <em>&quot;generation expression is not immutable&quot;</em>, karena operasi zona waktu di atas <code>timestamptz</code> bergantung pada basis data zona waktu dan setelan sesi. <code>date_trunc(&#39;hour&#39;, timestamptz)</code> bermasalah dengan alasan yang sama.</p>
+<p>Ada trik memakai bentuk <code>at time zone interval &#39;+07:00&#39;</code> yang sebagian orang laporkan lolos. <strong>Jangan bergantung padanya</strong> — perilakunya bergantung versi PostgreSQL dan tidak dinyatakan di dokumentasi resmi, sehingga rapuh untuk sesuatu yang menopang seluruh pelaporan keuangan.</p>
+<p><strong>Pakai trigger.</strong> Trigger tidak punya syarat immutability sama sekali, jelas dibaca, dan mudah diuji:</p>
+<div class="scroller"><pre><code>create or replace function public.set_business_date()
+returns trigger language plpgsql as $$
+begin
+  new.business_date :=
+    ((new.starts_at at time zone 'Asia/Jakarta') - interval '2 hours')::date;
+  return new;
+end $$;
+
+create trigger trg_bookings_business_date
+  before insert or update of starts_at on public.bookings
+  for each row execute function public.set_business_date();</code></pre></div><p>Terapkan pola yang sama untuk <code>orders.business_date</code> dan <code>payments.business_date</code>.
+Nilai <code>&#39;Asia/Jakarta&#39;</code> diambil dari <code>venue_settings.timezone</code> bila nanti ada cabang di WITA/WIT.</p>
+</blockquote>
+<blockquote>
+<p><strong>Jebakan yang paling sering menjatuhkan sistem booking:</strong> bound rentang harus <strong>half-open <code>&#39;[)&#39;</code></strong>. Dengan <code>&#39;[]&#39;</code>, sesi 20:00–21:00 dan 21:00–22:00 akan saling menolak, dan venue diam-diam kehilangan penjualan pada setiap slot bersebelahan. Test yang hanya menguji overlap penuh <strong>tidak akan menangkap ini</strong> — wajib ada test khusus untuk slot yang bersentuhan tepat di ujung.</p>
+</blockquote>
+<div class="scroller"><pre><code>-- ══════════════════════════════════════════════════════════
+-- 06_fnb.sql
+-- ══════════════════════════════════════════════════════════
+create table public.menu_categories (
+  id         smallserial primary key,
+  name       text not null,
+  sort_order smallint not null default 0,
+  is_active  boolean not null default true
+);
+
+create table public.menu_items (
+  id            bigserial primary key,
+  category_id   smallint not null references public.menu_categories(id),
+  name          text not null,
+  description   text,
+  price         integer not null check (price &gt;= 0),
+  image_path    text,
+  is_available  boolean not null default true,      -- toggle sold-out cepat
+  station       text not null default 'kitchen' check (station in ('kitchen','bar')),
+  sort_order    smallint not null default 0,
+  created_at    timestamptz not null default now()
+);
+
+create table public.orders (
+  id            bigserial primary key,
+  order_code    text not null unique,
+  booking_id    bigint references public.bookings(id) on delete set null,
+  table_id      bigint references public.tables(id),
+  customer_id   uuid references public.profiles(id),
+  guest_name    text,                                -- guest checkout (AT-05)
+  status        order_status not null default 'new',
+  serve_at      timestamptz,                         -- "sajikan jam 20:30"
+  business_date date not null,
+  created_at    timestamptz not null default now()
+);
+
+create table public.order_items (
+  id              bigserial primary key,
+  order_id        bigint not null references public.orders(id) on delete cascade,
+  menu_item_id    bigint not null references public.menu_items(id),
+  name_snapshot   text not null,      -- nama &amp; harga DIBEKUKAN saat pesan
+  price_snapshot  integer not null,
+  qty             smallint not null check (qty &gt; 0),
+  notes           text,
+  line_total      integer not null
+);
+
+-- ══════════════════════════════════════════════════════════
+-- 07_payments.sql   (KK-11)
+-- ══════════════════════════════════════════════════════════
+create table public.payments (
+  id             bigserial primary key,
+  order_id_gw    text not null unique,        -- Midtrans order_id — JANGKAR IDEMPOTENSI
+  booking_id     bigint references public.bookings(id) on delete cascade,
+  fnb_order_id   bigint references public.orders(id) on delete cascade,
+  channel        payment_channel not null,
+  status         payment_status not null default 'pending',
+
+  gross_amount   integer not null check (gross_amount &gt;= 0),
+  tax_amount     integer not null default 0,
+  service_amount integer not null default 0,
+  mdr_amount     integer not null default 0,   -- berjenjang, KK-21
+  net_amount     integer not null default 0,
+
+  qr_payload     text,
+  expires_at     timestamptz,
+  paid_at        timestamptz,
+  recorded_by    uuid references public.profiles(id),   -- kasir, untuk cash/EDC
+  shift_id       bigint,
+  business_date  date not null,
+  created_at     timestamptz not null default now(),
+
+  constraint payment_target_present check (booking_id is not null or fnb_order_id is not null)
+);
+
+-- KK-11: cegah dua QR menganggur bersamaan, TAPI izinkan pembayaran kedua
+-- untuk perpanjangan sesi &amp; F&amp;B tambahan.
+create unique index payments_one_pending_qris_per_booking
+  on public.payments (booking_id)
+  where status = 'pending' and channel = 'qris_online';
+
+create index on public.payments (business_date, status, channel);
+
+-- APPEND-ONLY. Bukti mentah setiap notifikasi gateway (WH-04).
+-- Inilah yang membuat sengketa "saya sudah bayar" bisa dibuktikan, dan idempotensi
+-- bisa diaudit — bukan sekadar diklaim.
+create table public.payment_events (
+  id             bigserial primary key,
+  order_id_gw    text not null,
+  raw_body       text not null,
+  signature_key  text,
+  verified       boolean not null,
+  tx_status      text,
+  fraud_status   text,
+  processed      boolean not null default false,
+  process_error  text,
+  received_at    timestamptz not null default now()
+);
+create index on public.payment_events (order_id_gw, received_at desc);
+create index on public.payment_events (processed, received_at) where processed = false;
+
+-- ══════════════════════════════════════════════════════════
+-- 08_credits.sql   (KK-12 — ledger, bukan kolom saldo)
+-- ══════════════════════════════════════════════════════════
+create table public.store_credits (
+  id           bigserial primary key,
+  customer_id  uuid not null references public.profiles(id) on delete cascade,
+  amount       integer not null,        -- positif = pemberian, negatif = pemakaian
+  reason       text not null,
+  booking_id   bigint references public.bookings(id),
+  created_by   uuid references public.profiles(id),
+  created_at   timestamptz not null default now()
+);
+create index on public.store_credits (customer_id, created_at desc);
+
+-- Saldo adalah HASIL PERHITUNGAN, bukan kolom yang bisa ditulis.
+create or replace function public.store_credit_balance(p_customer uuid)
+returns integer language sql stable as $$
+  select coalesce(sum(amount), 0)::integer
+  from public.store_credits where customer_id = p_customer
+$$;
+
+-- ══════════════════════════════════════════════════════════
+-- 09_audit.sql   (KK-13 — SATU tabel)
+-- ══════════════════════════════════════════════════════════
+create table public.audit_log (
+  id            bigserial primary key,
+  occurred_at   timestamptz not null default now(),
+  actor_id      uuid references public.profiles(id),   -- NULL = sistem/cron
+  actor_role    user_role,
+  action        text not null,
+  severity      text not null default 'info' check (severity in ('info','warn','critical')),
+  entity_type   text,
+  entity_id     text,
+  before_value  jsonb,
+  after_value   jsonb,
+  reason        text,
+  amount_impact integer,
+  approved_by   uuid references public.profiles(id),
+  shift_id      bigint,
+  business_date date,
+  constraint actor_or_system check (actor_id is not null or action like 'cron.%')
+);
+create index on public.audit_log (occurred_at desc);
+create index on public.audit_log (actor_id, occurred_at desc);
+create index on public.audit_log (severity, occurred_at desc) where severity &lt;&gt; 'info';</code></pre></div><h3 id="84-rpc-anti-double-booking-yang-benar">8.4 RPC — anti double-booking yang benar</h3><p>Fungsi ini adalah jantung sistem. Perhatikan urutan operasinya.</p>
+<div class="scroller"><pre><code>create or replace function public.create_booking_hold(
+  p_table_id   bigint,
+  p_starts_at  timestamptz,
+  p_minutes    integer,
+  p_group_id   bigint default null
+) returns public.bookings
+language plpgsql security definer set search_path = public as $$
+declare
+  v_now         timestamptz := now();
+  v_ends_at     timestamptz := p_starts_at + make_interval(mins =&gt; p_minutes);
+  v_turnaround  integer;
+  v_hold_min    integer;
+  v_rate        integer;
+  v_booking     public.bookings;
+begin
+  -- 1. Baca parameter dari settings (KK-04, §5) — tidak ada angka hardcode
+  select (value #&gt;&gt; '{}')::int into v_turnaround
+    from venue_settings where key = 'turnaround_minutes';
+  select (value #&gt;&gt; '{}')::int into v_hold_min
+    from venue_settings where key = 'hold_duration_minutes';
+
+  -- 2. GAGAL TERTUTUP (KK-24 R1): parameter hilang = tolak, bukan pakai default diam-diam
+  if v_turnaround is null or v_hold_min is null then
+    raise exception 'CONFIG_MISSING: parameter hold/turnaround tidak ditemukan';
+  end if;
+
+  -- 3a. Penyelarasan grid 30 menit. Dicek di sini, BUKAN di CHECK constraint,
+  --     karena ekspresi zona waktu atas timestamptz tidak IMMUTABLE (lihat §8.3).
+  if extract(epoch from (p_starts_at at time zone 'Asia/Jakarta'))::bigint % 1800 &lt;&gt; 0 then
+    raise exception 'NOT_ON_GRID' using hint = 'Waktu mulai harus kelipatan 30 menit';
+  end if;
+  if p_minutes % 30 &lt;&gt; 0 then
+    raise exception 'NOT_ON_GRID' using hint = 'Durasi harus kelipatan 30 menit';
+  end if;
+
+  -- 3b. Tolak waktu lampau (toleransi 5 menit clock skew)
+  if p_starts_at &lt; v_now - interval '5 minutes' then
+    raise exception 'SLOT_IN_PAST';
+  end if;
+
+  -- 3c. Validasi meja aktif &amp; tidak maintenance
+  if not exists (select 1 from tables where id = p_table_id and is_active) then
+    raise exception 'TABLE_UNAVAILABLE';
+  end if;
+  if exists (
+    select 1 from table_maintenance
+    where table_id = p_table_id
+      and during &amp;&amp; tstzrange(p_starts_at, v_ends_at, '[)')
+  ) then
+    raise exception 'TABLE_MAINTENANCE';
+  end if;
+
+  -- 4. KK-10 — bersihkan hold kedaluwarsa untuk meja ini, DI TRANSAKSI YANG SAMA.
+  --    Tanpa ini, hold yang sudah mati tetap memblokir slot sampai cron jalan.
+  update bookings
+     set status = 'expired_unpaid', hold_expires_at = null, cancel_reason = 'hold_timeout'
+   where table_id = p_table_id
+     and status = 'hold'
+     and hold_expires_at &lt; v_now;
+
+  -- 5. Harga dihitung ULANG DI SERVER dari baris lengkap (KK-24 R2)
+  select price_per_hour into v_rate
+    from pricing_rules pr
+    join tables t on t.id = p_table_id
+   where pr.is_active
+     and (pr.table_type_id is null or pr.table_type_id = t.table_type_id)
+     and extract(dow from p_starts_at at time zone 'Asia/Jakarta')::smallint = any(pr.days_of_week)
+     and (p_starts_at at time zone 'Asia/Jakarta')::time &gt;= pr.start_time
+     and (p_starts_at at time zone 'Asia/Jakarta')::time &lt;  pr.end_time
+     and pr.effective_from &lt;= current_date
+     and (pr.effective_to is null or pr.effective_to &gt;= current_date)
+   order by pr.priority asc, pr.table_type_id nulls last
+   limit 1;
+
+  if v_rate is null then
+    raise exception 'NO_PRICE_RULE';   -- gagal tertutup, bukan "anggap gratis"
+  end if;
+
+  -- 6. INSERT. Exclusion constraint yang memutuskan siapa menang.
+  --    Tidak ada SELECT-lalu-INSERT: itu race condition.
+  insert into bookings (
+    booking_code, group_id, table_id, customer_id,
+    starts_at, ends_at, turnaround_minutes, blocks_until,
+    status, source, price_per_hour_snapshot, duration_minutes, table_subtotal,
+    hold_expires_at, created_by
+  ) values (
+    'SPL-' || upper(encode(gen_random_bytes(3), 'hex')),
+    p_group_id, p_table_id, auth.uid(),
+    p_starts_at, v_ends_at, v_turnaround,
+    v_ends_at + make_interval(mins =&gt; v_turnaround),
+    'hold', 'online', v_rate, p_minutes,
+    round(v_rate * p_minutes / 60.0)::int,
+    v_now + make_interval(mins =&gt; v_hold_min),
+    auth.uid()
+  ) returning * into v_booking;
+
+  return v_booking;
+
+exception
+  when exclusion_violation then
+    raise exception 'SLOT_TAKEN' using hint = 'Slot baru saja diambil orang lain';
+end $$;</code></pre></div><p><strong>Skenario 20 orang klik slot yang sama, Sabtu 20:00.</strong> Semua 20 transaksi menjalankan langkah 1–5 secara paralel. Di langkah 6, PostgreSQL menyerialisasi INSERT pada exclusion constraint: <strong>tepat satu</strong> berhasil, 19 lainnya melempar <code>exclusion_violation</code> → ditangkap → <code>SLOT_TAKEN</code>. Tidak ada lock aplikasi, tidak ada retry loop, tidak ada race. Database yang menjamin, bukan kode.</p>
+<p>Untuk booking grup (KK-07), seluruh N panggilan dibungkus <strong>satu transaksi</strong>: satu gagal, semua rollback, tidak ada uang ditarik.</p>
+<h3 id="85-kontrak-api">8.5 Kontrak API</h3><div class="scroller"><table><thead><tr><th>Endpoint / RPC</th><th>Method</th><th>Auth</th><th>Isi</th></tr></thead><tbody><tr><td><code>get_availability(date)</code></td><td>RPC</td><td>publik</td><td>Grid ketersediaan. <strong>Tidak membocorkan</strong> nama/HP pemesan lain</td></tr><tr><td><code>create_booking_hold(...)</code></td><td>RPC</td><td>pelanggan</td><td>§8.4. Error: <code>SLOT_TAKEN</code>, <code>TABLE_UNAVAILABLE</code>, <code>TABLE_MAINTENANCE</code>, <code>NO_PRICE_RULE</code>, <code>CONFIG_MISSING</code>, <code>SLOT_IN_PAST</code></td></tr><tr><td><code>create_walkin(...)</code></td><td>RPC</td><td>staf</td><td>Menerima waktu lampau + <code>entered_late</code> (KK-16)</td></tr><tr><td><code>cancel_booking(id, reason)</code></td><td>RPC</td><td>pemilik booking / staf</td><td>Terapkan KK-01, terbitkan store credit</td></tr><tr><td><code>extend_booking(id, minutes)</code></td><td>RPC</td><td>staf / pelanggan</td><td>Cek slot berikutnya, buat pembayaran kedua (KK-11)</td></tr><tr><td><code>relocate_booking(id, new_table)</code></td><td>RPC</td><td>staf</td><td>KK-08</td></tr><tr><td><code>POST /fn/payment-create</code></td><td>Edge Fn</td><td>pelanggan</td><td>PAY-01…PAY-11</td></tr><tr><td><code>POST /fn/midtrans-webhook</code></td><td>Edge Fn</td><td><strong>publik + signature</strong></td><td>WH-01…WH-12, §7.4.3</td></tr><tr><td><code>POST /fn/payment-status</code></td><td>Edge Fn</td><td>pelanggan</td><td>Polling fallback, throttle 10 dtk (WH-11)</td></tr><tr><td><code>POST /fn/cron-expire-holds</code></td><td>Edge Fn</td><td>secret header</td><td>Jalan tiap menit</td></tr></tbody></table></div><h3 id="86-row-level-security-sec-xx">8.6 Row Level Security (SEC-xx)</h3><p>RLS aktif di <strong>semua</strong> tabel. Ini yang paling sering bocor di aplikasi Supabase.</p>
+<div class="scroller"><pre><code>alter table public.profiles      enable row level security;
+alter table public.user_roles    enable row level security;
+alter table public.bookings      enable row level security;
+alter table public.payments      enable row level security;
+alter table public.store_credits enable row level security;
+alter table public.audit_log     enable row level security;
+
+-- SEC-01 — profiles: pelanggan hanya lihat &amp; ubah miliknya.
+create policy p_self_select on public.profiles
+  for select using (auth.uid() = id or public.is_staff());
+create policy p_self_update on public.profiles
+  for update using (auth.uid() = id) with check (auth.uid() = id);
+
+-- SEC-02 — user_roles: TIDAK ADA policy INSERT/UPDATE untuk `authenticated`.
+-- Perubahan peran hanya lewat RPC SECURITY DEFINER yang mengecek is_owner().
+create policy r_read_own on public.user_roles
+  for select using (auth.uid() = user_id or public.is_manager());
+
+-- SEC-03 — bookings: pelanggan hanya melihat miliknya sendiri.
+create policy b_own on public.bookings
+  for select using (customer_id = auth.uid() or public.is_staff());
+
+-- SEC-04 — TIDAK ADA policy INSERT/UPDATE/DELETE untuk pelanggan di `bookings`.
+-- Semua penulisan lewat RPC. Ini yang mencegah manipulasi harga &amp; status.
+
+-- SEC-05 — payments &amp; store_credits: baca saja, milik sendiri.
+create policy pay_own on public.payments
+  for select using (
+    public.is_staff() or exists (
+      select 1 from public.bookings b
+      where b.id = payments.booking_id and b.customer_id = auth.uid())
+  );
+create policy sc_own on public.store_credits
+  for select using (customer_id = auth.uid() or public.is_manager());
+
+-- SEC-06 — audit_log: hanya manager/owner, dan TIDAK BISA diubah siapa pun.
+create policy al_read on public.audit_log
+  for select using (public.is_manager());</code></pre></div><p><strong>SEC-07 — ketersediaan slot tanpa membocorkan identitas.</strong> Ini kebutuhan yang bertentangan: publik harus tahu slot mana terisi, tapi tidak boleh tahu siapa yang memesan. Solusinya <strong>bukan</strong> membuka policy SELECT di <code>bookings</code>, melainkan fungsi khusus yang hanya mengembalikan bentuk agregat:</p>
+<div class="scroller"><pre><code>create or replace function public.get_availability(p_date date)
+returns table (table_id bigint, block_start timestamptz, block_end timestamptz, state text)
+language sql stable security definer set search_path = public as $$
+  select b.table_id, lower(b.during), upper(b.during),
+         case when b.status = 'hold' then 'held' else 'busy' end
+  from public.bookings b
+  where b.business_date = p_date
+    and b.status in ('confirmed','checked_in','in_progress')
+     or (b.status = 'hold' and b.hold_expires_at &gt; now())   -- hold mati tidak tampil
+$$;</code></pre></div><p>Tidak ada <code>customer_id</code>, tidak ada nama, tidak ada nomor HP yang keluar.</p>
+<p><strong>Daftar kontrol keamanan lain:</strong></p>
+<div class="scroller"><table><thead><tr><th>ID</th><th>Kontrol</th></tr></thead><tbody><tr><td>SEC-08</td><td>Server Key Midtrans hanya di Supabase secrets, tidak pernah di bundle frontend</td></tr><tr><td>SEC-09</td><td>Rate limit di Edge Function: charge maksimal 10/menit per akun</td></tr><tr><td>SEC-10</td><td><code>booking_code</code> dan <code>order_id</code> memakai byte acak, bukan urutan — cegah enumerasi</td></tr><tr><td>SEC-11</td><td>Semua RPC penulisan <code>SECURITY DEFINER</code> dengan <code>set search_path = public</code> (cegah search_path hijack)</td></tr><tr><td>SEC-12</td><td>Kepatuhan UU PDP No. 27/2022: minimalisasi data, consent tercatat, hak hapus. Detail di lampiran L6</td></tr></tbody></table></div><h3 id="87-pelajaran-dari-sistem-photobooth">8.7 Pelajaran dari sistem photobooth</h3><p>Pemilik sudah pernah membangun aplikasi photobooth dengan Midtrans QRIS yang <strong>jalan di produksi</strong>. Kode itu dibaca read-only sebagai referensi. Tabel berikut menyatakan secara eksplisit apa yang dipakai ulang dan apa yang ditolak.</p>
+<p><strong>Dipakai ulang — sudah terbukti:</strong></p>
+<div class="scroller"><table><thead><tr><th></th><th>Pola</th></tr></thead><tbody><tr><td>1</td><td>Auto-deteksi environment dari prefix Server Key (PAY-07)</td></tr><tr><td>2</td><td>Pemisahan tabel <em>state</em> dan <em>ledger append-only</em>, dengan <code>order_id</code> gateway sebagai jangkar idempotensi</td></tr><tr><td>3</td><td>Settle idempoten: cek <code>status = &#39;paid&#39;</code> sebelum memproses, dan larang menurunkan status</td></tr><tr><td>4</td><td>Polling fallback dengan throttle — webhook tidak bisa dipercaya 100%</td></tr><tr><td>5</td><td>Endpoint metode pembayaran hanya mengembalikan boolean, tidak pernah key</td></tr><tr><td>6</td><td>Harga dan voucher dihitung ulang di server</td></tr><tr><td>7</td><td>Pembayaran manual/bypass tetap masuk ledger sebagai transaksi lunas</td></tr><tr><td>8</td><td>Uang disimpan sebagai integer</td></tr></tbody></table></div><p><strong>Ditolak — jangan disalin:</strong></p>
+<div class="scroller"><table><thead><tr><th></th><th>Anti-pola</th><th>Aturan pengganti</th></tr></thead><tbody><tr><td>A</td><td>Webhook menerima pembayaran walau signature gagal, asal header <code>client-id</code> cocok</td><td><strong>WH-02</strong>: signature gagal = 401, titik</td></tr><tr><td>B</td><td>Balas 404/500 untuk order tak dikenal, memicu badai retry</td><td><strong>WH-06</strong>: selalu 200 setelah dicatat</td></tr><tr><td>C</td><td>Tidak ada log webhook mentah; metadata ditumpuk di kolom JSON</td><td><strong>WH-04</strong>: tabel <code>payment_events</code> append-only</td></tr><tr><td>D</td><td><code>capture</code> + <code>fraud_status: deny</code> dipetakan jadi PAID</td><td><strong>WH-09</strong>: <code>deny</code> menjadi FAILED</td></tr><tr><td>E</td><td>Signature diverifikasi setelah query database</td><td><strong>WH-01</strong>: verifikasi dulu, baru sentuh DB</td></tr></tbody></table></div><p><strong>Dan satu aturan yang lahir dari kejadian termahal di sana</strong> — lihat KK-24 (R1/R2/R3, gagal tertutup).</p>
+<hr>
+<h2 id="9-design-system">9. Design system</h2><p>Detail lengkap (15 komponen, 14 layar, spesifikasi per layar) ada di <a href="lampiran/L7-design-system.md">lampiran/L7-design-system.md</a>. Bagian di bawah adalah keputusan yang mengikat.</p>
+<h3 id="91-warna-diukur-dari-file-aset-bukan-ditebak">9.1 Warna — diukur dari file aset, bukan ditebak</h3><p>Warna diambil dengan sampling piksel dari file logo asli:</p>
+<div class="scroller"><table><thead><tr><th>Token</th><th>Nilai</th><th>Peran</th></tr></thead><tbody><tr><td><code>--brand-amber</code></td><td><code>#F0A202</code></td><td>Warna utama, CTA, aksen, angka penting</td></tr><tr><td><code>--brand-brick</code></td><td><code>#992212</code></td><td>Latar sekunder, header, badge</td></tr><tr><td><code>--surface-0</code></td><td><code>#0B0B0C</code></td><td>Latar utama (tema gelap)</td></tr><tr><td><code>--surface-1</code></td><td><code>#141416</code></td><td>Kartu, panel</td></tr><tr><td><code>--text-hi</code></td><td><code>#FFFFFF</code></td><td>Teks utama</td></tr><tr><td><code>--text-mid</code></td><td><code>#A1A1AA</code></td><td>Teks sekunder</td></tr><tr><td><code>--amber-on-light</code></td><td><code>#8A5D02</code></td><td>Pengganti amber untuk tema terang</td></tr></tbody></table></div><h3 id="92-rasio-kontras-sudah-dihitung-dan-ada-yang-gagal">9.2 Rasio kontras — sudah dihitung, dan ada yang gagal</h3><div class="scroller"><table><thead><tr><th>Kombinasi</th><th>Rasio</th><th>Hasil</th></tr></thead><tbody><tr><td>Amber <code>#F0A202</code> di atas <code>#0B0B0C</code></td><td><strong>9.25</strong></td><td>AAA ✅</td></tr><tr><td>Near-black <code>#0B0B0C</code> di atas amber</td><td><strong>9.25</strong></td><td>AAA ✅</td></tr><tr><td>Putih di atas <code>#992212</code></td><td><strong>8.10</strong></td><td>AAA ✅</td></tr><tr><td><code>#A1A1AA</code> di atas <code>#0B0B0C</code></td><td><strong>7.68</strong></td><td>AAA ✅</td></tr><tr><td>Amber di atas <code>#992212</code></td><td><strong>3.81</strong></td><td>⚠️ Hanya teks besar</td></tr><tr><td><strong>Putih di atas amber</strong></td><td><strong>2.13</strong></td><td>❌ <strong>GAGAL TOTAL</strong></td></tr><tr><td><strong>Amber di atas putih</strong></td><td><strong>2.13</strong></td><td>❌ <strong>GAGAL TOTAL</strong></td></tr><tr><td><code>#71717A</code> di atas <code>#0B0B0C</code></td><td><strong>4.07</strong></td><td>⚠️ Hanya teks besar</td></tr></tbody></table></div><p><strong>Aturan wajib yang lahir dari angka di atas:</strong></p>
+<div class="scroller"><table><thead><tr><th></th><th>Aturan</th></tr></thead><tbody><tr><td>1</td><td><strong>Tombol amber HARUS memakai teks near-black <code>#0B0B0C</code>.</strong> Teks putih di atas amber = 2.13, haram dipakai</td></tr><tr><td>2</td><td><strong>Amber dilarang jadi warna teks di atas latar putih.</strong> Tema terang memakai <code>#8A5D02</code> (5.76, AA)</td></tr><tr><td>3</td><td>Amber di atas maroon hanya untuk logo dan elemen besar, tidak untuk teks kecil</td></tr><tr><td>4</td><td><strong>Tema gelap adalah default yang benar</strong> — amber tampil AAA di atas near-black, dan venue biliar memang gelap</td></tr><tr><td>5</td><td><code>#71717A</code> hanya untuk teks besar atau dekoratif, bukan body text</td></tr></tbody></table></div><h3 id="93-status-meja-jangan-hanya-andalkan-warna">9.3 Status meja — jangan hanya andalkan warna</h3><p>Sekitar 8% pria mengalami defisiensi penglihatan warna merah-hijau. &quot;Hijau = kosong, merah = terisi&quot; adalah kombinasi yang persis paling sulit mereka bedakan — di layar utama kasir, di venue yang gelap, saat sibuk.</p>
+<div class="scroller"><table><thead><tr><th>Status</th><th>Warna</th><th>Ikon</th><th>Pola</th></tr></thead><tbody><tr><td>Kosong</td><td><code>#4ADE80</code></td><td>○</td><td>garis putus-putus</td></tr><tr><td>Dibooking</td><td><code>#FBBF24</code></td><td>◔</td><td>garis solid tipis</td></tr><tr><td>Sedang main</td><td><code>#F87171</code></td><td>● + timer hitung mundur</td><td>isi penuh</td></tr><tr><td>Maintenance</td><td><code>#71717A</code></td><td>✕</td><td>arsir diagonal</td></tr></tbody></table></div><p>Setiap kartu meja <strong>wajib</strong> menampilkan label teks status. Warna adalah penguat, bukan satu-satunya pembawa informasi.</p>
+<h3 id="94-font-ada-masalah-yang-harus-diselesaikan-sebelum-coding">9.4 Font — ada masalah yang harus diselesaikan sebelum coding</h3><p>Hasil pemeriksaan berkas font di folder visual identity:</p>
+<div class="scroller"><table><thead><tr><th>Font</th><th>Format tersedia</th><th>Masalah</th></tr></thead><tbody><tr><td><strong>Lido STF</strong></td><td>hanya <code>.otf</code> / <code>.ttf</code></td><td>❌ <strong>Tidak ada format web sama sekali</strong> — wajib dikonversi</td></tr><tr><td><strong>Emoland</strong></td><td><code>.otf</code> / <code>.ttf</code> / <code>.woff</code></td><td>⚠️ <strong>Tidak ada <code>.woff2</code></strong>. 1 weight <code>.woff</code> = 65–72 KB; 19 berkas total, lebih dari 1 MB kalau dimuat semua</td></tr><tr><td><strong>Jazzbury</strong></td><td>sudah ada <code>.woff2</code></td><td>✅ Aman</td></tr></tbody></table></div><p><strong>Keputusan:</strong></p>
+<div class="scroller"><table><thead><tr><th>Peran</th><th>Font</th><th>Catatan</th></tr></thead><tbody><tr><td>Wordmark &amp; heading besar</td><td><strong>Lido STF</strong></td><td>Konversi ke woff2, maksimal 2 weight</td></tr><tr><td>Angka, timer, label kondensasi</td><td><strong>Emoland</strong></td><td>Konversi ke woff2, maksimal 2 weight</td></tr><tr><td>Aksen dekoratif</td><td><strong>Jazzbury</strong></td><td>Lazy-load, hanya di halaman yang memakainya</td></tr><tr><td><strong>Body text UI</strong></td><td><strong>Inter</strong> (atau system stack)</td><td>Ketiga font merek kurang terbaca pada ukuran kecil. Ini keputusan keterbacaan, bukan estetika</td></tr></tbody></table></div><p>Target: subsetting Latin + angka + tanda baca, <strong>&lt; 25 KB per berkas</strong>, <code>font-display: swap</code>.</p>
+<h3 id="95-bobot-aset-11-mb-mentah-tidak-layak-untuk-mobile-indonesi">9.5 Bobot aset — 11 MB mentah, tidak layak untuk mobile Indonesia</h3><div class="scroller"><table><thead><tr><th>Berkas</th><th>Ukuran asli</th><th>Target</th></tr></thead><tbody><tr><td><code>BRICKS.png</code></td><td><strong>4,9 MB</strong></td><td>&lt; 120 KB WebP, atau jadi pola CSS</td></tr><tr><td>Tekstur beton</td><td><strong>3,7 MB</strong></td><td>&lt; 100 KB WebP</td></tr><tr><td>Logo PNG (8 berkas)</td><td>236–438 KB</td><td><strong>Jadikan SVG</strong>, &lt; 10 KB masing-masing</td></tr></tbody></table></div><p>Total mentah sekitar <strong>11 MB</strong>. Tanpa optimasi, halaman pertama tidak akan pernah selesai dimuat di koneksi 4G yang lemah — dan itu langsung menjadi booking yang batal.</p>
+<h3 id="96-animasi-framer-motion">9.6 Animasi (framer-motion)</h3><p>Yang layak dibuat: transisi slot terpilih, countdown pembayaran, perubahan status kartu meja, drawer keranjang.
+Yang buang-buang waktu: animasi masuk halaman, parallax, hover elaborate (mayoritas pengguna memakai layar sentuh — tidak ada hover).
+Wajib menghormati <code>prefers-reduced-motion</code>.</p>
+<hr>
+<h2 id="10-rencana-rilis-amp-estimasi">10. Rencana rilis &amp; estimasi</h2><p>Auditor pemilik menulis: <em>&quot;Sebagai pemilik saya tidak bisa mengambil keputusan apa pun dari dokumen ini. Saya tidak tahu apakah saya membeli sesuatu yang jadi dalam 6 minggu atau 9 bulan.&quot;</em> Bab ini menjawab itu.</p>
+<p><strong>ASUMSI: satu developer full-stack penuh waktu, familiar dengan Supabase &amp; React.</strong></p>
+<h3 id="r1-bisa-jualan-target-6-minggu">R1 — Bisa jualan (target ≤ 6 minggu)</h3><div class="scroller"><table><thead><tr><th>Blok kerja</th><th style="text-align:right">Hari-orang</th></tr></thead><tbody><tr><td>Setup akun baru, repo, CI, migrasi dasar</td><td style="text-align:right">3</td></tr><tr><td>Skema DB + RLS + RPC anti double-booking + test konkurensi</td><td style="text-align:right">8</td></tr><tr><td>Auth magic link + profil + peran</td><td style="text-align:right">3</td></tr><tr><td>Papan meja realtime + grid ketersediaan</td><td style="text-align:right">5</td></tr><tr><td>Alur booking pelanggan (pilih, hold, checkout)</td><td style="text-align:right">5</td></tr><tr><td>Integrasi Midtrans: charge, webhook, polling, <code>payment_events</code></td><td style="text-align:right">6</td></tr><tr><td>Panel kasir: walk-in, check-in, tutup tab, cash/EDC</td><td style="text-align:right">5</td></tr><tr><td>Relokasi &amp; peringatan T-10/T-3 (KK-08)</td><td style="text-align:right">2</td></tr><tr><td>Kelola meja &amp; harga</td><td style="text-align:right">3</td></tr><tr><td>Rekap harian + ekspor CSV + audit log</td><td style="text-align:right">4</td></tr><tr><td>Mode darurat offline (cetak tally)</td><td style="text-align:right">1</td></tr><tr><td>Desain: token, konversi font, optimasi aset, 8 layar</td><td style="text-align:right">6</td></tr><tr><td>QA, uji beban slot rebutan, uji sandbox Midtrans</td><td style="text-align:right">5</td></tr><tr><td><strong>Total</strong></td><td style="text-align:right"><strong>≈ 56 hari-orang ≈ 11 minggu kerja</strong></td></tr></tbody></table></div><blockquote>
+<p>⚠️ <strong>Angka jujurnya: R1 realistis 8–11 minggu, bukan 6.</strong> Target 6 minggu hanya tercapai kalau F&amp;B benar-benar dikeluarkan (sudah), desain memakai komponen jadi, dan pemilik menjawab §12 dalam 3 hari. Saya sebutkan ini terus terang karena PRD yang menjanjikan 6 minggu lalu meleset ke 11 minggu merusak kepercayaan lebih parah daripada yang sejak awal menyebut 11.</p>
+</blockquote>
+<h3 id="r2-bisa-dikelola-5-minggu">R2 — Bisa dikelola (+ ≈ 5 minggu)</h3><p>F&amp;B lengkap + KDS + booking rombongan + store credit + dashboard keuangan + heatmap. <strong>≈ 25 hari-orang.</strong></p>
+<h3 id="r3-bisa-tumbuh-6-minggu">R3 — Bisa tumbuh (+ ≈ 6 minggu)</h3><p>Loyalty, voucher, happy hour otomatis, offline sync dua arah, WhatsApp. <strong>≈ 30 hari-orang.</strong></p>
+<h3 id="prasyarat-non-teknis-yang-sering-jadi-penyebab-molor">Prasyarat non-teknis yang sering jadi penyebab molor</h3><div class="scroller"><table><thead><tr><th>Item</th><th>Penanggung jawab</th><th>Kapan dibutuhkan</th></tr></thead><tbody><tr><td>Akun Supabase &amp; Cloudflare <strong>baru</strong> (KK-23)</td><td>Pemilik</td><td>Sebelum hari 1</td></tr><tr><td>Merchant Midtrans terverifikasi (KTP/NPWP/NIB/rekening)</td><td>Pemilik</td><td>Sebelum minggu 4 — approval bisa makan berhari-hari</td></tr><tr><td>Daftar meja, tipe, kapasitas final</td><td>Pemilik</td><td>Sebelum minggu 2</td></tr><tr><td>Tarif final (weekday/weekend/happy hour)</td><td>Pemilik</td><td>Sebelum minggu 2</td></tr><tr><td>Jawaban atas §12</td><td>Pemilik</td><td>Sebelum hari 1</td></tr><tr><td>Foto menu &amp; daftar harga F&amp;B</td><td>Pemilik</td><td>Sebelum R2</td></tr><tr><td>Pelatihan kasir (2 sesi × 1 jam)</td><td>Pemilik + dev</td><td>Minggu terakhir R1</td></tr></tbody></table></div><hr>
+<h2 id="11-risiko-amp-mitigasi">11. Risiko &amp; mitigasi</h2><div class="scroller"><table><thead><tr><th>Risiko</th><th>Dampak</th><th>Mitigasi</th></tr></thead><tbody><tr><td><strong>Staf kembali ke papan tulis</strong></td><td>Papan meja online berbohong, seluruh sistem tidak dipercaya</td><td>Walk-in wajib masuk sistem (R1), panel kasir &lt; 10 detik, mode darurat offline (KK-16), pelatihan</td></tr><tr><td><strong>Merchant Midtrans belum approve saat rilis</strong></td><td>Tidak bisa terima uang</td><td>Bangun di sandbox sejak hari 1; ajukan merchant di minggu 1, bukan minggu 5</td></tr><tr><td><strong>Supabase free di-pause</strong> (7 hari sepi)</td><td>Aplikasi mati</td><td>Cron keep-alive harian + backup terjadwal ke luar Supabase. Naik ke Pro (±USD 25/bln) begitu omzet online stabil</td></tr><tr><td><strong>Data hilang permanen</strong> (project paused lama dihapus)</td><td>Fatal</td><td>Backup harian otomatis ke storage terpisah, diuji restore sebulan sekali</td></tr><tr><td><strong>Uang masuk tapi slot hilang</strong></td><td>Sengketa &amp; kehilangan kepercayaan</td><td>Status <code>paid_unfulfilled</code> + store credit otomatis + alarm (WH-10)</td></tr><tr><td><strong>Pelanggan enggan membuat akun</strong></td><td>Konversi turun</td><td>Guest checkout untuk F&amp;B (AT-05); booking tetap wajib akun karena menyangkut uang &amp; slot</td></tr><tr><td><strong>Kebocoran kas oleh staf</strong></td><td>Langsung memotong laba</td><td>Peran terbatas (KK-06), diskon/void butuh approval, <code>audit_log</code> tidak bisa diubah</td></tr><tr><td><strong>Scope creep</strong></td><td>Tidak pernah rilis</td><td>Aturan satu-masuk-satu-keluar (§6.4)</td></tr><tr><td><strong>Free tier terlampaui saat ramai</strong></td><td>Layanan berhenti mendadak</td><td>Cloudflare 100k req/hari sangat longgar untuk skala ini; pasang alert di 60% kuota</td></tr></tbody></table></div><hr>
+<h2 id="12-pertanyaan-terbuka-untuk-pemilik">12. Pertanyaan terbuka untuk pemilik</h2><p>Semua yang bertanda <strong>[PERLU KONFIRMASI]</strong> dikumpulkan di sini. <strong>Sembilan pertanyaan pertama harus dijawab sebelum coding dimulai</strong> karena memengaruhi skema database dan perhitungan uang.</p>
+<div class="scroller"><table><thead><tr><th>#</th><th>Pertanyaan</th><th>Kenapa penting</th><th>Default kalau tidak dijawab</th></tr></thead><tbody><tr><td><del>1</del></td><td><del>Berapa meja, tipe apa saja?</del></td><td>—</td><td>✅ <strong>TERJAWAB: 34 meja — 30 reguler + 4 VIP</strong></td></tr><tr><td>2</td><td><strong>Jam buka–tutup, beda weekday/weekend?</strong></td><td>Menentukan grid &amp; batas hari operasional</td><td>Pricelist menyiratkan buka 11.00; jam tutup masih ASUMSI 02.00</td></tr><tr><td><del>3</del></td><td><del>Tarif per jam?</del></td><td>—</td><td>✅ <strong>TERJAWAB: 29K siang / 39K malam / VIP 50K / Paket Siang 50K</strong></td></tr><tr><td>4</td><td><strong>Tarif PBJT/pajak daerah berapa persen?</strong></td><td>Salah = laporan pajak salah</td><td>ASUMSI 10%</td></tr><tr><td>5</td><td><strong>Ada service charge? Berapa?</strong></td><td>Memengaruhi seluruh perhitungan total</td><td>ASUMSI 0%</td></tr><tr><td>6</td><td><strong>Merchant didaftarkan sebagai UMi atau UKE?</strong></td><td>Selisih MDR 0% vs 0,7% — bisa ratusan ribu/bulan (KK-21)</td><td>ASUMSI UMi, perlu dicek kelayakan</td></tr><tr><td>7</td><td><strong>Setuju kebijakan batal 12 jam / 3 jam, store credit?</strong> (KK-01)</td><td>Janji hukum ke pelanggan</td><td>Pakai KK-01</td></tr><tr><td>8</td><td><strong>Setuju tidak ada refund uang otomatis, hanya store credit?</strong> (KK-02)</td><td>Keterbatasan rail QRIS, bukan pilihan desain</td><td>Pakai KK-02</td></tr><tr><td>9</td><td><strong>Buffer bersih-bersih antar sesi berapa menit?</strong></td><td>Memengaruhi kapasitas terjual</td><td>ASUMSI 10 menit</td></tr><tr><td>10</td><td>Boleh booking berapa hari ke depan?</td><td>Eksposur perubahan harga</td><td>ASUMSI 14 hari</td></tr><tr><td>11</td><td>Toleransi telat sebelum dianggap no-show?</td><td>Kebijakan yang sering disengketakan</td><td>ASUMSI 15 menit</td></tr><tr><td>12</td><td>Siapa saja stafnya dan perannya masing-masing?</td><td>Setup RBAC</td><td>—</td></tr><tr><td>13</td><td>Sudah punya akun Midtrans, atau perlu daftar baru?</td><td>Approval bisa makan waktu</td><td>Asumsi daftar baru</td></tr><tr><td>14</td><td>Nama domain yang diinginkan nanti?</td><td>Untuk perencanaan migrasi</td><td>Pakai subdomain Cloudflare dulu</td></tr></tbody></table></div><hr>
+<h2 id="13-lampiran">13. Lampiran</h2><p>Berkas detail di <code>docs/lampiran/</code>. <strong>Semuanya tunduk pada §4 dan §5 dokumen ini.</strong></p>
+<div class="scroller"><table><thead><tr><th>Berkas</th><th>Isi</th></tr></thead><tbody><tr><td><code>L1-bisnis-dan-persona.md</code></td><td>Persona lengkap, user journey rinci, metrik, ide bisnis tambahan</td></tr><tr><td><code>L2-booking-engine.md</code></td><td>Spesifikasi booking terlengkap — ±99 requirement, acceptance criteria</td></tr><tr><td><code>L3-fnb-ordering.md</code></td><td>F&amp;B, KDS, contoh menu smokehouse ⚠️ contoh perhitungannya tax-exclusive, abaikan (KK-03)</td></tr><tr><td><code>L4-admin-operasional.md</code></td><td>Panel admin, manajemen meja/harga/menu ⚠️ peran <code>admin</code> baca sebagai <code>manager</code> (KK-06)</td></tr><tr><td><code>L5-keuangan-dan-laporan.md</code></td><td>Definisi metrik, rekonsiliasi settlement, laporan</td></tr><tr><td><code>L6-teknis-realtime-cron-backup.md</code></td><td>Realtime, cron, observability, backup, biaya, UU PDP</td></tr><tr><td><code>L7-design-system.md</code></td><td>15 komponen, 14 layar, spesifikasi UI per layar</td></tr><tr><td><code>R1-riset.md</code></td><td>Perbandingan gateway pembayaran</td></tr><tr><td><code>R2-riset.md</code></td><td>Verifikasi free tier hosting</td></tr><tr><td><code>R3-riset.md</code></td><td>Benchmark operasional biliar Indonesia</td></tr><tr><td><code>R4-riset.md</code></td><td>Model konkurensi &amp; anti double-booking</td></tr></tbody></table></div><h3 id="catatan-penyusunan">Catatan penyusunan</h3><p>Dokumen ini disusun dari 14 agen (4 riset, 7 penulis seksi, 3 auditor independen), lalu diintegrasikan dan dikoreksi. Fakta berikut <strong>diverifikasi langsung</strong>, bukan diambil dari ingatan model:</p>
+<ul>
+<li>ToS Vercel Hobby &amp; GitHub Pages (dibaca dari dokumentasi resmi)</li>
+<li>Batas free tier Cloudflare, Netlify, Supabase</li>
+<li>Formula signature, status QRIS, dan kebijakan refund Midtrans (dibaca dari <code>docs.midtrans.com</code>)</li>
+<li>Skema MDR QRIS Bank Indonesia berlaku 1 Oktober 2026</li>
+<li>Rasio kontras WCAG (dihitung dari nilai piksel aset)</li>
+<li>Bobot berkas &amp; format font (diukur dari folder visual identity)</li>
+<li>Pola integrasi dari repo photobooth pemilik (dibaca read-only, tidak ada yang diubah)</li>
+</ul>
+<p>Satu klaim dari draft agen <strong>dikoreksi</strong>: pernyataan bahwa Midtrans mewajibkan <code>expiry_duration</code> minimal 15 menit <strong>tidak terbukti</strong> — dokumentasi hanya menetapkan expiry maksimum. Angka 15 menit tetap dipakai, tapi dengan alasan yang benar (KK-04).</p>
+</main>
+</div>
