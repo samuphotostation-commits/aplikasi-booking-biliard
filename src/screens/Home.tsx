@@ -142,8 +142,8 @@ export default function Home() {
         </div>
 
         <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-          <RateCard label="VIP · no smoking" time="Sepanjang jam" price={RATES.vip} n={9} c="#F0A202" />
-          <RateCard label="VVIP · bebas rokok" time="Sepanjang jam" price={RATES.vvip} n={3} c="#992212" />
+          <RateCard label="VIP · bebas asap rokok" time="Sepanjang jam" price={RATES.vip} n={9} c="#F0A202" />
+          <RateCard label="VVIP · boleh merokok" time="Sepanjang jam" price={RATES.vvip} n={3} c="#992212" />
         </div>
 
         <div className="mt-2.5 grid grid-cols-2 gap-2.5">

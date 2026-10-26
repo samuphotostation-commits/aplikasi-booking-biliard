@@ -276,12 +276,12 @@ export default function Pengaturan() {
             onChange={(v) => setDraft({ ...draft, regularNight: v })}
           />
           <RateField
-            label="VIP (no smoking)" hint={`sepanjang jam · ${hitung("vip")} ruang`}
+            label="VIP (bebas asap rokok)" hint={`sepanjang jam · ${hitung("vip")} ruang`}
             value={draft.vip}
             onChange={(v) => setDraft({ ...draft, vip: v })}
           />
           <RateField
-            label="VVIP (bebas rokok)" hint={`sepanjang jam · ${hitung("vvip")} ruang`}
+            label="VVIP (boleh merokok)" hint={`sepanjang jam · ${hitung("vvip")} ruang`}
             value={draft.vvip}
             onChange={(v) => setDraft({ ...draft, vvip: v })}
           />
@@ -649,8 +649,8 @@ export default function Pengaturan() {
         <div className="mb-2 flex flex-wrap gap-3 text-[12px] text-dim">
           {venue === "spl" ? (<>
             <span>{hitung("regular")} reguler</span>
-            <span className="text-amber/90">{hitung("vip")} VIP (no smoking)</span>
-            <span className="text-brick-lit">{hitung("vvip")} VVIP (bebas rokok)</span>
+            <span className="text-amber/90">{hitung("vip")} VIP (bebas asap rokok)</span>
+            <span className="text-brick-lit">{hitung("vvip")} VVIP (boleh merokok)</span>
           </>) : (
             <span>{hitung("resto")} meja makan · tanpa sewa waktu</span>
           )}
@@ -771,7 +771,7 @@ export default function Pengaturan() {
 
         {tableNote && <p role="status" className="mt-2 text-[12px] text-amber">{tableNote}</p>}
         <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Ketuk meja untuk mengatur kelasnya (Reguler / VIP no smoking / VVIP bebas rokok) atau menandainya rusak.
+          Ketuk meja untuk mengatur kelasnya (Reguler / VIP bebas asap rokok / VVIP boleh merokok) atau menandainya rusak.
           Kelas menentukan tarif per jam meja itu. Meja yang sedang dipakai atau sudah dibooking tidak bisa
           berpindah kelas — harga sudah terlanjur disepakati tamu.
         </p>

@@ -560,7 +560,7 @@ export type Action =
   | { t: "paySplit"; id: string; channel: PayChannel; keys?: string[]; amount?: number; label?: string; mesin?: string }
   /** Meteran open bill dihentikan pada jam tertentu (aplikasi/komputer sempat mati). */
   | { t: "stopMeter"; id: string; at: number }
-  /** Kelas meja: reguler / VIP (no smoking) / VVIP (bebas rokok). */
+  /** Kelas meja: reguler / VIP (bebas asap rokok) / VVIP (boleh merokok). */
   | { t: "setTableClass"; tableId: string; type: TableType }
   /** Jual / tarik satu meja dari denah. Mejanya harus ada di katalog (`SEMUA_MEJA`). */
   | { t: "setMejaDipakai"; tableId: string; dipakai: boolean }
@@ -2551,7 +2551,7 @@ function reduce(s: State, a: Action): State {
       };
     }
 
-    /* ── Kelas meja: VIP (no smoking) ↔ VVIP (bebas rokok) ──────── */
+    /* ── Kelas meja: VIP (bebas asap) ↔ VVIP (boleh merokok) ────── */
     case "setTableName": {
       // Pemilik minta ini bisa dilakukan KASIR, bukan cuma pemilik — nomor meja
       // di lantai kadang berubah dan tidak masuk akal menunggu superadmin.

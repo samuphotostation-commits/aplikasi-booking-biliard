@@ -414,8 +414,14 @@ export default function Landing() {
        bisa dibaca BEBAS DARI rokok maupun BEBAS MEROKOK, dan dua ruangan yang
        tarifnya beda cuma Rp 10.000 jadi tidak bisa dibedakan. Sekarang
        keduanya dikatakan tanpa celah tafsir.
-       BUTUH KONFIRMASI PEMILIK: ini membaca maksud data lama (VIP dilarang,
-       VVIP boleh), bukan kebijakan yang pernah ditulis di mana pun. */
+
+       DIKONFIRMASI PEMILIK 26 Okt 2026: VIP bebas asap rokok, VVIP boleh
+       merokok. Kata-kata yang sama dipakai di seluruh layar — beranda biliar,
+       layar booking, checkout, dan panel Atur — lewat `CLASS_LABEL` di
+       `src/data/venue.ts`. Jangan menuliskannya ulang di satu layar saja:
+       sebelum ini "no smoking" dan "bebas rokok" hidup berdampingan di empat
+       berkas, dan tamu yang membayar ruang VVIP membaca kalimat yang berbeda
+       dari yang dibacanya di halaman depan. */
     { nama: "VIP Room", ket: "ruang tertutup, bebas asap rokok", harga: R.vip, satuan: "/jam" },
     { nama: "VVIP Room", ket: "ruang tertutup, boleh merokok", harga: R.vvip, satuan: "/jam" },
   ];

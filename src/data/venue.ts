@@ -1,5 +1,5 @@
 // Data meja & tarif — angka nyata dari pemilik dan PRICELIST BILLIARD.pdf.
-// 44 ruang: 40 biliar reguler + 2 VIP (no smoking) + 2 VVIP (bebas).
+// 44 ruang: 40 biliar reguler + 2 VIP (bebas asap rokok) + 2 VVIP (boleh merokok).
 //
 // MEJA RESTO DIHAPUS 4 Okt 2026 (permintaan pemilik). Kelas `resto` SENGAJA
 // masih dikenali tipe & label di bawah: jejak venue menyimpan `tableType` di
@@ -48,8 +48,8 @@ export const BILLIARD_TYPES: TableType[] = ["regular", "vip", "vvip"];
 /** Nama kelas untuk layar — satu sumber supaya kasir & pelanggan menyebutnya sama. */
 export const CLASS_LABEL: Record<TableType, string> = {
   regular: "Reguler",
-  vip: "VIP (no smoking)",
-  vvip: "VVIP (bebas rokok)",
+  vip: "VIP (bebas asap rokok)",
+  vvip: "VVIP (boleh merokok)",
   resto: "Meja resto",
 };
 export const CLASS_SHORT: Record<TableType, string> = {
@@ -76,7 +76,7 @@ export const TABLES: PoolTable[] = [
     capacity: 4,
     venue: "spl" as const,
   })),
-  // VIP 1–2 no smoking · VIP 3–4 bebas rokok (VVIP). Kelas tiap ruang bisa
+  // VIP 1–2 bebas asap rokok · VIP 3–4 boleh merokok (VVIP). Kelas tiap ruang bisa
   // ditukar di tab Atur tanpa mengubah kode.
   ...Array.from({ length: 4 }, (_, i) => ({
     id: `V${String(i + 1).padStart(2, "0")}`,
@@ -223,8 +223,8 @@ export const lantaiVenue = (v: Venue) =>
 /* ── Tarif (PRICELIST BILLIARD.pdf) ────────────────────────────────
    Reguler  11.00–18.00  Rp 29.000 / jam
    Reguler  18.00–tutup  Rp 39.000 / jam
-   VIP Room (no smoking) Rp 50.000 / jam
-   VVIP (bebas rokok)    Rp 60.000 / jam   [PERLU KONFIRMASI — ubah di tab Atur]
+   VIP Room (bebas asap rokok)  Rp 50.000 / jam
+   VVIP (boleh merokok)         Rp 60.000 / jam   [HARGA PERLU KONFIRMASI — ubah di tab Atur]
    Meja resto            tanpa sewa waktu (Rp 0), hanya bill makanan
    Paket Siang           Rp 50.000  (2 jam + 2 minuman, sampai 16.00) */
 

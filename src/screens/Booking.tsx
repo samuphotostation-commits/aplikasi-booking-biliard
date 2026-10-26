@@ -72,7 +72,7 @@ export default function Booking() {
   );
 
   const picked = (draft.tableId ? cariMeja(draft.tableId) : undefined) ?? null;
-  /** Kelas meja mengikuti pengaturan pemilik (VIP no smoking / VVIP bebas), bukan bawaan data. */
+  /** Kelas meja mengikuti pengaturan pemilik (VIP bebas asap rokok / VVIP boleh merokok), bukan bawaan data. */
   const kelas = (id: string) => classOf(venue, id);
   const kelasPicked = picked ? kelas(picked.id) : "regular";
   // Meja resto dipesan lewat halaman reservasi resto, bukan di sini.
@@ -164,7 +164,7 @@ export default function Booking() {
         kicker={vipMode ? "Reservasi" : "Pilih"}
         title={vipMode ? "VIP Room" : "Booking Meja"}
         sub={vipMode
-          ? `Ruang privat sampai 8 orang · VIP no smoking ${rupiah(venue.rates.vip)}/jam · VVIP bebas rokok ${rupiah(venue.rates.vvip)}/jam.`
+          ? `Ruang privat sampai 8 orang · VIP bebas asap rokok ${rupiah(venue.rates.vip)}/jam · VVIP boleh merokok ${rupiah(venue.rates.vvip)}/jam.`
           : "Lihat slot kosong secara langsung."}
       />
 
@@ -390,8 +390,8 @@ export default function Booking() {
             {/* Legenda — warna bukan satu-satunya pembawa info (PRD §9.3) */}
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-dim">
               <Legend swatch="bg-ink-2 border-line-2" label="Reguler kosong" />
-              <Legend swatch="bg-amber/10 border-amber/50" label="VIP · no smoking" />
-              <Legend swatch="bg-brick/25 border-brick" label="VVIP · bebas rokok" />
+              <Legend swatch="bg-amber/10 border-amber/50" label="VIP · bebas asap rokok" />
+              <Legend swatch="bg-brick/25 border-brick" label="VVIP · boleh merokok" />
               <Legend swatch="bg-amber border-amber" label="Dipilih" />
               <Legend swatch="bg-amber/10 border-amber/40" label="Sedang main (tidak bisa dipilih)" />
               <Legend swatch="bg-ink border-line/60" label="Dipakai / dibooking" />
