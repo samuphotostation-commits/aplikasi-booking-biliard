@@ -67,6 +67,9 @@ const foto = (n: string) => PHOTO[`../assets/foto/${n}.webp`];
 
 /** Foto yang dipakai, dipilih per peran — bukan diacak dari folder. */
 const F_TARIF = foto("bl-187");  // tegak: pemain mid-shot, tingginya mengimbangi daftar tarif
+/** Aula penuh orang — satu-satunya bukti yang dicari orang yang mau menggelar
+ *  acara: apakah tempat ini sanggup menampung rombongan. */
+const F_ACARA = foto("bl-159");
 const SUASANA = ["bl-036", "bl-153", "bl-167", "bl-147", "bl-119", "bl-138"]
   .map(foto).filter(Boolean) as string[];
 
@@ -117,29 +120,84 @@ const PETA = `https://www.google.com/maps/search/?api=1&query=${encodeURICompone
 
 const wa = (pesan: string) => `https://wa.me/${WA_VENUE}?text=${encodeURIComponent(pesan)}`;
 
-const KERJASAMA = [
+/**
+ * ACARA NAIK JADI SEKSINYA SENDIRI; LAMARAN DAN KERJA SAMA TURUN KE KAKI
+ * HALAMAN.
+ *
+ * Sebelumnya ketiganya tiga kolom sama lebar, sama berat, di bawah satu
+ * judul "Punya rencana? Kami dengerin." Itu keliru dua kali.
+ *
+ * Pertama soal nilai: satu gathering kantor tiga puluh orang jauh lebih
+ * besar daripada satu sesi biliar dua jam, sementara lamaran kerja dan
+ * tawaran supplier tidak menghasilkan apa pun malam itu. Menyejajarkan
+ * ketiganya memberi tahu pembaca bahwa ketiganya sama pentingnya.
+ *
+ * Kedua soal pembaca: orang yang mencari kerja dan orang yang merencanakan
+ * ulang tahun tidak sedang mencari hal yang sama, dan tidak ada satu judul
+ * pun yang bisa melayani keduanya sekaligus.
+ */
+const ACARA_PESAN = "Halo SPL, saya mau atur acara di SPL & Smokehouse. Tanggal: ... Jumlah orang: ...";
+
+/** Dua urusan yang tempatnya memang di kaki halaman: dicari orang yang
+ *  sudah sengaja mencarinya, bukan ditawarkan ke tamu yang mau main. */
+const LAIN = [
   {
-    label: "Event",
-    judul: "Acara kamu, tempat kami",
-    isi: "Ulang tahun, gathering kantor, nobar, atau turnamen biliar. Kasih tahu tanggal dan berapa orang, meja dan dapurnya kami siapkan.",
-    cta: "Atur acara",
-    pesan: "Halo SPL, saya mau atur acara di SPL & Smokehouse. Tanggal: ... Jumlah orang: ...",
-  },
-  {
-    label: "Career",
-    judul: "Betah kerja malam?",
-    isi: "Tim kami isinya kasir, kru lantai, kru dapur, kru bar, dan kru gudang. Kirim posisi yang kamu incar dan pengalamanmu.",
-    cta: "Kirim lamaran",
+    judul: "Kirim lamaran",
     pesan: "Halo SPL, saya mau melamar kerja. Posisi: ... Pengalaman: ... Domisili: ...",
   },
   {
-    label: "Partnership",
-    judul: "Mari tumbuh bareng",
-    isi: "Supplier bahan dan minuman, sponsor turnamen, komunitas biliar, atau kolaborasi brand. Ceritakan bentuk kerja samanya.",
-    cta: "Ajukan kerja sama",
+    judul: "Ajukan kerja sama",
     pesan: "Halo SPL, saya mau menawarkan kerja sama. Bentuknya: ...",
   },
 ] as const;
+
+/**
+ * ENAM PERTANYAAN, DAN SEMUA JAWABANNYA SUDAH ADA DI HALAMAN INI.
+ *
+ * Tidak satu pun dikarang. Yang tidak bisa dijawab dari data venue atau dari
+ * kalimat yang sudah terbit di halaman ini SENGAJA TIDAK DIMASUKKAN — parkir,
+ * batas usia, boleh-tidaknya membatalkan, dan jadwal nobar semuanya
+ * pertanyaan nyata, tapi jawabannya cuma pemilik yang tahu, dan jawaban yang
+ * salah di sini jauh lebih merugikan daripada pertanyaan yang belum ada.
+ *
+ * Jawabannya menerima angka yang berlaku sebagai argumen, bukan menuliskan
+ * angkanya, supaya tarif dan jam yang berubah di panel Atur ikut terbaca di
+ * sini.
+ */
+const TANYA = (t: {
+  vip: string; vvip: string; siang: string; malam: string; mejaResto: number;
+}) => [
+  {
+    t: "Harus bayar di muka?",
+    j: `Iya, lewat QRIS waktu booking. Begitu bayarnya masuk, mejanya terkunci atas namamu
+        dan tidak bisa diambil orang lain — itu gunanya dibayar di depan.`,
+  },
+  {
+    t: "Hitungan jamnya mulai dari kapan?",
+    j: `Dari saat kamu duduk dan kasir menyalakan lampu mejanya, bukan dari jam yang kamu
+        pilih. Datang telat sedikit tidak memotong waktu mainmu.`,
+  },
+  {
+    t: `Kalau mainnya lewat jam 18.00?`,
+    j: `Dihitung per jam dengan dua tarif: ${t.siang} untuk jam sebelum 18.00 dan ${t.malam}
+        untuk sesudahnya. Rinciannya muncul di layar sebelum kamu bayar, bukan sesudah.`,
+  },
+  {
+    t: "Bedanya VIP dan VVIP?",
+    j: `Dua-duanya ruang tertutup. VIP ${t.vip} dan tidak boleh merokok di dalam; VVIP
+        ${t.vvip} dan boleh.`,
+  },
+  {
+    t: "Reservasi meja resto bayar juga?",
+    j: `Tidak. ${t.mejaResto} meja makan Smokehouse direservasi gratis dan tidak dihitung
+        per jam — yang dibayar cuma makanannya.`,
+  },
+  {
+    t: "Bisa pesan makanan sambil main?",
+    j: `Bisa. Menunya dipesan dari HP dari meja biliar mana pun, dan pesanannya diantar ke
+        mejamu. Tidak perlu berhenti main untuk memesan.`,
+  },
+];
 
 /* ══ Potongan kecil yang dipakai berulang ══════════════════════════ */
 
@@ -515,30 +573,61 @@ export default function Landing() {
                     </div>
                   </li>
                 ))}
-                {paket.map((p) => (
-                  <li key={p.id} className="-mx-3 flex items-baseline justify-between gap-5 bg-amber/5 px-3 py-3.5">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[14.5px] font-semibold text-cream">{p.name}</span>
-                        <span className="rounded bg-amber px-1.5 py-px font-display text-[10px]
-                          uppercase tracking-[0.1em] text-ink">Promo</span>
-                      </div>
-                      <div className="text-[12px] text-mute">
-                        {p.hours} jam main{p.freeDrinks ? ` dan ${p.freeDrinks} minuman` : ""}
-                        {` · mulai sampai ${fmtHour(p.lastStartHour)}`}
-                      </div>
-                    </div>
-                    <div className="shrink-0 whitespace-nowrap">
-                      <span className="font-display text-xl tabular-nums text-amber">{rupiah(p.price)}</span>
-                    </div>
-                  </li>
-                ))}
               </ul>
 
               <p className="mt-3 text-[12px] leading-relaxed text-mute">
                 Sesi yang melewati pukul 18.00 dihitung per jam dengan dua tarif. Rinciannya
                 muncul sebelum kamu bayar.
               </p>
+
+              {/* ── PAKET, KELUAR DARI DAFTAR TARIF ────────────────────
+                  Dulu ia baris kelima daftar, dibedakan hanya oleh latar
+                  `bg-amber/5` yang nyaris tidak terlihat. Satu-satunya promo
+                  di halaman ini duduk di tempat yang paling cepat dilewati
+                  mata — dan promo yang tidak terlihat bukan promo.
+
+                  SELISIHNYA DIHITUNG, TIDAK DITULIS. Angka hematnya lahir
+                  dari tarif siang yang berlaku kali jumlah jamnya, jadi
+                  pemilik menurunkan tarif lewat panel Atur dan klaim di
+                  halaman ini ikut turun sendiri. Tidak ada janji yang bisa
+                  tertinggal dari harga yang sebenarnya ditagih kasir.
+
+                  Kalau pemilik mematikan paketnya, seluruh blok ini hilang —
+                  bukan jadi kartu kosong. */}
+              {paket.map((p) => {
+                const lepasan = p.hours * R.regularDay;
+                const hemat = lepasan - p.price;
+                return (
+                  <div key={p.id} className="mt-6 rounded-2xl border border-amber/40 bg-amber/[0.07] p-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded bg-amber px-1.5 py-px font-display text-[10px]
+                        uppercase tracking-[0.1em] text-ink">Promo</span>
+                      <span className="font-display text-[11px] uppercase tracking-[0.18em] text-amber">
+                        Mulai sampai {fmtHour(p.lastStartHour)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
+                      <h3 className="font-serif text-[1.5rem] font-bold leading-tight text-cream">
+                        {p.name}
+                      </h3>
+                      <span className="whitespace-nowrap font-display text-[1.75rem] tabular-nums text-amber">
+                        {rupiah(p.price)}
+                      </span>
+                    </div>
+
+                    <p className="mt-1.5 text-[13.5px] leading-relaxed text-mute">
+                      {p.hours} jam main{p.freeDrinks ? ` dan ${p.freeDrinks} minuman` : ""}.
+                      {hemat > 0 && (
+                        <> Kalau diambil lepasan {rupiah(lepasan)}, jadi hemat{" "}
+                          <span className="font-semibold text-cream">{rupiah(hemat)}</span>
+                          {p.freeDrinks ? " — minumannya belum ikut dihitung" : ""}.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                );
+              })}
 
               <div className="mt-7">
                 <Aksi onClick={() => nav("/sport")} anak="Booking meja" />
@@ -655,42 +744,68 @@ export default function Landing() {
           Kolom bergaris, bukan tiga kartu berbingkai. Tiga kartu
           seragam berdampingan adalah bentuk yang paling cepat terbaca
           sebagai halaman buatan mesin. */}
-      <Seksi id="kerjasama" anak={
-        <>
+      <section id="acara" className="relative isolate overflow-hidden">
+        {F_ACARA && (
+          <img src={F_ACARA} alt="Aula SPL penuh orang saat turnamen biliar" loading="lazy"
+            className="absolute inset-0 -z-10 h-full w-full object-cover" />
+        )}
+        {/* KEGELAPAN DITARUH DI TEMPAT TEKSNYA, bukan selembar di atas
+            seluruh foto — aturan yang sama dengan layar sambutan, dan
+            sebelumnya sempat dilanggar di sini.
+
+            Percobaan pertama memakai satu lapis `via-ink/90` menyeluruh.
+            Hasilnya persis kesalahan yang dulu dibuat versi lama halaman
+            ini: fotonya bukan lagi foto, melainkan bidang gelap berisik,
+            dan kerumunan yang justru jadi seluruh alasan foto ini dipilih
+            tidak kelihatan lagi. Sekarang pita dari bawah untuk teksnya,
+            ditambah kolom dari kiri; bagian kanan-atas tempat orangnya
+            berkumpul tetap utuh kontrasnya. */}
+        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t
+          from-ink via-ink/72 via-45% to-transparent" />
+        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r
+          from-ink/85 via-ink/35 via-52% to-transparent" />
+
+        <div className="mx-auto w-full max-w-6xl px-5 py-16 sm:py-24">
           <Muncul anak={
             <div className="max-w-2xl">
-              <h2 className="text-balance font-serif text-[2.1rem] font-bold leading-[1.02]
-                tracking-[-0.015em] text-cream sm:text-[2.7rem]">
-                Punya rencana? Kami dengerin.
+              <span className="font-display text-[11px] uppercase tracking-[0.22em] text-amber">
+                Acara
+              </span>
+              <h2 className="mt-3 text-balance font-serif text-[2.1rem] font-bold leading-[1.02]
+                tracking-[-0.015em] text-cream sm:text-[2.9rem]">
+                Rombonganmu muat di sini.
               </h2>
+              <p className="mt-4 max-w-[48ch] text-[15px] leading-relaxed text-cream/85">
+                Ulang tahun, gathering kantor, nobar, atau turnamen biliar. Kasih tahu tanggalnya
+                dan berapa orang — meja, ruang, dan dapurnya kami siapkan.
+              </p>
+
+              {/* Kapasitas dijawab dengan angka yang BERLAKU, bukan dengan
+                  kata "besar". Jumlah kursinya tidak ditulis karena tidak
+                  ada datanya; yang ditulis cuma yang bisa dihitung. */}
+              <ul className="mt-7 flex flex-wrap gap-x-8 gap-y-3 border-t border-line/60 pt-5">
+                {([
+                  [String(mejaBiliar), "meja biliar"],
+                  [String(ruangVip), "ruang tertutup"],
+                  [String(mejaResto), "meja makan"],
+                  [`sampai ${fmtHour(CLOSE_HOUR)}`, "tiap hari"],
+                ] as [string, string][]).map(([besar, kecil]) => (
+                  <li key={kecil} className="flex items-baseline gap-2">
+                    <span className="whitespace-nowrap font-display text-lg tabular-nums text-amber">
+                      {besar}
+                    </span>
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-mute">{kecil}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-7">
+                <Aksi href={wa(ACARA_PESAN)} anak="Atur acara" />
+              </div>
             </div>
           } />
-
-          <div className="mt-9 grid border-t border-line md:grid-cols-3">
-            {KERJASAMA.map((k, i) => (
-              <Muncul key={k.label} i={i}
-                className="border-b border-line py-7 md:border-b-0 md:border-l md:border-line md:pl-7
-                  md:first:border-l-0 md:first:pl-0"
-                anak={
-                  <>
-                    <span className="font-display text-[11px] uppercase tracking-[0.2em] text-amber">
-                      {k.label}
-                    </span>
-                    <h3 className="mt-2.5 font-serif text-[1.4rem] font-bold leading-tight text-cream">
-                      {k.judul}
-                    </h3>
-                    <p className="mt-2.5 max-w-[40ch] text-[13.5px] leading-relaxed text-mute">{k.isi}</p>
-                    <a href={wa(k.pesan)} target="_blank" rel="noreferrer"
-                      className="mt-4 inline-flex min-h-[40px] items-center gap-1.5 text-[13px]
-                        font-bold text-amber transition hover:text-amber-deep">
-                      {k.cta} <span aria-hidden>&rarr;</span>
-                    </a>
-                  </>
-                } />
-            ))}
-          </div>
-        </>
-      } />
+        </div>
+      </section>
 
       {/* ══ MAMPIR ════════════════════════════════════════════════ */}
       <Seksi gelap anak={
@@ -744,18 +859,73 @@ export default function Landing() {
             -translate-y-1/2 text-amber/[0.06]">
           <Mark size={360} />
         </div>
-        <div className="mx-auto w-full max-w-6xl px-5 py-16 text-center sm:py-24">
-          <h2 className="text-balance font-serif text-[2.1rem] font-bold leading-[1.02]
-            tracking-[-0.015em] text-cream sm:text-[3rem]">
-            Malam ini mau main atau makan?
-          </h2>
-          <p className="mt-3 text-[14.5px] text-mute">Dua-duanya bisa. Pilih pintunya.</p>
-          <div className="mx-auto mt-8 flex max-w-md flex-col gap-2.5 sm:flex-row">
-            {/* Nama wilayah ("SPL Sport" / "Smokehouse") diganti kata kerja.
-                Nama brand di atas tombol memberi tahu pembaca ke mana ia
-                pergi, bukan apa yang akan terjadi di sana. */}
-            <Aksi lebar onClick={() => nav("/sport")} anak="Booking meja" />
-            <Aksi2 lebar onClick={() => nav("/smokehouse")} anak="Lihat Smokehouse" />
+        <div className="mx-auto w-full max-w-6xl px-5 py-16 sm:py-24">
+          {/* ── TANYA JAWAB ───────────────────────────────────────
+              Penutup lama cuma mengulang tawaran yang sama dengan layar
+              sambutan, 4.000 piksel sebelumnya. Orang yang sampai ke bawah
+              sini adalah orang yang SUDAH MENOLAK tawaran itu sekali;
+              mengulanginya tidak mengubah apa pun. Yang mengubah adalah
+              menjawab hal yang membuatnya ragu. */}
+          <div className="grid gap-10 lg:grid-cols-12 lg:gap-14">
+            <Muncul className="lg:col-span-5" anak={
+              <>
+                <h2 className="text-balance font-serif text-[2.1rem] font-bold leading-[1.02]
+                  tracking-[-0.015em] text-cream sm:text-[2.7rem]">
+                  Sebelum kamu booking.
+                </h2>
+                <p className="mt-4 max-w-[40ch] text-[15px] leading-relaxed text-mute">
+                  Yang paling sering ditanya sebelum orang menekan tombolnya. Kalau yang kamu
+                  cari tidak ada di sini, tanya langsung — dibalas orang, bukan mesin.
+                </p>
+                <div className="mt-6">
+                  <Aksi2 href={wa("Halo SPL, saya mau tanya.")} anak={`WhatsApp ${WA_VENUE_TAMPIL}`} />
+                </div>
+              </>
+            } />
+
+            <Muncul i={1} className="lg:col-span-7" anak={
+              <div className="divide-y divide-line border-y border-line">
+                {TANYA({
+                  vip: `${rupiah(R.vip)}/jam`,
+                  vvip: `${rupiah(R.vvip)}/jam`,
+                  siang: `${rupiah(R.regularDay)}/jam`,
+                  malam: `${rupiah(R.regularNight)}/jam`,
+                  mejaResto,
+                }).map((q) => (
+                  // `<details>` bawaan peramban: bisa dibuka tanpa satu baris
+                  // JavaScript pun, terbaca pembaca layar sebagai tombol
+                  // lipat, dan isinya tetap ada di halaman untuk mesin
+                  // pencari walaupun sedang tertutup.
+                  <details key={q.t} className="group py-1">
+                    <summary className="flex cursor-pointer list-none items-center justify-between
+                      gap-4 py-3.5 text-[14.5px] font-semibold text-cream transition
+                      hover:text-amber [&::-webkit-details-marker]:hidden">
+                      {q.t}
+                      <span aria-hidden className="shrink-0 text-amber transition-transform
+                        duration-200 group-open:rotate-45">+</span>
+                    </summary>
+                    <p className="max-w-[52ch] pb-4 text-[13.5px] leading-relaxed text-mute">{q.j}</p>
+                  </details>
+                ))}
+              </div>
+            } />
+          </div>
+
+          {/* Ajakan terakhir tetap ada, tapi sesudah keberatannya dijawab —
+              bukan sebagai pengganti jawabannya. */}
+          <div className="mt-14 border-t border-line pt-12 text-center">
+            <h2 className="text-balance font-serif text-[2.1rem] font-bold leading-[1.02]
+              tracking-[-0.015em] text-cream sm:text-[3rem]">
+              Malam ini mau main atau makan?
+            </h2>
+            <p className="mt-3 text-[14.5px] text-mute">Dua-duanya bisa. Pilih pintunya.</p>
+            <div className="mx-auto mt-8 flex max-w-md flex-col gap-2.5 sm:flex-row">
+              {/* Nama wilayah ("SPL Sport" / "Smokehouse") diganti kata kerja.
+                  Nama brand di atas tombol memberi tahu pembaca ke mana ia
+                  pergi, bukan apa yang akan terjadi di sana. */}
+              <Aksi lebar onClick={() => nav("/sport")} anak="Booking meja" />
+              <Aksi2 lebar onClick={() => nav("/smokehouse")} anak="Lihat Smokehouse" />
+            </div>
           </div>
         </div>
       </section>
@@ -792,6 +962,13 @@ export default function Landing() {
             <TautanKaki href={wa("Halo SPL, saya mau tanya.")} anak={`WhatsApp ${WA_VENUE_TAMPIL}`} />
             <TautanKaki href={VENUE.ig} anak="Instagram" />
             <TautanKaki href={PETA} anak="Lihat di peta" />
+            {/* Lamaran kerja dan tawaran kerja sama turun ke sini dari badan
+                halaman. Keduanya tetap satu ketukan bagi orang yang memang
+                mencarinya, dan tidak lagi memotong perhatian tamu yang cuma
+                mau main. */}
+            {LAIN.map((l) => (
+              <TautanKaki key={l.judul} href={wa(l.pesan)} anak={l.judul} />
+            ))}
           </nav>
         </div>
 
