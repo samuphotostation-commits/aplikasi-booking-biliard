@@ -1,5 +1,5 @@
 import type { CartLine } from "../lib/store";
-import { TABLES, type Rates, type TableType } from "./venue";
+import { TABLES, SEMUA_MEJA, type Rates, type TableType } from "./venue";
 
 /* Sesi meja yang hidup di lantai — baik dari booking online maupun
    walk-in yang dibuka kasir. Ini sumber kebenaran papan meja.
@@ -19,6 +19,8 @@ export type Payment = {
   amount: number;
   /** Shift tempat uangnya diterima — dasar hitung kas laci. */
   shiftId?: string;
+  /** Mesin EDC yang dipakai (mis. "Mandiri", "BRI"). Hanya untuk `channel: "edc"`. */
+  mesin?: string;
   by?: string;
   /** Kalau bayar per pesanan: kunci baris yang dilunasi orang ini. */
   keys?: string[];
@@ -50,11 +52,45 @@ export type LiveSession = {
   settledAt?: number;
   /** Shift tempat uangnya diterima — dasar hitung kas laci per shift. */
   settledShiftId?: string;
+  /** Mesin EDC yang dipakai saat tab ditutup. Hanya untuk kanal `edc`. */
+  settledMesin?: string;
   /** Tambahan tagihan dari perpanjangan booking online (dibayar di kasir). */
   extraTable?: number;
+  /**
+   * GABUNG MEJA (SMH-4). Penanda grup: semua sesi bertanda sama dibayar
+   * bersama sebagai satu bill.
+   *
+   * Yang TIDAK dilakukan penanda ini: memindahkan uang. Tiap meja tetap
+   * punya catatan uangnya sendiri — baris pesanannya, sewa mejanya,
+   * prabayarnya, pembayaran sebagiannya. Itu sebabnya "dua tab tetap
+   * tercatat asalnya" bisa dipenuhi tanpa satu rupiah pun berpindah, dan
+   * seluruh pagar uang yang sudah ada tetap berlaku apa adanya.
+   *
+   * Nilainya id grup sendiri, BUKAN id sesi pemimpinnya: kalau memakai id
+   * sesi, menutup tab pemimpin akan meninggalkan penanda yang merujuk sesi
+   * yang sudah tidak ada.
+   */
+  grup?: string;
+  /** Nilai compliment yang dibekukan saat tab ditutup — untuk laporan.
+   *  Yang sedang berjalan dihitung dari barisnya lewat `complimentOf`. */
+  settledCompliment?: number;
+  /** Bagian diskon yang diberikan manual (persen), bukan dari promo. */
+  settledDiskonManual?: number;
+  /**
+   * Nilai transaksi DIPECAH PER LINI USAHA saat tab ditutup: sewa meja &
+   * barang counter biliar, minuman bar, makanan resto.
+   *
+   * Dibekukan di sini karena barisnya dilepas saat tutup buku — dan tanpa
+   * angka ini, pajak per lini (permintaan pemilik 18 Okt 2026) tidak bisa
+   * dihitung lagi untuk hari yang sudah lewat. Sesi sebelum 18 Okt 2026
+   * tidak punya ini; pembacanya jatuh ke pajak venue tunggal.
+   */
+  settledLini?: { biliar: number; bar: number; resto: number };
   /** Paket Siang: sisa jatah minuman gratis. */
   freeDrinks?: number;
-  paket?: "siang";
+  /** Id paket yang dibeli. Sesi lama memakai "siang" — id paket bawaan
+   *  sengaja dibuat sama persis supaya jejak lama tetap terbaca. */
+  paket?: string;
   /** Pesanan prabayar milik tamu no-show — dipindah ke sini supaya stok kembali. */
   noShowFnb?: CartLine[];
   /** Hold: kapan slot dilepas bila pembayaran tidak masuk (T+19). */
@@ -93,8 +129,21 @@ export type Ticket = {
   at: number;
   /** Asal pesanan bila bukan dari kasir, mis. "QR · Andi" atau "Takeaway · Sari". */
   via?: string;
+  /** Catatan tamu, mis. "ayam bagian dada, pedas". DIBAWA ke dapur — catatan
+   *  yang cuma tersimpan di bill tidak pernah sampai ke yang memasak. */
+  note?: string;
   /** Kunci baris bill/pesanan yang diwakili tiket ini — void menghapus tiket baris yang TEPAT. */
   lineKey?: string;
+  /**
+   * JAM DAPUR MENERIMA pesanan ini (tombol "Orderan diterima" ditekan).
+   *
+   * `at` adalah jam pesanan MASUK DARI KASIR; keduanya berbeda, dan selisih
+   * di antaranya justru yang paling berguna saat ramai — itu lama pesanan
+   * menunggu sebelum ada yang menyentuhnya.
+   */
+  terimaAt?: number;
+  /** Jam masakannya SELESAI (tombol "Orderan ready" ditekan). */
+  readyAt?: number;
 };
 
 /* ── Seed deterministik ────────────────────────────────────────────
@@ -211,7 +260,8 @@ export function seedTickets(sessions: LiveSession[], now = Date.now()): Ticket[]
   const out: Ticket[] = [];
   running.slice(0, 7).forEach((s, i) => {
     const p = pool[Math.floor(rnd() * pool.length)];
-    const table = TABLES.find((t) => t.id === s.tableId)!;
+    // Katalog penuh: sesi lama di meja yang sudah ditarik tetap terbaca namanya.
+    const table = SEMUA_MEJA.find((t) => t.id === s.tableId)!;
     out.push({
       id: `tk-${i}`, sessionId: s.id, tableName: table.name,
       itemId: p.id, name: p.name, qty: 1 + Math.floor(rnd() * 2),

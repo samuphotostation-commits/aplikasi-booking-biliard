@@ -71,3 +71,30 @@ export async function saveTextFile(
     return "gagal";
   }
 }
+
+/**
+ * Simpan berkas BINER (dipakai laporan .xlsx).
+ *
+ * Tidak lewat `claude.use("downloads")`: API itu hanya menerima teks, dan
+ * memaksa biner ke dalamnya menghasilkan berkas rusak yang baru ketahuan saat
+ * dibuka. Di lingkungan itu pemanggilnya harus menyediakan jalur teks sendiri.
+ */
+export async function saveBlobFile(filename: string, blob: Blob): Promise<SaveOutcome> {
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    // Dilepas belakangan: sebagian peramban membatalkan unduhan kalau URL-nya
+    // sudah hilang sebelum berkasnya sempat dibaca.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return "tersimpan";
+  } catch {
+    return "gagal";
+  }
+}
+
+/** Benar kalau unduhan biner bisa dipakai di lingkungan ini. */
+export const bisaUnduhBiner = () =>
+  typeof document !== "undefined" && typeof URL?.createObjectURL === "function";

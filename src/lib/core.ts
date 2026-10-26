@@ -68,9 +68,11 @@ export function freeCountAtHour(
   /** Kelas meja yang diubah pemilik (VIP ↔ VVIP). Tanpa ini hitungannya memakai kelas bawaan. */
   tableTypes?: Record<string, PoolTable["type"]>,
   todayISO?: string,
+  /** Denah yang sedang dijual. Kosong = denah bawaan. */
+  denah: PoolTable[] = TABLES,
 ) {
   const isToday = todayISO ? dateISO === todayISO : false;
-  return TABLES.filter((t) => {
+  return denah.filter((t) => {
     const kelas = tableTypes?.[t.id] ?? t.type;
     // Meja resto dipesan lewat halaman reservasi resto — tidak pernah ikut
     // hitungan meja biliar, kalau tidak strip jam menjanjikan meja yang tidak
@@ -87,8 +89,10 @@ export function availableTables(
   startHour: number,
   hours: number,
   sessions: LiveSession[] = [],
+  /** Denah yang sedang dijual. Kosong = denah bawaan. */
+  denah: PoolTable[] = TABLES,
 ) {
-  return TABLES.filter((t) => isFree(t.id, dateISO, startHour, hours, sessions));
+  return denah.filter((t) => isFree(t.id, dateISO, startHour, hours, sessions));
 }
 
 /** Kode booking bergaya SPL-8F3K2A (byte acak, bukan urutan — PRD SEC-10). */

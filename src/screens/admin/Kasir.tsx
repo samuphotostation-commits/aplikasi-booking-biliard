@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { QrisKasir } from "./QrisKasir";
+import PesanTanpaMeja from "./PesanTanpaMeja";
+import PanelStruk from "./PanelStruk";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../components/UI";
 import {
   useAdmin, settlementOf, checkinProblem, restoreProblem, businessDateOf, bookingLapsed, unservedLinesOf, lineValue,
-  classOf, sessionType, meterEndOf, splitPaidOf,
+  classOf, sessionType, meterEndOf, splitPaidOf, mesinEdc, mejaDijual, cariMeja,
   type GuestOrder, type State,
 } from "../../lib/adminStore";
 import { VOID_REASONS } from "../../data/staff";
-import { TABLES, CLASS_SHORT } from "../../data/venue";
+import { TABLES, CLASS_SHORT, tableLabel, venueDari } from "../../data/venue";
+import { useVenueAktif } from "../../lib/venueAktif";
 
 import { rupiah } from "../../lib/core";
 import type { LiveSession } from "../../data/live";
@@ -30,33 +33,50 @@ export default function Kasir() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [voidMsg, setVoidMsg] = useState<string | null>(null);
   const [voidFor, setVoidFor] = useState<string | null>(null);
+  const [pesanBuka, setPesanBuka] = useState(false);
+  const [strukBuka, setStrukBuka] = useState(false);
 
   const now = Date.now();
   const today = businessDateOf(now);
-  const booked = a.sessions.filter((s) => s.status === "booked").sort((x, y) => x.startsAt - y.startsAt);
+  /**
+   * SEMUA DAFTAR DI LAYAR INI IKUT VENUE YANG SEDANG DIBUKA, sama seperti
+   * papan meja. Kasir Smokehouse yang melihat tujuh meja biliar di daftar
+   * "sedang jalan" bukan cuma terganggu — ia bisa menutup tab venue sebelah.
+   */
+  const venue = useVenueAktif();
+  const diVenue = (tableId?: string) => !!tableId && venueDari(tableId) === venue;
+  const booked = a.sessions.filter((s) => s.status === "booked" && diVenue(s.tableId))
+    .sort((x, y) => x.startsAt - y.startsAt);
   // Jadwal habis tanpa pernah bisa check-in (meja masih terpakai): butuh keputusan kasir.
   const lapsed = booked.filter((s) => bookingLapsed(s, now));
   const active = booked.filter((s) => !bookingLapsed(s, now));
   const pending = active.filter((s) => businessDateOf(s.startsAt) === today);
   const later = active.filter((s) => businessDateOf(s.startsAt) > today);
-  const holds = a.sessions.filter((s) => s.status === "hold").sort((x, y) => x.startsAt - y.startsAt);
-  const lateGuests = a.sessions
-    .filter((s) => s.status === "noshow" && businessDateOf(s.startsAt) === today && now < s.endsAt)
+  const holds = a.sessions.filter((s) => s.status === "hold" && diVenue(s.tableId))
     .sort((x, y) => x.startsAt - y.startsAt);
-  const orders = a.orders.filter((o) => businessDateOf(o.at) === today).slice(0, 20);
+  const lateGuests = a.sessions
+    .filter((s) => s.status === "noshow" && diVenue(s.tableId)
+      && businessDateOf(s.startsAt) === today && now < s.endsAt)
+    .sort((x, y) => x.startsAt - y.startsAt);
+  // Pesanan tanpa meja (takeaway/counter) membawa penanda venuenya sendiri.
+  const orders = a.orders
+    .filter((o) => businessDateOf(o.at) === today
+      && (o.tableId ? diVenue(o.tableId) : (o.venue ?? "spl") === venue))
+    .slice(0, 20);
   const openRefunds = a.refunds.filter((r) => !r.settledAt);
 
   const running = a.sessions
-    .filter((s) => s.status === "running")
+    .filter((s) => s.status === "running" && diVenue(s.tableId))
     .sort((x, y) => x.endsAt - y.endsAt);
-  const reservasiResto = a.sessions.filter((s) => s.status === "booked" && sessionType(s) === "resto");
-  void reservasiResto;
 
-  const nameOf = (id?: string) => TABLES.find((t) => t.id === id)?.name ?? "—";
+  const nameOf = (id?: string) => (id ? cariMeja(id)?.name : undefined) ?? "—";
   const label = (id: string) => {
-    const t = TABLES.find((x) => x.id === id)!;
+    const t = cariMeja(id)!;
     const k = classOf(a, id);
-    return { no: k === "resto" ? `R${t.no}` : k === "regular" ? String(t.no) : `V${t.no}`, type: CLASS_SHORT[k] };
+    // Lewat `tableLabel`, bukan rumus sendiri: ini salinan KETIGA dari aturan
+    // yang sama, dan salinan yang tertinggal menulis "R1" sementara papan dan
+    // struk menulis "R01" — satu meja dengan dua nama.
+    return { no: tableLabel(k, t.no), type: CLASS_SHORT[k] };
   };
   // Tab yang masih terbuka dari hari operasional sebelumnya: biasanya karena komputer
   // mati atau kasir lupa menutup. Meterannya sudah berhenti di jam tutup hari itu.
@@ -138,6 +158,43 @@ export default function Kasir() {
     <div className="space-y-6 pb-6">
       <ClashAlert />
 
+      {/* ── Pesan tanpa meja: tamu beli makanan/minuman/rokok saja ── */}
+      {allow("tutupTab") && (
+        <section>
+          {!pesanBuka ? (
+            <button onClick={() => setPesanBuka(true)}
+              className="min-h-[46px] w-full rounded-xl border border-amber/50 bg-amber/10 text-[13px] font-bold text-amber">
+              + Pesan tanpa meja · makanan, minuman, rokok
+            </button>
+          ) : (
+            <div className="rounded-xl border border-line bg-ink-2 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-dim">Pesan tanpa meja</h2>
+                <button onClick={() => setPesanBuka(false)} className="text-[12px] text-dim">tutup</button>
+              </div>
+              <PesanTanpaMeja onDone={(kode) => {
+                setPesanBuka(false);
+                if (kode) flash(`Pesanan ${kode} dibuat — tagih di daftar takeaway di bawah.`);
+              }} />
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── Panel struk: lihat & cetak ulang yang sudah lewat ────── */}
+      {allow("tutupTab") && (
+        <section>
+          {!strukBuka ? (
+            <button onClick={() => setStrukBuka(true)}
+              className="min-h-[46px] w-full rounded-xl border border-line bg-ink-2 text-[13px] text-cream">
+              Struk · lihat &amp; cetak ulang yang sudah lewat
+            </button>
+          ) : (
+            <PanelStruk onTutup={() => setStrukBuka(false)} />
+          )}
+        </section>
+      )}
+
       {/* ── Takeaway menunggu diambil & dibayar ─────────── */}
       {takeawayBelumBayar.length > 0 && (
         <section>
@@ -172,14 +229,18 @@ export default function Kasir() {
                           lunas tetap tombol di bawahnya, ditekan kasir. */}
                       <QrisKasir amount={o.value} ringkas={`Pesanan ${o.code}`} kode={o.code} />
                     <div className="flex flex-wrap gap-1.5">
-                      {([["cash", "Tunai"], ["edc", "Kartu/EDC"], ["qris_online", "QRIS"]] as const).map(([ch, label]) => (
-                        <button key={ch}
+                      {([
+                        ["cash", "Tunai", undefined],
+                        ["qris_online", "QRIS", undefined],
+                        ...mesinEdc(a).map((m) => ["edc", `EDC ${m}`, m] as const),
+                      ] as const).map(([ch, label, mesin]) => (
+                        <button key={`${ch}-${mesin ?? ""}`}
                           onClick={() => {
-                            dispatchA({ t: "settleOrder", id: o.id, channel: ch });
+                            const tolak = dispatchA({ t: "settleOrder", id: o.id, channel: ch, ...(mesin ? { mesin } : {}) });
                             const lunas = !!peek().orders.find((x) => x.id === o.id)?.payment;
                             flash(lunas
                               ? `${o.code} lunas ${rupiah(o.value)} (${label}).`
-                              : "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
+                              : tolak ?? "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
                           }}
                           className="min-h-[36px] rounded-lg border border-line bg-ink px-3 text-[12px] font-semibold text-cream">
                           {label}
@@ -442,10 +503,10 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
       {/* ── Sedang jalan, urut paling cepat habis ────────── */}
       <section>
         <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Sedang main · {running.length}
+          {venue === "smh" ? "Meja terisi" : "Sedang main"} · {running.length}
         </h2>
         {running.length === 0 ? (
-          <Empty text="Belum ada meja yang jalan." />
+          <Empty text={venue === "smh" ? "Belum ada meja yang terisi." : "Belum ada meja yang jalan."} />
         ) : (
           <div className="space-y-2">
             {running.map((s) => {
@@ -585,12 +646,15 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
           Meja kosong
         </h2>
         <div className="flex flex-wrap gap-1.5">
-          {TABLES.filter((t) => !byTable.get(t.id)).map((t) => (
+          {/* Ikut venue, seperti seluruh daftar lain di layar ini. Tanpa ini
+              kasir Smokehouse membaca deretan "1 2 3 … 27" — nomor meja
+              biliar — sebagai meja makannya yang kosong. */}
+          {mejaDijual(a).filter((t) => diVenue(t.id) && !byTable.get(t.id)).map((t) => (
             <span
               key={t.id}
               className="rounded-lg border border-emerald-500/40 bg-emerald-500/8 px-2.5 py-1
                 text-[13px] font-semibold text-emerald-300"
-            >{classOf(a, t.id) === "resto" ? `Resto ${t.no}`
+            >{classOf(a, t.id) === "resto" ? t.name
               : classOf(a, t.id) === "regular" ? t.no
                 : `${CLASS_SHORT[classOf(a, t.id)]} ${t.no}`}</span>
           ))}

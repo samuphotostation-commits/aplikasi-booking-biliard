@@ -48,17 +48,89 @@ if (!satuBerkas) {
   for (const f of assets) copyFileSync(join(DIST, "assets", f), join(OUT, "assets", f));
 }
 
+/**
+ * KEPALA HALAMAN DIBEDAKAN ANTARA SITUS TAMU DAN SITUS KASIR.
+ *
+ * Dulu keduanya memakai kepala yang sama. Akibatnya dua hal: situs tamu
+ * terbit tanpa satu pun keterangan untuk mesin pencari dan pratinjau tautan,
+ * dan situs kasir — panel internal — ikut membawa judul yang terdengar seperti
+ * halaman jualan. Sekarang masing-masing membawa miliknya sendiri.
+ */
+const tamu = !!process.env.VITE_MODE_TAMU;
+
+/**
+ * Alamat situs tamu, dipakai untuk alamat GAMBAR PRATINJAU dan alamat kanonis.
+ *
+ * Harus alamat PENUH, bukan relatif: pengurai pratinjau WhatsApp, Instagram,
+ * dan Facebook mengambil gambarnya dari servernya sendiri, jadi "og-spl.jpg"
+ * saja tidak menunjuk ke mana-mana bagi mereka.
+ *
+ * Bisa ditimpa lewat SITUS_URL saat venue pindah ke alamat sendiri, supaya
+ * ganti domain tidak perlu menyentuh berkas ini.
+ */
+const ALAMAT_SITUS = (process.env.SITUS_URL ?? "https://spl-tamu.pages.dev").replace(/\/+$/, "");
+
+/**
+ * Judul membawa KOTA. Orang mencari "biliar Padang", bukan "SPL" — nama
+ * venuenya justru yang paling terakhir mereka ketahui.
+ */
+const JUDUL = tamu
+  ? "SPL Sports Pool Lounge &mdash; Biliar &amp; Smokehouse Resto di Padang"
+  : "SPL Sports Pool Lounge &mdash; Kasir";
+
+const RINGKASAN = tamu
+  ? "Booking meja biliar dan pesan makanan di SPL Sports Pool Lounge &amp; Smokehouse Resto, Jl. Batang Anai, Padang. Pilih jam dari HP, bayar QRIS, meja terkunci atas namamu. Buka 11.00&ndash;02.00 tiap hari."
+  : "Panel kasir &amp; booking meja biliar SPL Sports Pool Lounge.";
+
+/**
+ * Pratinjau tautan. Hanya untuk situs tamu — panel kasir tidak punya urusan
+ * tampil cantik di linimasa siapa pun.
+ */
+const kepalaSosial = tamu ? `
+<link rel="canonical" href="${ALAMAT_SITUS}/">
+<meta property="og:type" content="business.business">
+<meta property="og:site_name" content="SPL Sports Pool Lounge">
+<meta property="og:locale" content="id_ID">
+<meta property="og:title" content="${JUDUL}">
+<meta property="og:description" content="${RINGKASAN}">
+<meta property="og:url" content="${ALAMAT_SITUS}/">
+<meta property="og:image" content="${ALAMAT_SITUS}/og-spl.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Aula biliar SPL Sports Pool Lounge dengan pemain sedang membidik">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${JUDUL}">
+<meta name="twitter:description" content="${RINGKASAN}">
+<meta name="twitter:image" content="${ALAMAT_SITUS}/og-spl.jpg">` : "";
+
 const html = `<!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>SPL Sports Pool Lounge</title>
-<meta name="description" content="Booking meja biliar &amp; pesan makanan di SPL Sports Pool Lounge dan Smokehouse Resto.">
+<title>${JUDUL}</title>
+<meta name="description" content="${RINGKASAN}">${kepalaSosial}
 <meta name="theme-color" content="#0B0B0C">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="SPL Kasir">
+<meta name="apple-mobile-web-app-title" content="${tamu ? "SPL" : "SPL Kasir"}">
+<!--
+  SEMUA alamat relatif dihitung dari AKAR, apa pun kedalaman alamatnya.
+
+  Tanpa ini, satu alamat bertingkat seperti /smokehouse/reservasi membuat
+  peramban mencari "assets/..." di /smokehouse/assets/... - tidak ada, lalu
+  aturan pengalihan mengantarnya ke index.html, dan yang diterima peramban
+  adalah HTML bertipe text/html alih-alih JS/CSS. Hasilnya HALAMAN HITAM
+  tanpa satu pun pesan galat yang menjelaskan sebabnya.
+
+  Di aplikasi Windows (skema spl://) ini tetap aman: penangannya membuang
+  garis miring depan lalu menggabungkannya ke folder aplikasi, jadi
+  "/assets/x.js" menunjuk berkas yang sama dengan "assets/x.js".
+
+  CATATAN: jangan pakai tanda petik-balik di komentar ini - seluruh HTML di
+  bawah adalah satu template literal JS, dan satu petik-balik saja memutusnya.
+-->
+<base href="/">
 <link rel="icon" href="ikon-1080.png">
 <link rel="apple-touch-icon" href="ikon-1080.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -79,10 +151,10 @@ writeFileSync(join(OUT, "index.html"), html);
 
 const versi = createHash("sha256").update(html).digest("hex").slice(0, 12);
 writeFileSync(join(OUT, "manifest.webmanifest"), JSON.stringify({
-  name: process.env.VITE_MODE_TAMU ? "SPL Sports Pool Lounge" : "SPL Sports Pool Lounge — Kasir",
-  short_name: process.env.VITE_MODE_TAMU ? "SPL" : "SPL Kasir",
-  description: process.env.VITE_MODE_TAMU
-    ? "Booking meja biliar & pesan makanan di SPL Sports Pool Lounge."
+  name: tamu ? "SPL Sports Pool Lounge" : "SPL Sports Pool Lounge — Kasir",
+  short_name: tamu ? "SPL" : "SPL Kasir",
+  description: tamu
+    ? "Booking meja biliar & pesan makanan di SPL Sports Pool Lounge, Padang."
     : "Panel kasir & booking meja biliar SPL Sports Pool Lounge.",
   start_url: "./index.html",
   scope: "./",
@@ -131,6 +203,10 @@ self.addEventListener("fetch", (e) => {
 
 copyFileSync("public/spl-mark.png", join(OUT, "ikon-1080.png"));
 
+// Gambar pratinjau tautan, dibuat oleh `scripts/buat-og.mjs`. Ikut terbit
+// hanya di situs tamu — tautan kasir tidak pernah dibagikan ke siapa pun.
+if (tamu) copyFileSync("public/og-spl.jpg", join(OUT, "og-spl.jpg"));
+
 // Halaman hukum berdiri sendiri (bukan bagian aplikasi React) supaya alamatnya
 // rapi tanpa tanda pagar: dibutuhkan tamu, UU PDP, dan layar izin Google.
 copyFileSync("public/privasi.html", join(OUT, "privasi.html"));
@@ -146,6 +222,11 @@ writeFileSync(join(OUT, "_headers"), `/manifest.webmanifest
 /index.html
   Cache-Control: no-cache
 `);
+
+// Tautan bersih: semua alamat diantar ke aplikasi, lalu main.tsx memindahkan
+// jalurnya ke rute hash yang setara. Tanpa ini `/smokehouse` jadi 404 sebelum
+// aplikasinya sempat jalan, dan tautan yang dibagikan pemilik mati.
+copyFileSync("public/_redirects", join(OUT, "_redirects"));
 
 const mb = (Buffer.byteLength(html) / 1024 / 1024).toFixed(2);
 console.log(`${OUT}/index.html ${mb} MB · manifest + sw (${versi}) + ikon siap diunggah`);

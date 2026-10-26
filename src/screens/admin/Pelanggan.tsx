@@ -67,8 +67,8 @@ export default function PelangganScreen() {
   if (sync.mode !== "server") {
     return (
       <div className="rounded-xl border border-line bg-ink-2 p-4 text-sm text-mute">
-        Database pelanggan tersimpan di server. Aplikasi ini sedang berjalan tanpa server,
-        jadi daftarnya belum bisa ditampilkan.
+        Daftar pelanggan tersimpan di pusat data, dan perangkat ini sedang belum tersambung.
+        Sambungkan dulu, daftarnya muncul sendiri.
       </div>
     );
   }

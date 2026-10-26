@@ -4,10 +4,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Card, PageHeader } from "../components/UI";
 import { Ball, PocketPulse } from "../components/motion/Billiard";
 import { useStore } from "../lib/store";
-import { useAdmin, priceWith, rateWith, slotProblem, classOf, MIN_LEAD_MIN } from "../lib/adminStore";
+import {
+  useAdmin, priceWith, rateWith, slotProblem, classOf, MIN_LEAD_MIN, paketAktif, mejaDijual, cariMeja,
+  type Paket,
+} from "../lib/adminStore";
 import { HOUR_MS, blockEndOf, businessDateOf, hourBookable, isActive, openBillOn, overlaps, slotStart } from "../lib/occupancy";
 import {
-  HOURS, TABLES, fmtHour, PAKET_SIANG, BOOKING_TERMS, CLASS_LABEL, type TableType,
+  HOURS, TABLES, fmtHour, BOOKING_TERMS, CLASS_LABEL, type TableType,
 } from "../data/venue";
 import {
   addDaysISO, availableTables, fmtDateLong, fmtDateShort, freeCountAtHour,
@@ -51,7 +54,7 @@ export default function Booking() {
   );
   // Jumlah meja per jam mengikuti jenis yang sedang dicari: mode VIP menghitung VIP saja,
   // Paket Siang menghitung meja reguler saja.
-  const countType: TableType | undefined = draft.paketSiang ? "regular" : filter === "all" ? undefined : filter;
+  const countType: TableType | undefined = draft.paketId ? "regular" : filter === "all" ? undefined : filter;
 
   const isMejaMain = (id: string) =>
     sessions.some((s) => s.tableId === id && s.status === "running" && businessDateOf(s.startsAt) === draft.dateISO);
@@ -68,7 +71,7 @@ export default function Booking() {
     [draft.dateISO, draft.startHour, draft.hours, sessions, isToday],
   );
 
-  const picked = TABLES.find((t) => t.id === draft.tableId) ?? null;
+  const picked = (draft.tableId ? cariMeja(draft.tableId) : undefined) ?? null;
   /** Kelas meja mengikuti pengaturan pemilik (VIP no smoking / VVIP bebas), bukan bawaan data. */
   const kelas = (id: string) => classOf(venue, id);
   const kelasPicked = picked ? kelas(picked.id) : "regular";
@@ -76,14 +79,16 @@ export default function Booking() {
   const freeBiliar = free.filter((t) => kelas(t.id) !== "resto");
   // Paket Siang khusus meja reguler — aturan yang sama ditegakkan mesin.
   const cocokSaring = (id: string) =>
-    (filter === "all" || kelas(id) === filter) && (!draft.paketSiang || kelas(id) === "regular");
+    (filter === "all" || kelas(id) === filter) && (!draft.paketId || kelas(id) === "regular");
   const shown = freeBiliar.filter((t) => cocokSaring(t.id));
   /**
    * SEMUA meja biliar ikut ditampilkan — yang terisi pun. Dulu meja terpakai
    * disembunyikan, dan tamu tidak bisa membedakan "tidak ada" dari "sedang dipakai".
    * Sekarang mejanya tetap terlihat, ditandai jelas, dan tidak bisa ditekan.
    */
-  const semuaBiliar = TABLES.filter((t) => kelas(t.id) !== "resto" && cocokSaring(t.id));
+  // Denah yang sedang dijual: meja cadangan yang diaktifkan pemilik langsung
+  // bisa dipesan tamu, dan meja yang ditarik berhenti ditawarkan.
+  const semuaBiliar = mejaDijual(venue).filter((t) => kelas(t.id) !== "resto" && cocokSaring(t.id));
 
   /** Kenapa sebuah meja tidak bisa dipilih untuk jam & durasi yang dipilih tamu. */
   type StatusMeja = "bebas" | "main" | "dipakai" | "dibooking" | "rusak";
@@ -109,9 +114,19 @@ export default function Booking() {
     rusak: "Rusak",
   };
 
-  const paketEligible =
-    draft.startHour !== null && draft.startHour <= PAKET_SIANG.lastStartHour &&
-    (!picked || kelasPicked === "regular");
+  /**
+   * Paket yang BOLEH dipesan untuk pilihan saat ini. Dulu satu paket tetap di
+   * kode; sekarang pemilik bisa menambah sendiri, jadi daftarnya dari data.
+   * Syaratnya tetap ditegakkan mesin (`slotProblem`) — ini cuma supaya tamu
+   * tidak ditawari paket yang pasti ditolak.
+   */
+  const paketTersedia: Paket[] = paketAktif(venue).filter((p: Paket) =>
+    // Paket meja biliar saja: paket Smokehouse tidak bersewa waktu, dan
+    // paket 0 jam yang terbooking akan mengunci meja tanpa memberi jam main.
+    (p.venue ?? "spl") === "spl" && p.hours > 0 &&
+    draft.startHour !== null && draft.startHour <= p.lastStartHour &&
+    (!picked || kelasPicked === "regular"));
+  const paketDipilih = draft.paketId ? paketTersedia.find((p: Paket) => p.id === draft.paketId) : undefined;
 
   // Meja yang dipilih bisa keburu ditahan/dibooking orang lain (atau jadi rusak)
   // selagi tamu masih memilih. Lepaskan pilihannya dan beri tahu.
@@ -127,7 +142,7 @@ export default function Booking() {
   const problem = picked && draft.startHour !== null
     ? slotProblem(venue, {
         tableId: picked.id, startsAt: slotStart(draft.dateISO, draft.startHour),
-        hours: draft.hours, paket: draft.paketSiang,
+        hours: draft.hours, paket: draft.paketId ?? undefined,
       }, Date.now(), true, ownHold)
     : null;
 
@@ -215,11 +230,11 @@ export default function Booking() {
         <Label>Durasi</Label>
         <div className="grid grid-cols-4 gap-2">
           {DURATIONS.map((d) => {
-            const on = draft.hours === d && !draft.paketSiang;
+            const on = draft.hours === d && !draft.paketId;
             return (
               <button
                 key={d}
-                onClick={() => { dispatch({ t: "setHours", v: d }); dispatch({ t: "setPaket", v: false }); }}
+                onClick={() => { dispatch({ t: "setHours", v: d }); dispatch({ t: "setPaket", v: null }); }}
                 aria-pressed={on}
                 className={`min-h-[46px] rounded-xl border text-sm font-semibold transition-colors ${
                   on ? "border-amber bg-amber text-ink" : "border-line bg-ink-2 text-cream"
@@ -231,37 +246,39 @@ export default function Booking() {
           })}
         </div>
 
-        {/* ── Paket Siang ─────────────────────────────────── */}
+        {/* ── Paket meja ──────────────────────────────── */}
         <AnimatePresence>
-          {paketEligible && (
-            <motion.button
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              onClick={() => {
-                const next = !draft.paketSiang;
-                dispatch({ t: "setPaket", v: next });
-                if (next) dispatch({ t: "setHours", v: PAKET_SIANG.hours });
-              }}
-              aria-pressed={draft.paketSiang}
-              className={`mt-3 flex w-full items-center gap-3 overflow-hidden rounded-xl border px-4 py-3
-                text-left transition-colors ${
-                  draft.paketSiang ? "border-amber bg-amber/12" : "border-line bg-ink-2"
-                }`}
-            >
-              <Ball n={2} size={34} color="#1F6F4A" />
-              <div className="flex-1">
-                <div className="font-script text-lg leading-none text-amber">Paket Siang</div>
-                <div className="text-[11px] text-dim">2 jam + 2 minuman gratis</div>
-              </div>
-              <div className="text-right">
-                <div className="font-serif text-lg font-bold text-cream">{rupiah(PAKET_SIANG.price)}</div>
-                <div className="text-[10px] text-dim">
-                  {draft.paketSiang ? "dipakai" : "hemat"}
+          {paketTersedia.map((pk: Paket) => {
+            const dipakai = draft.paketId === pk.id;
+            return (
+              <motion.button
+                key={pk.id}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                onClick={() => {
+                  const next = dipakai ? null : pk.id;
+                  dispatch({ t: "setPaket", v: next });
+                  if (next) dispatch({ t: "setHours", v: pk.hours });
+                }}
+                aria-pressed={dipakai}
+                className={`mt-3 flex w-full items-center gap-3 overflow-hidden rounded-xl border px-4 py-3
+                  text-left transition-colors ${dipakai ? "border-amber bg-amber/12" : "border-line bg-ink-2"}`}
+              >
+                <Ball n={2} size={34} color="#1F6F4A" />
+                <div className="flex-1">
+                  <div className="font-script text-lg leading-none text-amber">{pk.name}</div>
+                  <div className="text-[11px] text-dim">
+                    {pk.perks.length ? pk.perks.join(" · ") : `${pk.hours} jam`}
+                  </div>
                 </div>
-              </div>
-            </motion.button>
-          )}
+                <div className="text-right">
+                  <div className="font-serif text-lg font-bold text-cream">{rupiah(pk.price)}</div>
+                  <div className="text-[10px] text-dim">{dipakai ? "dipakai" : "hemat"}</div>
+                </div>
+              </motion.button>
+            );
+          })}
         </AnimatePresence>
 
         {/* ── Meja ────────────────────────────────────────── */}
@@ -283,16 +300,16 @@ export default function Booking() {
           <>
             <div className="mb-3 flex gap-2">
               {([
-                ["all", `Semua (${freeBiliar.filter((t) => !draft.paketSiang || kelas(t.id) === "regular").length})`],
+                ["all", `Semua (${freeBiliar.filter((t) => !draft.paketId || kelas(t.id) === "regular").length})`],
                 ["regular", `Reguler (${freeBiliar.filter((t) => kelas(t.id) === "regular").length})`],
-                ["vip", `VIP (${draft.paketSiang ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vip").length})`],
-                ["vvip", `VVIP (${draft.paketSiang ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vvip").length})`],
+                ["vip", `VIP (${draft.paketId ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vip").length})`],
+                ["vvip", `VVIP (${draft.paketId ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vvip").length})`],
               ] as const).map(([v, l]) => (
                 <button
                   key={v}
                   onClick={() => setFilter(v)}
                   aria-pressed={filter === v}
-                  disabled={(v === "vip" || v === "vvip") && draft.paketSiang}
+                  disabled={(v === "vip" || v === "vvip") && !!draft.paketId}
                   className={`min-h-[36px] rounded-full border px-3 text-xs font-semibold transition-colors
                     disabled:opacity-35 ${
                     filter === v
@@ -304,7 +321,7 @@ export default function Booking() {
                 </button>
               ))}
             </div>
-            {draft.paketSiang && (
+            {draft.paketId && (
               <p className="-mt-1 mb-2 text-[11px] text-dim">Paket Siang khusus meja reguler.</p>
             )}
             {lost && (
@@ -395,8 +412,9 @@ export default function Booking() {
             <Label>Rincian</Label>
             <Card className="divide-y divide-line">
               <Row k={`${picked.name} · ${draft.hours} jam`} v={fmtHour(draft.startHour) + "–" + fmtHour(draft.startHour + draft.hours)} muted />
-              {draft.paketSiang ? (
-                <Row k="Paket Siang (2 jam + 2 minuman)" v={rupiah(PAKET_SIANG.price)} />
+              {draft.paketId ? (
+                <Row k={`${paketDipilih?.name ?? "Paket"} (${paketDipilih?.hours ?? 0} jam)`}
+                  v={rupiah(paketDipilih?.price ?? 0)} />
               ) : (
                 breakdown.map((b) => (
                   <Row
@@ -409,11 +427,11 @@ export default function Booking() {
               )}
               <Row
                 k="Subtotal meja"
-                v={rupiah(draft.paketSiang ? PAKET_SIANG.price : priceWith(venue.rates, kelasPicked, draft.startHour, draft.hours))}
+                v={rupiah(paketDipilih ? paketDipilih.price : priceWith(venue.rates, kelasPicked, draft.startHour, draft.hours))}
                 bold
               />
             </Card>
-            {!draft.paketSiang && breakdown.some((b) => b.rate !== breakdown[0].rate) && (
+            {!draft.paketId && breakdown.some((b) => b.rate !== breakdown[0].rate) && (
               <p className="mt-2 text-xs leading-relaxed text-amber/90">
                 Sesi ini melewati pukul 18.00, jadi tarifnya berbeda tiap jam.
               </p>

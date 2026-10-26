@@ -47,6 +47,8 @@ export function fakeServer(opts: { genesis: Genesis; now: () => number; tokens?:
       remote: null as unknown as Remote,
     };
     self.remote = {
+      // Sesi staf di server masih hidup? Token yang tidak dikenal = sudah mati.
+      bersesi: () => self.token === undefined || self.token in tokens,
       async pull(sinceSeq: number): Promise<PullResult> {
         stat.pull++;
         if (!self.online) { stat.offline++; throw new Error("jaringan"); }

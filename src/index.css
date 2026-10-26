@@ -43,7 +43,10 @@
   --color-line: #26262a;
   --color-line-2: #3a3a40;
   --color-mute: #a8a29b;
-  --color-dim: #7a736c;
+  /* Dinaikkan dari #7a736c, yang cuma 4,21:1 di atas --color-ink — di bawah
+     ambang AA (4,5:1), dan justru dipakai di ukuran terkecil: keterangan foto,
+     kaki halaman, dan satuan "/jam" 11 px. Yang sekarang 5,2:1. */
+  --color-dim: #8d867e;
   --color-felt: #1f6f4a;
 
   --font-display: "Emoland", "Arial Narrow", sans-serif;
@@ -95,6 +98,29 @@ input, select, textarea { font-size: 16px; }
     repeating-linear-gradient(45deg, rgba(0,0,0,.05) 0 2px, transparent 2px 4px);
 }
 
+/* ── Panggung foto hero: zoom sangat pelan ─────────────────────────
+   Hanya `transform` yang digerakkan, jadi tidak ada satu pun perhitungan
+   tata letak yang diulang tiap frame. Skalanya TIDAK pernah kembali ke 1:
+   foto yang persis sebesar bingkainya akan memperlihatkan tepi kosong
+   sesaat saat arah zoomnya berbalik. */
+@keyframes dekat {
+  from { transform: scale(1.05); }
+  to   { transform: scale(1.14); }
+}
+.zoom-pelan { animation: dekat 22s ease-in-out infinite alternate; }
+
+/* ── Baris hero yang naik saat halaman dibuka ──────────────────────
+   Sengaja CSS, BUKAN JavaScript. Teks hero adalah kalimat terpenting di
+   seluruh situs; kalau ia menunggu pustaka gerakan selesai memasang diri,
+   satu saja yang tersendat (tab di belakang, skrip yang lambat datang)
+   membuat layar sambutan tampil kosong. Animasi CSS jalan dari lukisan
+   pertama dan tidak bisa digagalkan oleh apa pun di luar berkas ini. */
+@keyframes naik {
+  from { opacity: 0; transform: translateY(26px); }
+  to   { opacity: 1; transform: none; }
+}
+.naik { animation: naik .62s cubic-bezier(.22, 1, .36, 1) both; }
+
 /* Grain halus supaya bidang gelap tidak terasa datar */
 .grain::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .05;
@@ -105,6 +131,7 @@ input, select, textarea { font-size: 16px; }
   *, *::before, *::after {
     animation-duration: .001ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: -1ms !important;
     transition-duration: .001ms !important;
   }
 }
@@ -115,3 +142,6 @@ input, select, textarea { font-size: 16px; }
   #struk, #struk * { visibility: visible !important; }
   #struk { position: fixed; inset: 0 auto auto 0; width: 58mm; background: #fff !important; }
 }
+
+/* Hanya muncul di kertas — dipakai struk rekap harian di tab Rekap. */
+@media screen { .cetak-saja { display: none !important; } }

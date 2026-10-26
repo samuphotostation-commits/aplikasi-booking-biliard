@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAdmin } from "../../lib/adminStore";
+import { useAdmin, venueVoid } from "../../lib/adminStore";
 import { rupiah } from "../../lib/core";
+import { useVenueAktif } from "../../lib/venueAktif";
 import { jam } from "./AdminShell";
 
 /* Void berjenjang:
@@ -17,9 +19,43 @@ const BADGE = {
 };
 
 export default function VoidScreen() {
-  const { a, dispatchA, allow } = useAdmin();
-  const menunggu = a.voids.filter((v) => v.status === "menunggu");
-  const riwayat = a.voids.filter((v) => v.status !== "menunggu");
+  const { a, dispatchA, allow, peek } = useAdmin();
+  const venue = useVenueAktif();
+  const [kabar, setKabar] = useState<string | null>(null);
+
+  /**
+   * IKUT VENUE YANG SEDANG DIBUKA.
+   *
+   * MASALAH YANG DIPERBAIKI (laporan pemilik 19 Okt 2026: *"void harus
+   * disetujui oleh manager atau owner, saat ini belum berfungsi"*):
+   * daftarnya dulu menampilkan void KEDUA venue. Manajer yang terikat
+   * Smokehouse melihat pengajuan meja biliar, menekan "Setujui", dan tidak
+   * terjadi apa-apa — mesin menolaknya karena lintas venue, tapi layarnya
+   * diam. Dari kursi manajer, yang terlihat adalah tombol yang rusak.
+   *
+   * Void yang tidak bisa dipetakan ke venue mana pun (jejak lama) tetap
+   * ditampilkan: lebih baik terlihat oleh keduanya daripada hilang dari
+   * keduanya.
+   */
+  const diVenue = (v: Parameters<typeof venueVoid>[1]) => {
+    const vn = venueVoid(a, v);
+    return vn === null || vn === venue;
+  };
+  const menunggu = a.voids.filter((v) => v.status === "menunggu" && diVenue(v));
+  const riwayat = a.voids.filter((v) => v.status !== "menunggu" && diVenue(v));
+
+  /** Putuskan, lalu BACA hasilnya dari mesin — tombol tidak boleh diam. */
+  function putuskan(id: string, approve: boolean) {
+    dispatchA({ t: "decideVoid", id, approve });
+    const sesudah = peek().voids.find((v) => v.id === id);
+    setKabar(
+      sesudah?.status === "disetujui" ? "Void disetujui — barangnya dikeluarkan dari bill."
+        : sesudah?.status === "ditolak" ? "Void ditolak. Barangnya tetap di bill."
+        : "Tidak bisa diputuskan dari sini — pengajuan ini milik venue sebelah. "
+          + "Pindahkan venue di kanan atas, atau minta pemilik yang memutuskan.",
+    );
+    setTimeout(() => setKabar(null), 5000);
+  }
 
   return (
     <div className="space-y-6 pb-6">
@@ -27,6 +63,7 @@ export default function VoidScreen() {
         <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
           Menunggu persetujuan · {menunggu.length}
         </h2>
+        {kabar && <p role="status" className="mb-2 text-[12px] leading-snug text-amber">{kabar}</p>}
 
         {menunggu.length === 0 ? (
           <Empty text="Tidak ada pengajuan void." />
@@ -62,17 +99,17 @@ export default function VoidScreen() {
                   {allow("setujuiVoid") ? (
                     <div className="mt-2.5 grid grid-cols-2 gap-2">
                       <button
-                        onClick={() => dispatchA({ t: "decideVoid", id: v.id, approve: false })}
+                        onClick={() => putuskan(v.id, false)}
                         className="min-h-[44px] rounded-lg border border-line bg-ink-2 text-[13px]
                           font-semibold text-cream">Tolak</button>
                       <button
-                        onClick={() => dispatchA({ t: "decideVoid", id: v.id, approve: true })}
+                        onClick={() => putuskan(v.id, true)}
                         className="min-h-[44px] rounded-lg bg-amber text-[13px] font-bold text-ink">
                         Setujui</button>
                     </div>
                   ) : (
                     <p className="mt-2 text-[11px] text-dim">
-                      Menunggu superadmin. Sesi/item masih aktif sampai disetujui.
+                      Menunggu manajer atau pemilik. Sesi/item masih aktif sampai disetujui.
                     </p>
                   )}
                 </motion.div>

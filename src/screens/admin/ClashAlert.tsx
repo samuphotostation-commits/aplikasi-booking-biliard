@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TABLES, CLASS_LABEL, tableLabel } from "../../data/venue";
-import { useAdmin, relocationTargets, canExtend as bisaPerpanjang, classOf } from "../../lib/adminStore";
+import { TABLES, CLASS_LABEL, tableLabel, venueDari } from "../../data/venue";
+import { useVenueAktif } from "../../lib/venueAktif";
+import { useAdmin, relocationTargets, canExtend as bisaPerpanjang, classOf, cariMeja } from "../../lib/adminStore";
 import type { Clash } from "../../lib/occupancy";
 
 /* PRD KK-08 — kejadian nomor satu di lantai biliar.
@@ -17,7 +18,20 @@ const LEVEL = {
 
 export default function ClashAlert() {
   const { clashes } = useAdmin();
-  if (clashes.length === 0) return null;
+  /**
+   * IKUT VENUE YANG SEDANG DIBUKA, seperti papan meja dan layar kasir.
+   *
+   * Terlihat saat mencoba login kasir Smokehouse: papannya benar berisi meja
+   * makan R01–R12, tapi panel merah di atasnya menulis "MEJA 7 · Fajar masih
+   * main" — tabrakan meja biliar, lengkap dengan tombol "Minta tamu selesai"
+   * dan "Pindah pemesan" yang semuanya akan DITOLAK mesin karena bukan
+   * venuenya. Peringatan paling merah di layar yang tidak bisa ditindaklanjuti
+   * orangnya adalah peringatan yang akan diabaikan — dan sesudahnya,
+   * peringatan yang memang untuknya ikut diabaikan.
+   */
+  const venue = useVenueAktif();
+  const diVenue = clashes.filter((c) => venueDari(c.running.tableId) === venue);
+  if (diVenue.length === 0) return null;
 
   return (
     <section className="mb-4">
@@ -27,10 +41,10 @@ export default function ClashAlert() {
           animate={{ opacity: [1, 0.25, 1] }}
           transition={{ duration: 1.4, repeat: Infinity }}
         />
-        Perlu tindakan · {clashes.length}
+        Perlu tindakan · {diVenue.length}
       </h2>
       <div className="space-y-2">
-        {clashes.map((c) => <ClashCard key={c.running.id} clash={c} />)}
+        {diVenue.map((c) => <ClashCard key={c.running.id} clash={c} />)}
       </div>
     </section>
   );
@@ -41,7 +55,7 @@ function ClashCard({ clash }: { clash: Clash }) {
   const [mode, setMode] = useState<"idle" | "move" | "movePlayer">("idle");
   const L = LEVEL[clash.level];
 
-  const tbl = TABLES.find((t) => t.id === clash.running.tableId)!;
+  const tbl = cariMeja(clash.running.tableId)!;
   const targets = relocationTargets(a, clash.next);
   // Alternatif yang sering lebih mudah: tamu yang masih main yang pindah meja.
   const playerTargets = relocationTargets(a, clash.running);

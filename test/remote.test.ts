@@ -14,17 +14,17 @@ import { fakeServer, type FakeServer } from "./fakeServer";
 import { createVenueStore, type VenueStore } from "../src/lib/venueStore";
 import { canOpenWalkin, replay, tickState, type Genesis, type State } from "../src/lib/engine";
 import { publicVenue } from "../src/lib/publicView";
-import { EMPLOYEES } from "../src/data/staff";
+import { EMPLOYEES, SEMUA_AKSES } from "../src/data/staff";
 import { TABLES } from "../src/data/venue";
 // Jam tiruan dipatok WIB seperti mesinnya, bukan zona mesin penguji.
-import { dariWib, tanggalWib } from "../src/lib/occupancy";
+import { businessDateOf, dariWib, tanggalWib } from "../src/lib/occupancy";
 import { MENU } from "../src/data/menu";
 
 /* ── Jam: perangkat vs server ────────────────────────────────────────
    Jam perangkat dibekukan (tes yang memajukannya) dan tidak pernah
    tertinggal dari jam server. Jam server maju sendiri setiap kejadian —
    inilah jam yang masuk jejak. */
-const base = (() => { const [y, m, d] = tanggalWib(Date.now()).split("-").map(Number); return dariWib(y, m, d, 15); })();
+const base = (() => { const [y, m, d] = businessDateOf(Date.now()).split("-").map(Number); return dariWib(y, m, d, 15); })();
 let deviceNow = base;
 let serverNow = base;
 Date.now = () => (deviceNow = Math.max(deviceNow, serverNow));
@@ -37,7 +37,11 @@ const t = (label: string, ok: boolean, detail = "") => {
 };
 const norm = (x: unknown) => JSON.stringify({ ...(x as object), me: null });
 const owner = EMPLOYEES.find((e) => e.id === "u-owner")!;
-const kasir = EMPLOYEES.find((e) => e.role === "karyawan" && e.active)!;
+// Kru lantai = yang BUKAN akses penuh. Disaring dari sifatnya: menyaring
+// `role === "karyawan"` membuat berkas ini jatuh begitu akun bawaan dipindah
+// ke `kru_kasir` (12 Okt 2026), dan jatuhnya di baris paling atas — jauh dari
+// penyebabnya.
+const kasir = EMPLOYEES.find((e) => e.active && !SEMUA_AKSES.includes(e.role))!;
 const items = MENU.flatMap((c) => c.items);
 const freeTable = (v: State) => TABLES.find((x) => canOpenWalkin(v.sessions, x.id, Date.now()))!.id;
 
@@ -369,10 +373,25 @@ console.log("\n-- Token PIN habis di tengah shift --");
   t("aksinya ditahan (tidak dibuang) dan staf diberi tahu",
     info.pending === 1 && !!info.problem && /PIN/i.test(info.problem));
 
+  /*
+   * SESI HABIS ≠ JARINGAN PUTUS (temuan 21 Okt 2026).
+   *
+   * Dulu keduanya dilaporkan sama: "tidak tersambung ke server". Kasir
+   * menekan "coba sambungkan" berkali-kali, antreannya menumpuk, dan
+   * satu-satunya yang perlu dilakukan — masuk lagi — tidak pernah
+   * disebutkan. Di perangkat pemilik hari itu antreannya sampai 41 aksi.
+   */
+  t("dibedakan dari jaringan putus", pc.store.info().sesiHabis === true);
+  t("dan aksi uang DITAHAN selama sesinya mati",
+    /sesi staf habis/i.test(pc.store.dispatch({ t: "settle", id: "x", channel: "cash" }) ?? ""));
+  t("tapi aksi pelayanan tetap jalan",
+    pc.store.dispatch({ t: "toggleLight", tableId: "T01" }) === null);
+
   pc.link.token = "tok-owner";
   await settle(server, [pc]);
   t("setelah PIN dimasukkan lagi, antrean terkirim", pc.store.info().pending === 0 &&
     pc.store.getView().shift?.openingCash === 100_000);
+  t("dan tandanya hilang", pc.store.info().sesiHabis === false);
 }
 
 /* ═══ 10. Tampilan publik tanpa data pribadi ═════════════════════ */

@@ -15,6 +15,7 @@ import type { LiveSession } from "../data/live";
 /** Build HP pelanggan: pembayaran online belum ada — bayar di kasir. */
 const MODE_TAMU = !!import.meta.env.VITE_MODE_TAMU;
 import { bookingCode, checkinCode, rupiah } from "../lib/core";
+import { venueTamu } from "../lib/venueAktif";
 import { catatKode } from "../lib/customerStore";
 import { buatQris, statusQris, type QrisTagihan } from "../lib/qris";
 import { QrGambar } from "../components/QrGambar";
@@ -90,7 +91,7 @@ export default function Payment() {
       id: refId, tableId: draft.tableId!, source: "online", guest: nama || "Pelanggan", phone: hp,
       startsAt, endsAt: startsAt + draft.hours * 3_600_000, status: "hold", bookingCode: code,
       fnb: cart, tableAmount: 0, paidOnline: 0,
-      ...(draft.paketSiang ? { paket: "siang" as const } : {}),
+      ...(draft.paketId ? { paket: draft.paketId } : {}),
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -138,7 +139,7 @@ export default function Payment() {
 
   const problemNow = () =>
     (payload && (slotProblem(venue, {
-      tableId: payload.tableId, startsAt: payload.startsAt, hours: draft.hours, paket: draft.paketSiang,
+      tableId: payload.tableId, startsAt: payload.startsAt, hours: draft.hours, paket: draft.paketId ?? undefined,
     }, Date.now(), true) ?? cartProblem(venue, cart))) || "slot baru saja diambil orang lain";
 
   useEffect(() => {
@@ -195,6 +196,9 @@ export default function Payment() {
             ? (draft.fnbSessionId && !draft.fnbSessionId.startsWith("pub-") ? draft.fnbSessionId : undefined)
             : undefined,
           pay: "online", lines: cart, paidOnline: amount,
+          // Venue tempat pelanggan memesan — menentukan rekap mana yang
+          // menerima penjualan ini.
+          venue: venueTamu(),
         },
       };
 

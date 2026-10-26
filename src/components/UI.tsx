@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useStore } from "../lib/store";
+import { useVenueTamu } from "../lib/venueAktif";
 import { BallSpinner } from "./motion/Billiard";
 
 /* ── Logo SPL: monogram di dalam rak segitiga ───────────────────── */
@@ -75,10 +76,27 @@ export function SectionTitle({ kicker, title }: { kicker?: string; title: string
   );
 }
 
-/* ── Bilah bawah: tetap terlihat, aman dari home indicator iPhone ── */
-const TABS = [
-  { to: "/", label: "Beranda", icon: HomeIcon },
+/* ── Bilah bawah: tetap terlihat, aman dari home indicator iPhone ──
+ *
+ * ISINYA IKUT VENUE yang sedang dibuka tamu. Koreksi pemilik 12 Okt 2026:
+ * di Smokehouse, tombol "Booking" dulu membuka booking meja BILIAR — padahal
+ * yang dipesan di resto adalah meja makannya, dan tanpa hitungan jam.
+ *
+ * Beranda pun ikut: tamu yang sedang di Smokehouse menekan "Beranda" harus
+ * kembali ke halaman Smokehouse, bukan terlempar ke halaman depan bersama
+ * dan harus memilih venue lagi.
+ */
+const TABS_SPL = [
+  { to: "/sport", label: "Beranda", icon: HomeIcon },
   { to: "/booking", label: "Booking", icon: TableIcon },
+  { to: "/menu", label: "Menu", icon: MenuIcon },
+  { to: "/pesanan", label: "Pesanan", icon: TicketIcon },
+  { to: "/akun", label: "Akun", icon: UserIcon },
+];
+
+const TABS_SMH = [
+  { to: "/smokehouse", label: "Beranda", icon: HomeIcon },
+  { to: "/smokehouse/reservasi", label: "Reservasi", icon: TableIcon },
   { to: "/menu", label: "Menu", icon: MenuIcon },
   { to: "/pesanan", label: "Pesanan", icon: TicketIcon },
   { to: "/akun", label: "Akun", icon: UserIcon },
@@ -86,6 +104,8 @@ const TABS = [
 
 export function BottomNav() {
   const { cartCount } = useStore();
+  const venue = useVenueTamu();
+  const TABS = venue === "smh" ? TABS_SMH : TABS_SPL;
   return (
     <nav
       className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/95 backdrop-blur-md"
@@ -96,7 +116,7 @@ export function BottomNav() {
           <NavLink
             key={t.to}
             to={t.to}
-            end={t.to === "/"}
+            end={t.to === "/" || t.to === "/smokehouse"}
             className={({ isActive }) =>
               `relative flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 text-[10px]
                font-semibold uppercase tracking-wider transition-colors

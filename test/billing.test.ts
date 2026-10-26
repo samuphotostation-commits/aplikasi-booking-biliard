@@ -2,7 +2,7 @@ import { billOpenSession, bestPromo, discountOf, GRACE_MINUTES, MIN_BILLED_MINUT
 import { SEED_PROMOS } from "../src/data/staff";
 // Jam uji dibaca dalam WIB, sama seperti mesinnya — kalau memakai zona mesin
 // penguji, tes ini hanya lolos di perangkat yang kebetulan disetel WIB.
-import { dariWib, diWib, tanggalWib } from "../src/lib/occupancy";
+import { businessDateOf, dariWib, diWib, tanggalWib } from "../src/lib/occupancy";
 
 let bad = 0, total = 0;
 const t = (label: string, got: unknown, want: unknown) => {
@@ -12,7 +12,7 @@ const t = (label: string, got: unknown, want: unknown) => {
 };
 
 const at = (h: number, m = 0) => {
-  const [y, mo, d] = tanggalWib(Date.now()).split("-").map(Number);
+  const [y, mo, d] = businessDateOf(Date.now()).split("-").map(Number);
   return dariWib(y, mo, d, h, m);
 };
 /** Timestamp WIB jam `h` pada hari-kerja `dow` (0=Minggu) pertama mulai hari ini. */
@@ -31,7 +31,7 @@ console.log("-- Toleransi batal 5 menit, lalu langsung 30 menit --");
   const b = billOpenSession("regular", at(13, 0), at(13, 5), RATES);
   t(`tepat menit ke-${GRACE_MINUTES} masih gratis`, b.amount, 0);
   const c = billOpenSession("regular", at(13, 0), at(13, 6), RATES);
-  t("menit ke-6 langsung 30 menit", [c.graceApplied, c.billedMinutes, c.amount], [false, 30, 14_500]);
+  t("menit ke-6 langsung 30 menit", [c.graceApplied, c.billedMinutes, c.amount], [false, 30, 15_000]);
 }
 
 console.log("\n-- VVIP (bebas rokok) & meja resto --");
@@ -50,7 +50,7 @@ console.log("\n-- Open bill: minimum 30 menit --");
   t("main 10 menit -> ditagih 30 menit", b.billedMinutes, MIN_BILLED_MINUTES);
   t("ditandai kena minimum", b.minimumApplied, true);
   // 30 menit @ 29.000/jam = 14.500 -> bulat ke atas kelipatan 500 = 14.500
-  t("tagihan 30 menit siang", b.amount, 14_500);
+  t("tagihan 30 menit siang", b.amount, 15_000);
 }
 
 console.log("\n-- Per menit setelah 30 menit --");
@@ -62,8 +62,8 @@ console.log("\n-- Per menit setelah 30 menit --");
 }
 {
   const b = billOpenSession("regular", at(13, 0), at(14, 7), RATES);
-  // 67/60 * 29.000 = 32.383 -> 32.500
-  t("main 1 jam 7 menit", b.amount, 32_500);
+  // 67/60 * 29.000 = 32.383 -> 33.000 (dibulatkan ke atas per seribu)
+  t("main 1 jam 7 menit", b.amount, 33_000);
 }
 
 console.log("\n-- Lintas tarif pukul 18.00 --");
@@ -86,14 +86,20 @@ console.log("\n-- VIP tarif tunggal --");
 
 console.log("\n-- Regresi audit: tidak ada galat desimal & malam tetap malam --");
 {
-  // 35.000/jam × 54 menit = 31.500 tepat. Penjumlahan pecahan dulu menghasilkan
-  // 31.500,000…04 lalu dibulatkan ke 32.000 (tamu kelebihan tagih Rp 500).
-  const b = billOpenSession("regular", at(13, 0), at(13, 54), { ...RATES, regularDay: 35_000 });
-  t("35.000/jam × 54 menit = 31.500 (bukan 32.000)", b.amount, 31_500);
-  t("nilai mentah tepat 31.500", b.rawAmount, 31_500);
+  // PENJAGA GALAT PECAHAN. Dulu kasusnya 35.000/jam × 54 menit = 31.500 tepat,
+  // tapi penjumlahan pecahan menghasilkan 31.500,000…04 lalu dibulatkan naik.
+  // Sesudah pembulatan jadi seribu, angka itu tidak lagi di batas — maka
+  // kasusnya diganti yang MASIH tepat di kelipatan seribu:
+  // 25.000/jam × 96 menit = 40.000 tepat, dan dalam pecahan ganda
+  // 25000/60*96 = 40000,000000000007 — cukup untuk melempar tagihan ke 41.000
+  // kalau penjumlahannya kembali memakai pecahan. Tamu tidak boleh kelebihan
+  // tagih Rp 1.000 hanya karena cara menghitungnya.
+  const b = billOpenSession("regular", at(13, 0), at(14, 36), { ...RATES, regularDay: 25_000 });
+  t("25.000/jam × 96 menit = 40.000 tepat (bukan 41.000)", b.amount, 40_000);
+  t("nilai mentah tepat 40.000, tanpa sisa pecahan", b.rawAmount, 40_000);
   // Lewat tengah malam sampai sesudah 02.00: seluruhnya tarif malam, bukan kembali ke siang.
   const c = billOpenSession("regular", at(1, 50), at(3, 0), RATES);
-  t("01.50–03.00 = 70 menit @39.000 = 45.500", c.amount, 45_500);
+  t("01.50–03.00 = 70 menit @39.000 = 46.000", c.amount, 46_000);
   t("jam 02.00 tetap bertarif malam", c.segments.map((s) => s.ratePerHour), [39_000, 39_000]);
   // Tab yang lupa ditutup 60 jam: seluruh waktunya ditagih, tidak berhenti di jam ke-48.
   const vip60 = billOpenSession("vip", at(13, 0), at(13, 0) + 60 * 3_600_000, RATES);
@@ -103,7 +109,22 @@ console.log("\n-- Regresi audit: tidak ada galat desimal & malam tetap malam --"
 console.log("\n-- Pembulatan ke atas kelipatan 500 --");
 t("21.750 -> 22.000", roundRupiah(21_750), 22_000);
 t("22.000 tetap", roundRupiah(22_000), 22_000);
-t("22.001 -> 22.500", roundRupiah(22_001), 22_500);
+t("22.001 -> 23.000", roundRupiah(22_001), 23_000);
+t("245.500 -> 246.000 (contoh pemilik)", roundRupiah(245_500), 246_000);
+// Aturan intinya, bukan contohnya: tidak boleh ada sisa ratusan, dan
+// pembulatan tidak pernah ke bawah — venue tidak boleh menombok.
+{
+  let sisa = 0, turun = 0, jauh = 0;
+  for (let n = 1; n <= 300_000; n += 137) {
+    const r = roundRupiah(n);
+    if (r % 1000 !== 0) sisa++;
+    if (r < n) turun++;
+    if (r - n >= 1000) jauh++;
+  }
+  t("semua hasil berakhir ribuan", sisa, 0);
+  t("tidak pernah membulatkan ke bawah", turun, 0);
+  t("tidak pernah melebihi seribu di atasnya", jauh, 0);
+}
 
 console.log("\n-- Promo --");
 {

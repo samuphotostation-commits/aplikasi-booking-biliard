@@ -20,13 +20,17 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  useAdmin, recap, stockDateOf, priceOf, shiftDate, rangeDays, MAX_REKAP_HARI, STOCK_DAY_HOUR,
+  useAdmin, recap, stockDateOf, priceOf, itemOf, shiftDate, rangeDays, MAX_REKAP_HARI, STOCK_DAY_HOUR,
+  periodeRange,
 } from "../../lib/adminStore";
 import { venueStore } from "../../lib/venueStore";
+import { useVenueAktif } from "../../lib/venueAktif";
 import type { StokHarianBaris } from "../../lib/supabaseRemote";
 import { findItem } from "../../data/menu";
+// Barang tambahan pemilik tidak ada di buku menu — namanya hanya ketemu
+// lewat state, jadi semua pencarian nama di layar ini lewat `namaBarang`.
 import { fmtDateLong, rupiah } from "../../lib/core";
-import { saveTextFile } from "../../lib/saveFile";
+import { unduhExcel } from "../../lib/excel";
 
 /** Satu barang pada satu hari, dari sumber mana pun. */
 type Baris = {
@@ -35,8 +39,8 @@ type Baris = {
   susut: number; opname: number; sisa: number | null; nilai: number;
 };
 
-const kosong = (itemId: string): Baris => ({
-  itemId, nama: findItem(itemId)?.name ?? itemId,
+const kosong = (itemId: string, namaDari: (id: string) => string = (id) => findItem(id)?.name ?? id): Baris => ({
+  itemId, nama: namaDari(itemId),
   awal: null, masuk: 0, terjual: 0, kembali: 0, susut: 0, opname: 0, sisa: null, nilai: 0,
 });
 
@@ -56,6 +60,8 @@ const JAM = STOCK_DAY_HOUR.toString().padStart(2, "0") + ".00";
 
 export default function LaporanStok() {
   const { a, dispatchA, allow } = useAdmin();
+  const venue = useVenueAktif();
+  const namaBarang = (id: string) => itemOf(a, id)?.name ?? findItem(id)?.name ?? id;
   const store = venueStore() as ReturnType<typeof venueStore> & {
     stokAmbil?: (dari: string, sampai: string) => Promise<StokHarianBaris[]>;
   };
@@ -69,6 +75,10 @@ export default function LaporanStok() {
   const [buka, setBuka] = useState(hariIni);
   const [pesan, setPesan] = useState<string | null>(null);
   const [opname, setOpname] = useState<Record<string, string> | null>(null);
+  /** Kolom bawaan mengikuti bentuk yang diminta pemilik (awal · penambahan ·
+   *  penjualan · penyesuaian · akhir). Rinciannya dibuka kalau perlu —
+   *  digabung bukan berarti dibuang. */
+  const [rinci, setRinci] = useState(false);
 
   const muat = useCallback(async () => {
     if (!store.stokAmbil) return;
@@ -85,12 +95,12 @@ export default function LaporanStok() {
     const moves = (a.stockMoves ?? []).filter((m) => stockDateOf(m.at) === hariIni);
     const peta = new Map<string, Baris>();
     for (const row of a.stock) {
-      const b = kosong(row.itemId);
+      const b = kosong(row.itemId, namaBarang);
       b.sisa = row.qty;
       peta.set(row.itemId, b);
     }
     for (const m of moves) {
-      const b = peta.get(m.itemId) ?? kosong(m.itemId);
+      const b = peta.get(m.itemId) ?? kosong(m.itemId, namaBarang);
       switch (m.kind) {
         case "jual": b.terjual += -m.delta; b.nilai += -m.delta * priceOf(a, m.itemId); break;
         case "kembali": b.kembali += m.delta; break;
@@ -118,7 +128,7 @@ export default function LaporanStok() {
       let peta = perHari.get(hari);
       if (!peta) { peta = new Map(); perHari.set(hari, peta); }
       peta.set(r.item_id, {
-        itemId: r.item_id, nama: findItem(r.item_id)?.name ?? r.item_id,
+        itemId: r.item_id, nama: namaBarang(r.item_id),
         awal: r.awal, masuk: r.masuk, terjual: r.terjual, kembali: r.kembali,
         susut: r.susut, opname: r.opname, sisa: r.sisa, nilai: Number(r.nilai_jual ?? 0),
       });
@@ -169,7 +179,7 @@ export default function LaporanStok() {
         const laku = ringkas.daftar.find((x) => x.itemId === r.itemId)?.terjual ?? 0;
         const rata = laku / n;
         return {
-          itemId: r.itemId, nama: findItem(r.itemId)?.name ?? r.itemId,
+          itemId: r.itemId, nama: namaBarang(r.itemId),
           sisa: r.qty as number, rata,
           hari: rata > 0 ? (r.qty as number) / rata : Infinity,
         };
@@ -179,21 +189,24 @@ export default function LaporanStok() {
       .slice(0, 6);
   }, [a.stock, ringkas]);
 
-  /* ── Unduh CSV seluruh rentang, bukan cuma satu hari ────────────── */
+  /* ── Unduh Excel seluruh rentang, bukan cuma satu hari ────────────── */
   async function unduh() {
     const rows: (string | number)[][] = [
       [`Laporan stok ${dari} s/d ${sampai} (batas hari ${JAM})`],
-      ["Tanggal", "Item", "Awal", "Masuk", "Terjual", "Kembali", "Susut", "Opname", "Sisa", "Nilai terjual"],
+      // Lima kolom yang diminta pemilik di depan; rinciannya ikut di belakang
+      // supaya laporan tetap bisa diaudit tanpa membuka aplikasi.
+      ["Tanggal", "Nama barang", "Awal", "Penambahan", "Penjualan", "Penyesuaian", "Akhir",
+        "Nilai terjual", "(rinci) Kembali", "(rinci) Susut", "(rinci) Opname"],
     ];
     for (const d of hari) {
       for (const b of perHari.get(d)?.values() ?? []) {
         if (b.awal === null && b.sisa === null && !b.terjual) continue;
-        rows.push([d, b.nama, b.awal ?? "-", b.masuk, b.terjual, b.kembali, b.susut, b.opname, b.sisa ?? "-", b.nilai]);
+        rows.push([d, b.nama, b.awal ?? "-", b.masuk, b.terjual,
+          b.kembali - b.susut + b.opname, b.sisa ?? "-", b.nilai, b.kembali, b.susut, b.opname]);
       }
     }
     rows.push([], ["TOTAL", "", "", "", ringkas.totalTerjual, "", ringkas.totalSusut, ringkas.totalOpname, "", ringkas.totalNilai]);
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\r\n");
-    const hasil = await saveTextFile(`stok-spl-${dari}_${sampai}.csv`, "\uFEFF" + csv);
+    const hasil = await unduhExcel(`stok-spl-${dari}_${sampai}`, rows, "Laporan stok");
     setPesan(hasil === "dibatalkan" ? null : hasil === "gagal" ? "Gagal menyimpan berkas." : "Laporan stok tersimpan.");
     setTimeout(() => setPesan(null), 4000);
   }
@@ -235,7 +248,7 @@ export default function LaporanStok() {
    * kenapa. Jadi keduanya ditampilkan berdampingan, apa adanya.
    */
   const banding = useMemo(() => {
-    const uang = recap(a, hariTampil);
+    const uang = recap(a, hariTampil, venue);
     const barang = [...(perHari.get(hariTampil)?.values() ?? [])].reduce((n, x) => n + x.nilai, 0);
     return { uang: uang.fnb, barang, selisih: uang.fnb - barang };
   }, [a, hariTampil, perHari]);
@@ -265,6 +278,11 @@ export default function LaporanStok() {
         <div className="mt-2 flex flex-wrap gap-1.5">
           {([
             ["Hari ini", () => [hariIni, hariIni]],
+            ["Minggu ini", () => {
+              const { dari: d, sampai: s } = periodeRange(hariIni, "minggu");
+              // Minggu berjalan belum selesai — jangan menampilkan hari depan.
+              return [d, s > hariIni ? hariIni : s];
+            }],
             ["7 hari", () => [shiftDate(hariIni, -6), hariIni]],
             ["30 hari", () => [shiftDate(hariIni, -29), hariIni]],
             ["Bulan ini", () => [`${hariIni.slice(0, 7)}-01`, hariIni]],
@@ -387,6 +405,12 @@ export default function LaporanStok() {
           className="min-h-[32px] shrink-0 rounded-lg border border-line px-3 text-[12px] text-mute hover:border-amber hover:text-amber disabled:opacity-40">
           {sibuk ? "Memuat…" : "Muat ulang"}
         </button>
+        <button onClick={() => setRinci((v) => !v)} aria-pressed={rinci}
+          className={`min-h-[32px] shrink-0 rounded-lg border px-3 text-[12px] ${
+            rinci ? "border-amber bg-amber/10 text-amber" : "border-line text-mute hover:border-amber hover:text-amber"
+          }`}>
+          Rincian penyesuaian
+        </button>
       </div>
 
       {tabel.length === 0 ? (
@@ -398,14 +422,17 @@ export default function LaporanStok() {
           <table className="w-full min-w-[640px] text-[12px]">
             <thead>
               <tr className="border-b border-line text-[10px] uppercase tracking-wider text-dim">
-                <th className="px-3 py-2 text-left font-bold">Item</th>
+                <th className="px-3 py-2 text-left font-bold">Nama barang</th>
                 <th className="px-2 py-2 text-right font-bold">Awal</th>
-                <th className="px-2 py-2 text-right font-bold">Masuk</th>
-                <th className="px-2 py-2 text-right font-bold">Terjual</th>
-                <th className="px-2 py-2 text-right font-bold">Kembali</th>
-                <th className="px-2 py-2 text-right font-bold">Susut</th>
-                <th className="px-2 py-2 text-right font-bold">Opname</th>
-                <th className="px-2 py-2 text-right font-bold">Sisa</th>
+                <th className="px-2 py-2 text-right font-bold">Penambahan</th>
+                <th className="px-2 py-2 text-right font-bold">Penjualan</th>
+                <th className="px-2 py-2 text-right font-bold">Penyesuaian</th>
+                {rinci && <>
+                  <th className="px-2 py-2 text-right font-bold">· Kembali</th>
+                  <th className="px-2 py-2 text-right font-bold">· Susut</th>
+                  <th className="px-2 py-2 text-right font-bold">· Opname</th>
+                </>}
+                <th className="px-2 py-2 text-right font-bold">Akhir</th>
                 <th className="px-3 py-2 text-right font-bold">Nilai</th>
               </tr>
             </thead>
@@ -413,9 +440,14 @@ export default function LaporanStok() {
               {tabel.map((x) => {
                 const low = a.stock.find((r) => r.itemId === x.itemId)?.lowAt ?? 0;
                 const tipis = x.sisa !== null && x.sisa <= low;
+                // Penyesuaian = segala yang bukan penambahan dan bukan penjualan:
+                // barang kembali (void/batal), susut, dan selisih hitung fisik.
+                // Digabung karena itu bentuk yang diminta pemilik — rinciannya
+                // tetap bisa dibuka, bukan dihilangkan.
+                const sesuai = x.kembali - x.susut + x.opname;
                 // Baris yang tidak bisa dipertanggungjawabkan ditandai, bukan disembunyikan.
                 const cocok = x.awal === null || x.sisa === null ||
-                  x.awal + x.masuk - x.terjual + x.kembali - x.susut + x.opname === x.sisa;
+                  x.awal + x.masuk - x.terjual + sesuai === x.sisa;
                 return (
                   <tr key={x.itemId} className={tipis ? "bg-red-500/5" : ""}>
                     <td className="px-3 py-1.5 text-cream">
@@ -425,11 +457,16 @@ export default function LaporanStok() {
                     <td className="px-2 py-1.5 text-right tabular-nums text-mute">{x.awal ?? "—"}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums text-emerald-400">{x.masuk || ""}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums text-cream">{x.terjual || ""}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-mute">{x.kembali || ""}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-red-300">{x.susut || ""}</td>
-                    <td className={`px-2 py-1.5 text-right tabular-nums ${x.opname < 0 ? "text-red-300" : "text-mute"}`}>
-                      {x.opname ? (x.opname > 0 ? "+" : "") + x.opname : ""}
+                    <td className={`px-2 py-1.5 text-right tabular-nums ${sesuai < 0 ? "text-red-300" : "text-mute"}`}>
+                      {sesuai ? (sesuai > 0 ? "+" : "") + sesuai : ""}
                     </td>
+                    {rinci && <>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-mute">{x.kembali || ""}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-red-300">{x.susut || ""}</td>
+                      <td className={`px-2 py-1.5 text-right tabular-nums ${x.opname < 0 ? "text-red-300" : "text-mute"}`}>
+                        {x.opname ? (x.opname > 0 ? "+" : "") + x.opname : ""}
+                      </td>
+                    </>}
                     <td className={`px-2 py-1.5 text-right tabular-nums ${tipis ? "text-red-300" : "text-cream"}`}>
                       {x.sisa ?? "—"}
                     </td>
@@ -447,7 +484,7 @@ export default function LaporanStok() {
         <span className="text-cream">{rupiah(tabel.reduce((n, x) => n + x.nilai, 0))}</span>
         <button onClick={() => void unduh()}
           className="ml-auto min-h-[36px] rounded-lg border border-line px-3 text-[12px] text-cream hover:border-amber hover:text-amber">
-          Unduh CSV {rangeDays(dari, sampai)} hari
+          Unduh Excel {rangeDays(dari, sampai)} hari
         </button>
       </div>
       {pesan && <p role="status" className="mt-1 text-[12px] text-amber">{pesan}</p>}
@@ -490,7 +527,7 @@ export default function LaporanStok() {
             <div className="mt-3 space-y-1.5">
               {a.stock.filter((r) => r.qty !== null).map((r) => (
                 <div key={r.itemId} className="flex items-center gap-2">
-                  <span className="flex-1 truncate text-[13px] text-cream">{findItem(r.itemId)?.name ?? r.itemId}</span>
+                  <span className="flex-1 truncate text-[13px] text-cream">{namaBarang(r.itemId)}</span>
                   <span className="w-16 text-right text-[11px] tabular-nums text-dim">sistem {r.qty}</span>
                   <input type="number" inputMode="numeric" min={0} value={opname[r.itemId] ?? ""}
                     onChange={(e) => setOpname((o) => ({ ...(o ?? {}), [r.itemId]: e.target.value }))}

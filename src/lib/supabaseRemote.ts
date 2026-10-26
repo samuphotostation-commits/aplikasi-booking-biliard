@@ -47,6 +47,12 @@ export type StaffRemote = Remote & {
   kirimKodeEmail(email: string): Promise<string | null>;
   /** Tukar kode email menjadi sesi venue 12 jam. */
   loginEmail(email: string, kode: string): Promise<LoginHasil>;
+  /** Masuk dengan email + password — layar pertama aplikasi. */
+  loginSandi(email: string, password: string): Promise<LoginHasil>;
+  /** Superadmin mengatur password staf. Kosong = cabut password. */
+  setStaffPassword(staffId: string, password: string): Promise<string | null>;
+  /** Siapa saja yang sudah punya password (penanda ya/tidak, bukan hash-nya). */
+  stafPunyaSandi(): Promise<Record<string, boolean>>;
   /** Tautkan/lepas email sebuah akun staf (superadmin). */
   setStaffEmail(staffId: string, email: string): Promise<string | null>;
   /** Lupakan sesi (tombol Kunci). */
@@ -201,6 +207,39 @@ export function supabaseRemote(opts: SupabaseRemoteOptions): StaffRemote {
       token = h.token;
       simpanToken(token);
       return { ok: true, staffId: h.staffId!, nama: h.nama!, peran: h.peran as "superadmin" | "karyawan" };
+    },
+
+    /**
+     * Masuk dengan email + password. Tidak lewat Supabase Auth sama sekali:
+     * yang memeriksa adalah RPC venue sendiri, dan hasilnya token venue yang
+     * sama persis dengan hasil masuk PIN — jadi sisa aplikasinya tidak perlu
+     * tahu lewat pintu mana staf tadi masuk.
+     */
+    async loginSandi(email: string, password: string): Promise<LoginHasil> {
+      const { data, error } = await client.rpc("staff_login_password", {
+        p_email: email.trim().toLowerCase(), p_password: password,
+      });
+      if (error) throw new Error(error.message);
+      const h = data as { ok: boolean; token?: string; staffId?: string; nama?: string; peran?: string; alasan?: string };
+      if (!h?.ok || !h.token) return { ok: false, alasan: h?.alasan ?? "Ditolak server" };
+      token = h.token;
+      simpanToken(token);
+      return { ok: true, staffId: h.staffId!, nama: h.nama!, peran: h.peran as "superadmin" | "karyawan" };
+    },
+
+    async setStaffPassword(staffId: string, password: string) {
+      if (!token) return "Belum masuk.";
+      const { data, error } = await client.rpc("set_staff_password", { p_token: token, p_id: staffId, p_password: password });
+      return error ? error.message : ((data as string | null) ?? null);
+    },
+
+    async stafPunyaSandi() {
+      if (!token) return {};
+      const { data, error } = await client.rpc("staf_punya_sandi", { p_token: token });
+      if (error) return {};
+      const out: Record<string, boolean> = {};
+      for (const r of (data ?? []) as { staff_id: string; ada: boolean }[]) out[r.staff_id] = r.ada;
+      return out;
     },
 
     async setStaffEmail(staffId: string, email: string) {

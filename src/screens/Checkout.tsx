@@ -5,11 +5,13 @@ import { Button, Card, PageHeader } from "../components/UI";
 import { Ball } from "../components/motion/Billiard";
 import { useStore, PBJT_RATE, type CartLine } from "../lib/store";
 import {
-  useAdmin, cartProblem, guestOrderProblem, lineValue, runningOn, slotProblem, classOf,
+  useAdmin, cartProblem, guestOrderProblem, lineValue, runningOn, slotProblem, classOf, paketOf,
+  mejaDijual, cariMeja,
 } from "../lib/adminStore";
 import { slotStart } from "../lib/occupancy";
 import { findItem } from "../data/menu";
-import { TABLES, fmtHour, PAKET_SIANG, BOOKING_TERMS, CLASS_LABEL } from "../data/venue";
+import { venueTamu, useVenueTamu } from "../lib/venueAktif";
+import { TABLES, fmtHour, BOOKING_TERMS, CLASS_LABEL } from "../data/venue";
 import { bookingCode, fmtDateLong, rupiah } from "../lib/core";
 import { bacaProfil, lupakanProfil, simpanProfil } from "../lib/profilTamu";
 import { memberMungkin, memberSaya, type Member } from "../lib/member";
@@ -22,7 +24,7 @@ export default function Checkout() {
   const { state, dispatch, totals } = useStore();
   const { a: venue, dispatchA } = useAdmin();
   const { draft, cart } = state;
-  const table = totals.booking ? TABLES.find((t) => t.id === draft.tableId) : undefined;
+  const table = totals.booking && draft.tableId ? cariMeja(draft.tableId) : undefined;
   const kelasMeja = table ? classOf(venue, table.id) : "regular";
 
   // Terisi sendiri dari profil di HP ini — tamu tidak perlu mengetik ulang tiap datang.
@@ -52,6 +54,8 @@ export default function Checkout() {
 
   const foodOnly = !totals.booking;
   const mode = draft.fnbMode;
+  /** Venue yang sedang dibuka tamu — menentukan meja mana yang ditawarkan. */
+  const venueIni = useVenueTamu();
   // "Bayar di kasir" sekarang berlaku untuk pesanan meja MAUPUN takeaway:
   // pesan makanan saja tanpa meja, bayar saat mengambil di kasir.
   const payKasir = foodOnly && draft.fnbPay === "kasir";
@@ -63,7 +67,7 @@ export default function Checkout() {
   const problem = totals.booking
     ? slotProblem(venue, {
         tableId: draft.tableId!, startsAt: slotStart(draft.dateISO, draft.startHour!),
-        hours: draft.hours, paket: draft.paketSiang,
+        hours: draft.hours, paket: draft.paketId ?? undefined,
       }, Date.now(), true, ownHold) ?? cartProblem(venue, cart)
     : cart.length > 0
       ? guestOrderProblem(venue, {
@@ -127,6 +131,9 @@ export default function Checkout() {
           ? { tableId: draft.fnbTable ?? undefined, sessionId: draft.fnbSessionId ?? undefined }
           : {}),
         pay: "kasir", lines: cart, paidOnline: 0,
+        // Venue tempat pelanggan memesan — tanpa ini semua pesanan tamu
+        // jatuh ke rekap SPL dan pemisahan rekapnya jadi bohong.
+        venue: venueTamu(),
       },
     });
   }
@@ -188,7 +195,7 @@ export default function Checkout() {
                 k="Jam"
                 v={`${fmtHour(draft.startHour)} – ${fmtHour(draft.startHour + draft.hours)} (${draft.hours} jam)`}
               />
-              {draft.paketSiang && <Row k="Paket" v={PAKET_SIANG.name} accent />}
+              {draft.paketId && <Row k="Paket" v={paketOf(venue, draft.paketId)?.name ?? "Paket"} accent />}
               <Row k="Subtotal meja" v={rupiah(totals.tableTotal)} bold />
             </div>
             <div className="border-t border-line px-4 py-3">
@@ -214,7 +221,8 @@ export default function Checkout() {
             </h2>
             <div className="grid grid-cols-2 gap-2">
               <Choice on={mode === "meja"} onClick={() => dispatch({ t: "setFnb", mode: "meja" })}
-                title="Saya sedang main" sub="Diantar ke meja" />
+                title={venueIni === "smh" ? "Saya duduk di meja" : "Saya sedang main"}
+                sub="Diantar ke meja" />
               <Choice on={mode === "takeaway"} onClick={() => dispatch({ t: "setFnb", mode: "takeaway" })}
                 title="Takeaway" sub="Ambil di kasir" />
             </div>
@@ -223,10 +231,12 @@ export default function Checkout() {
               <Card className="mt-2 p-3">
                 <div className="mb-2 flex items-baseline justify-between">
                   <span className="text-[12px] text-mute">Nomor meja</span>
-                  <span className="text-[10px] text-dim">● = sedang main</span>
+                  <span className="text-[10px] text-dim">
+                    {venueIni === "smh" ? "● = ada tamunya" : "● = sedang main"}
+                  </span>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5">
-                  {TABLES.map((t) => {
+                  {mejaDijual(venue).filter((t) => t.venue === venueIni).map((t) => {
                     const on = draft.fnbTable === t.id;
                     const run = runningOn(venue, t.id);
                     const main = !!run;
@@ -242,7 +252,7 @@ export default function Checkout() {
                             : classOf(venue, t.id) === "resto" ? "border-felt/60 bg-felt/15 text-cream"
                             : "border-line bg-ink text-cream"
                         }`}>
-                        {classOf(venue, t.id) === "resto" ? `R${t.no}` : classOf(venue, t.id) === "regular" ? t.no : `V${t.no}`}
+                        {t.venue === "smh" ? t.name : classOf(venue, t.id) === "regular" ? t.no : `V${t.no}`}
                         {main && (
                           <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${on ? "bg-ink" : "bg-emerald-400"}`} />
                         )}

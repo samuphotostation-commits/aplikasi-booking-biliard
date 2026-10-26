@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
 import type { MenuItem } from "../data/menu";
-import { PAKET_SIANG, type TableType } from "../data/venue";
+import type { TableType } from "../data/venue";
 import {
-  GATEWAY_EXPIRY_MIN, HOLD_GRACE_MIN, HOLD_MIN, PAKET_FREE_DRINKS,
+  GATEWAY_EXPIRY_MIN, HOLD_GRACE_MIN, HOLD_MIN, paketOf,
   businessDateOf, priceLines, priceWith, runningOn, useAdmin, type State as VenueState,
 } from "./adminStore";
 import { diWib } from "./occupancy";
@@ -26,6 +26,50 @@ export type CartLine = {
   prepaid?: boolean;
   /** Baris milik pesanan tamu (QR/takeaway) — supaya void memperbarui pesanan asalnya. */
   orderId?: string;
+  /**
+   * Nama & station DIBEKUKAN di baris saat dipesan — bukan dicari ulang dari
+   * buku menu. Dua alasan: barang yang ditambahkan pemilik sendiri tidak ada
+   * di buku menu, dan pesanan lama harus tetap terbaca utuh walau barangnya
+   * kemudian dihapus atau diganti namanya.
+   */
+  name?: string;
+  station?: "kitchen" | "bar" | "billiard";
+  /**
+   * Compliment (SMH-11b): harga baris dijadikan 0 dan harga ASLINYA disimpan
+   * di sini. Dua hal sekaligus dijaga: tagihan tamu benar-benar berkurang
+   * (jadi uang tetap berimbang), dan nilai yang digratiskan tidak hilang —
+   * ia tetap bisa dilaporkan sebagai biaya yang ditanggung venue.
+   */
+  comp?: number;
+  /**
+   * ISI PAKET: barang yang harganya SUDAH termasuk harga paket, jadi
+   * barisnya Rp 0. Ditandai supaya tidak tertukar dengan jatah minuman
+   * paket, yang juga Rp 0 tapi artinya berbeda — lihat `jatahMinuman` di
+   * engine.
+   */
+  isiPaket?: true;
+  /**
+   * PRA-PESAN RESERVASI RESTO — makanan yang sudah dipilih tamu saat memesan
+   * meja, tapi BELUM memotong stok dan BELUM masuk dapur.
+   *
+   * Keduanya baru terjadi saat tamu check-in (lihat `checkin` di engine).
+   * Kalau stok dipotong saat reservasi dibuat, satu reservasi untuk minggu
+   * depan akan menghilangkan barang dari penjualan MALAM INI tanpa ada yang
+   * memakannya — dan laporan stok harian 05.00–05.00 ikut bohong.
+   *
+   * Penandanya DICOPOT begitu stoknya diambil (lihat `fulfil`), jadi tidak
+   * ada baris yang bisa memotong stok dua kali.
+   */
+  pra?: true;
+  /**
+   * Baris ini adalah HARGA PAKET-nya sendiri, bukan satu hidangan.
+   *
+   * Tidak membuat tiket dapur: yang dimasak adalah isinya, yang masuk
+   * sebagai baris Rp 0 tersendiri. Tanpa penanda ini, satu paket keluarga
+   * mencetak dua tiket untuk makanan yang sama — satu atas nama paketnya,
+   * satu lagi atas nama isinya.
+   */
+  paket?: true;
 };
 
 /** Cara tamu menerima pesanan makanan TANPA booking meja (PRD §7.3). */
@@ -38,7 +82,9 @@ export type Draft = {
   hours: number;
   tableId: string | null;
   tableType: TableType;
-  paketSiang: boolean;
+  /** ID paket yang dipilih tamu, atau null. Dulu ya/tidak — sejak paket
+   *  bisa lebih dari satu, perlu tahu paket yang MANA. */
+  paketId: string | null;
   fnbMode: FnbMode;
   /** Meja tempat tamu sedang bermain (dari QR di meja, `?meja=T07`). */
   fnbTable: string | null;
@@ -67,7 +113,7 @@ export type Pending = {
 /** Sidik niat pembayaran: apa yang dibeli, bukan kapan. */
 export const intentOf = (d: Draft, cart: CartLine[], booking: boolean) =>
   JSON.stringify([
-    booking ? [d.dateISO, d.startHour, d.hours, d.tableId, d.paketSiang] : [d.fnbMode, d.fnbTable, d.fnbPay],
+    booking ? [d.dateISO, d.startHour, d.hours, d.tableId, d.paketId] : [d.fnbMode, d.fnbTable, d.fnbPay],
     cart.map((l) => [l.itemId, l.qty, l.variant ?? ""]),
   ]);
 
@@ -116,7 +162,7 @@ type Action =
   | { t: "setStart"; v: number | null }
   | { t: "setHours"; v: number }
   | { t: "setTable"; id: string | null; type: TableType }
-  | { t: "setPaket"; v: boolean }
+  | { t: "setPaket"; v: string | null }
   /** Lepas pilihan meja/jam — untuk tamu yang hanya ingin pesan makanan. */
   | { t: "clearBooking" }
   /** `table` dipilih/di-scan saat `at`, dengan tab yang sedang jalan di meja itu (bila ada). */
@@ -143,7 +189,7 @@ const freshDraft = (): Draft => ({
   hours: 2,
   tableId: null,
   tableType: "regular",
-  paketSiang: false,
+  paketId: null,
   fnbMode: "meja",
   fnbTable: null,
   fnbTableAt: null,
@@ -162,11 +208,11 @@ function reducer(s: State, a: Action): State {
     case "setTable":
       // Paket Siang hanya untuk meja reguler (sama dengan aturan mesin).
       // Paket Siang hanya untuk meja reguler — VIP/VVIP tidak termasuk.
-      return { ...s, draft: { ...s.draft, tableId: a.id, tableType: a.type, paketSiang: a.type === "regular" ? s.draft.paketSiang : false } };
+      return { ...s, draft: { ...s.draft, tableId: a.id, tableType: a.type, paketId: a.type === "regular" ? s.draft.paketId : null } };
     case "setPaket":
-      return { ...s, draft: { ...s.draft, paketSiang: a.v } };
+      return { ...s, draft: { ...s.draft, paketId: a.v } };
     case "clearBooking":
-      return { ...s, draft: { ...s.draft, startHour: null, tableId: null, paketSiang: false } };
+      return { ...s, draft: { ...s.draft, startHour: null, tableId: null, paketId: null } };
     case "setFnb":
       return {
         ...s,
@@ -253,7 +299,7 @@ function load(): State {
     if (!raw) return empty;
     const p = JSON.parse(raw) as Partial<State>;
     let d = { ...freshDraft(), ...(p.draft ?? {}) };
-    if (d.dateISO < todayISO()) d = { ...d, dateISO: todayISO(), startHour: null, tableId: null, paketSiang: false };
+    if (d.dateISO < todayISO()) d = { ...d, dateISO: todayISO(), startHour: null, tableId: null, paketId: null };
     // Versi lama tidak mencatat kapan meja dipilih — anggap basi.
     if (d.fnbTable && (!d.fnbTableAt || Date.now() - d.fnbTableAt > FNB_TABLE_TTL_MS)) {
       d = { ...d, fnbTable: null, fnbTableAt: null, fnbSessionId: null };
@@ -288,7 +334,7 @@ function itemKeBooking(it: RiwayatMemberItem): Booking | null {
     hours,
     tableId: s?.tableId ?? o?.tableId ?? null,
     tableType: s?.tableType ?? "regular",
-    paketSiang: s?.paket === "siang",
+    paketId: s?.paket ?? null,
     fnbMode: o?.mode ?? "meja",
     fnbTable: o?.tableId ?? null,
     fnbPay: o?.pay ?? "online",
@@ -314,7 +360,8 @@ export const PBJT_RATE = 0.1;
 
 export function computeTotals(
   draft: Draft, cart: CartLine[],
-  venue: Pick<VenueState, "rates" | "menuPrices" | "sessions"> & { tableTypes?: VenueState["tableTypes"] },
+  venue: Pick<VenueState, "rates" | "menuPrices" | "sessions" | "customItems" | "packages">
+    & { tableTypes?: VenueState["tableTypes"] },
 ) {
   // Rumus yang SAMA dengan yang dipakai mesin saat memverifikasi pembayaran —
   // tarif & harga menu terkini, jatah minuman gratis. Kalau berbeda, pembayaran ditolak.
@@ -322,14 +369,15 @@ export function computeTotals(
   const tableType = (draft.tableId && venue.tableTypes?.[draft.tableId])
     ? venue.tableTypes[draft.tableId]
     : draft.tableType;
+  const pk = draft.paketId ? paketOf(venue, draft.paketId) : undefined;
   const tableTotal = !booking
     ? 0
-    : draft.paketSiang
-      ? PAKET_SIANG.price
+    : pk
+      ? pk.price
       : priceWith(venue.rates, tableType, draft.startHour!, draft.hours);
 
   const credits = booking
-    ? (draft.paketSiang ? PAKET_FREE_DRINKS : 0)
+    ? (pk ? pk.freeDrinks : 0)
     : draft.fnbMode === "meja"
       ? (runningOn(venue, draft.fnbTable ?? undefined)?.freeDrinks ?? 0)
       : 0;

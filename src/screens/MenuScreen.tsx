@@ -2,17 +2,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Card, PageHeader } from "../components/UI";
-import { Ball } from "../components/motion/Billiard";
-import { MENU, type MenuItem } from "../data/menu";
+import type { MenuItem } from "../data/menu";
+import { FOTO_KATEGORI } from "../data/fotoMenu";
+import { IkonResto } from "../components/Smoke";
 import { TABLES, fmtHour } from "../data/venue";
 import { useStore } from "../lib/store";
-import { useAdmin, priceOf, runningOn } from "../lib/adminStore";
+import { useAdmin, priceOf, runningOn, kategoriJual, cariMeja } from "../lib/adminStore";
 import { rupiah } from "../lib/core";
 
 export default function MenuScreen() {
   const nav = useNavigate();
   const { state, dispatch, totals, cartCount } = useStore();
   const { a: venue } = useAdmin();
+  /** Kategori `staffOnly` (rokok counter) sengaja tidak ikut: tidak ada
+   *  yang memeriksa umur pembeli lewat HP. Barang tambahan pemilik ikut. */
+  const MENU = kategoriJual(venue);
   const [params] = useSearchParams();
   const [q, setQ] = useState("");
   const [sheet, setSheet] = useState<MenuItem | null>(null);
@@ -23,10 +27,40 @@ export default function MenuScreen() {
   // diikat ke tab yang sedang jalan di sana (tab ditutup → pilihan meja dilepas).
   const mejaParam = params.get("meja");
   useEffect(() => {
-    if (mejaParam && TABLES.some((t) => t.id === mejaParam)) {
+    if (mejaParam && cariMeja(mejaParam)) {
       dispatch({ t: "setFnb", mode: "meja", table: mejaParam, sessionId: runningOn(venue, mejaParam)?.id ?? null });
     }
   }, [mejaParam, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * Beranda Smokehouse membuka /menu?kategori=beef-ribs — langsung ke
+   * kategorinya, bukan ke pucuk daftar.
+   *
+   * Tanpa ini, mengetuk foto "Beef Ribs" membawa tamu ke Light Bites dan ia
+   * harus mencari sendiri — kategori yang baru saja ia pilih. Itu bentuk
+   * kerusakan yang tidak terlihat di tangkapan layar tapi langsung terasa
+   * di tangan.
+   */
+  /**
+   * /menu?ambil=1 — tamu memesan TANPA meja, diambil di kasir.
+   *
+   * Dipasang di sini, bukan di layar Ringkasan, supaya tamu yang datang
+   * lewat tombol "Pesan Tanpa Meja" tidak perlu memilih ulang cara terima
+   * pesanannya: satu keputusan yang sudah dia buat tidak ditanya dua kali.
+   */
+  const ambilParam = params.get("ambil");
+  useEffect(() => {
+    if (ambilParam) dispatch({ t: "setFnb", mode: "takeaway", table: null, sessionId: null });
+  }, [ambilParam]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const katParam = params.get("kategori");
+  useEffect(() => {
+    if (!katParam) return;
+    // Satu frame setelah daftarnya tergambar, kalau tidak elemennya belum ada.
+    const id = requestAnimationFrame(() =>
+      secRefs.current[katParam]?.scrollIntoView({ behavior: "auto", block: "start" }));
+    return () => cancelAnimationFrame(id);
+  }, [katParam]);
 
   const filtered = useMemo(() => {
     if (!q.trim()) return MENU;
@@ -59,9 +93,9 @@ export default function MenuScreen() {
   }
 
   const { draft } = state;
-  const bookingTable = draft.tableId && draft.startHour !== null ? TABLES.find((t) => t.id === draft.tableId) : null;
+  const bookingTable = draft.tableId && draft.startHour !== null ? cariMeja(draft.tableId) : null;
   const qrTable = !bookingTable && draft.fnbMode === "meja" && draft.fnbTable
-    ? TABLES.find((t) => t.id === draft.fnbTable) : null;
+    ? cariMeja(draft.fnbTable) : null;
   const qrRunning = qrTable ? !!runningOn(venue, qrTable.id) : false;
 
   return (
@@ -83,12 +117,16 @@ export default function MenuScreen() {
           )}
           {qrTable && (
             <div className={`mb-2 rounded-xl border px-3 py-2 text-[12px] leading-snug ${
-              qrRunning ? "border-emerald-500/40 bg-emerald-500/10 text-cream" : "border-amber/40 bg-amber/10 text-amber"
+              qrRunning || qrTable.venue === "smh"
+                ? "border-emerald-500/40 bg-emerald-500/10 text-cream"
+                : "border-amber/40 bg-amber/10 text-amber"
             }`}>
               Pesan untuk <strong>{qrTable.name}</strong> ·{" "}
               {qrRunning
-                ? "meja sedang main, pesanan langsung ke dapur"
-                : "meja belum dibuka kasir, minta kasir membuka meja dulu"}
+                ? "pesanan langsung masuk ke bill meja ini"
+                : qrTable.venue === "smh"
+                  ? "meja ini akan dibuka otomatis oleh pesanan pertamamu"
+                  : "meja belum dibuka kasir, minta kasir membuka meja dulu"}
             </div>
           )}
           <input
@@ -121,8 +159,8 @@ export default function MenuScreen() {
       <div className="mx-auto max-w-lg px-5">
         {filtered.length === 0 && (
           <Card className="mt-6 px-4 py-10 text-center">
-            <Ball n={8} size={34} className="mx-auto opacity-40" />
-            <p className="mt-3 text-sm text-dim">Menu "{q}" tidak ketemu.</p>
+            <div className="mx-auto text-brick-lit opacity-70"><IkonResto size={34} /></div>
+            <p className="mt-3 text-sm text-dim">Menu &ldquo;{q}&rdquo; tidak ketemu.</p>
           </Card>
         )}
 
@@ -132,12 +170,40 @@ export default function MenuScreen() {
             ref={(el) => { secRefs.current[cat.id] = el; }}
             className="scroll-mt-32 pt-7"
           >
-            {cat.kicker && (
-              <div className="font-script text-xl leading-none text-amber">{cat.kicker}</div>
+            {/*
+              FOTO KATEGORI — permintaan pemilik 12 Okt 2026: *"saya ingin ada
+              tampilan foto makanannya untuk Smokehouse ini ketika mau pesan,
+              jadi memang betul-betul seperti pemesanan resto"*.
+
+              Fotonya dari buku menu venue sendiri. Kategori yang memang belum
+              punya foto (nasi goreng, mie, jus, cold drink) tampil tanpa foto,
+              BUKAN dengan foto hidangan lain yang mirip — tamu akan memesan
+              sesuatu yang tidak seperti gambarnya.
+            */}
+            {FOTO_KATEGORI[cat.id] ? (
+              <div className="relative mb-3 overflow-hidden rounded-2xl border border-line">
+                <img src={FOTO_KATEGORI[cat.id]} alt={cat.name} loading="lazy"
+                  className="h-36 w-full object-cover sm:h-44" />
+                <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/35 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-3.5">
+                  {cat.kicker && (
+                    <div className="font-script text-lg leading-none text-amber">{cat.kicker}</div>
+                  )}
+                  <h2 className="font-display text-2xl uppercase tracking-[0.05em] text-cream">
+                    {cat.name}
+                  </h2>
+                </div>
+              </div>
+            ) : (
+              <>
+                {cat.kicker && (
+                  <div className="font-script text-xl leading-none text-amber">{cat.kicker}</div>
+                )}
+                <h2 className="mb-3 font-display text-2xl uppercase tracking-[0.05em] text-cream">
+                  {cat.name}
+                </h2>
+              </>
             )}
-            <h2 className="mb-3 font-display text-2xl uppercase tracking-[0.05em] text-cream">
-              {cat.name}
-            </h2>
 
             <div className="space-y-2">
               {cat.items.map((it) => {

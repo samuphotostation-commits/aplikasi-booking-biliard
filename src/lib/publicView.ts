@@ -40,7 +40,18 @@ export type PublicVenue = {
   rates: State["rates"];
   /** Kelas tiap meja yang diubah pemilik (VIP ↔ VVIP) — menentukan tarif yang dilihat tamu. */
   tableTypes: State["tableTypes"];
+  /**
+   * DENAH: meja mana yang sedang dijual (hanya yang berbeda dari bawaan).
+   *
+   * Ikut diterbitkan karena tanpa ini meja yang baru diaktifkan pemilik tidak
+   * pernah muncul di layar booking tamu — mejanya ada di kasir, kosong
+   * semalaman, dan tidak seorang pun bisa memesannya. Sebaliknya, meja yang
+   * ditarik tetap ditawarkan ke tamu lalu ditolak mesin saat membayar.
+   */
+  mejaPakai: State["mejaPakai"];
   menuPrices: State["menuPrices"];
+  /** Barang tambahan pemilik — tanpa ini pelanggan tidak bisa memesannya. */
+  customItems: State["customItems"];
   promos: State["promos"];
 };
 
@@ -99,7 +110,9 @@ export function publicVenue(s: State, now: number, days = 14): PublicVenue {
     soldOut: [...s.soldOut],
     rates: { ...s.rates },
     tableTypes: { ...(s.tableTypes ?? {}) },
+    mejaPakai: { ...(s.mejaPakai ?? {}) },
     menuPrices: { ...s.menuPrices },
+    customItems: [...(s.customItems ?? [])],
     promos: s.promos.map((p) => ({ ...p })),
   };
 }

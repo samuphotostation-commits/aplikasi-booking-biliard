@@ -1,0 +1,4 @@
+# Cloudflare Pages: semua alamat diantar ke aplikasi, lalu main.tsx
+# memindahkannya ke rute hash yang setara. Tanpa ini, tautan bersih
+# seperti /smokehouse menghasilkan 404 sebelum aplikasinya sempat jalan.
+/*  /index.html  200

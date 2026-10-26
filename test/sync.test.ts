@@ -7,19 +7,20 @@
    ═══════════════════════════════════════════════════════════════════ */
 import { Tab, deliverAll, deliverSome, posted, resetWorld, setQuota, shared, sleep } from "./fakeBrowser";
 import { createVenueStore } from "../src/lib/venueStore";
-import { canOpenWalkin, replay, tickState, type Entry, type Genesis, type State } from "../src/lib/engine";
-import { EMPLOYEES } from "../src/data/staff";
+import { offlineBlock } from "../src/lib/remote";
+import { canOpenWalkin, replay, tickState, type Action, type Entry, type Genesis, type State } from "../src/lib/engine";
+import { EMPLOYEES, SEMUA_AKSES } from "../src/data/staff";
 import { TABLES } from "../src/data/venue";
 // Jam tiruan dipatok WIB seperti mesinnya; kalau ikut zona mesin penguji, tes
 // ini hanya lolos di perangkat yang kebetulan disetel WIB.
-import { dariWib, tanggalWib } from "../src/lib/occupancy";
+import { businessDateOf, dariWib, tanggalWib } from "../src/lib/occupancy";
 import { MENU } from "../src/data/menu";
 import { slotStart } from "../src/lib/occupancy";
 import { addDaysISO, todayISO } from "../src/lib/core";
 
 // Jam tiruan mulai pukul 15.00 hari ini (maju 7 ms tiap dibaca): hasil tidak bergantung
 // kapan tes dijalankan — di luar jam buka, walk-in memang ditolak mesin.
-let fakeNow = (() => { const [y, m, d] = tanggalWib(Date.now()).split("-").map(Number); return dariWib(y, m, d, 15); })();
+let fakeNow = (() => { const [y, m, d] = businessDateOf(Date.now()).split("-").map(Number); return dariWib(y, m, d, 15); })();
 let frozen = false;
 Date.now = () => (frozen ? fakeNow : (fakeNow += 7));
 const setNow = (ts: number) => { fakeNow = ts; };
@@ -47,7 +48,7 @@ const t = (label: string, ok: boolean, detail = "") => {
 };
 const norm = (x: unknown) => JSON.stringify({ ...(x as object), me: null });
 const owner = EMPLOYEES.find((e) => e.id === "u-owner")!;
-const kasir = EMPLOYEES.find((e) => e.role === "karyawan")!;
+const kasir = EMPLOYEES.find((e) => e.active && !SEMUA_AKSES.includes(e.role))!;
 const items = MENU.flatMap((c) => c.items);
 
 console.log("-- Banyak tab mengirim aksi bersamaan, siaran tiba acak --");
@@ -318,6 +319,35 @@ console.log("\n-- Penyimpanan perangkat penuh --");
   A.dispatch({ t: "walkin", tableId: freeTable(A.getView()), guest: "Penuh" });
   t("aplikasi tetap jalan (aksi tetap berlaku di tab ini)", A.getView().sessions.some((s) => s.guest === "Penuh"));
   t("peringatan penyimpanan penuh muncul", !!A.info().storageError && !A.info().persisted);
+}
+
+console.log("\n-- Aksi uang ditahan saat terputus (audit 21 Okt 2026) --");
+{
+  /*
+   * Bahayanya BUKAN "uang tercatat dua kali": mesin memang menolak penutupan
+   * kedua saat jejaknya disatukan. Yang terjadi justru kebalikannya, dan
+   * lebih buruk \u2014 perangkat yang terputus menerima pembayarannya di layar,
+   * kasir mencetak struk, tamu pulang, lalu kejadiannya ditolak saat
+   * tersambung karena sudah didahului perangkat lain. Uang di laci, tanpa
+   * catatan.
+   *
+   * `paySplit` dan `settleOrder` BARU ditambahkan 21 Okt 2026; keduanya
+   * mencatat pembayaran persis seperti `settle` dan selama ini lolos.
+   */
+  const ditahan = (jenis: string) => offlineBlock({ t: jenis } as Action, false) !== null;
+
+  for (const jenis of ["settle", "paySplit", "settleOrder", "closeShift", "decideVoid", "settleRefund"]) {
+    t(`aksi uang ditahan saat terputus: ${jenis}`, ditahan(jenis));
+  }
+  /* Aksi PELAYANAN tetap jalan dan menyusul terkirim \u2014 kalau ikut ditahan,
+     venue berhenti melayani hanya karena internetnya mati. */
+  for (const jenis of ["walkin", "addFnb", "checkin", "ticket", "openShift", "toggleLight", "moveFnb"]) {
+    t(`aksi pelayanan tetap jalan saat terputus: ${jenis}`, !ditahan(jenis));
+  }
+  t("tersambung: tidak ada yang ditahan",
+    offlineBlock({ t: "settle" } as Action, true) === null);
+  t("alasannya disebutkan, bukan sekadar ditolak",
+    (offlineBlock({ t: "settle" } as Action, false) ?? "").includes("ditahan sampai koneksi kembali"));
 }
 
 console.log("");

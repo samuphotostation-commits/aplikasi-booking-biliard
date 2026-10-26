@@ -28,8 +28,17 @@ export const MIN_BILLED_MINUTES = 30;
  */
 export const GRACE_MINUTES = 5;
 
-/** Pembulatan ke atas ke kelipatan rupiah terdekat — memudahkan kembalian tunai. */
-export const ROUND_TO = 500;
+/**
+ * Pembulatan KE ATAS ke kelipatan seribu (permintaan pemilik 8 Okt 2026).
+ *
+ * Dulu 500, dan itu membuat struk berakhir di angka seperti Rp 245.500 — kasir
+ * harus menyiapkan kembalian pecahan ratusan yang sering tidak ada di laci.
+ * Sekarang tiap total berakhir di ribuan.
+ *
+ * INI MENGUBAH UANG, bukan tampilan: 30 menit reguler siang naik dari
+ * Rp 14.500 jadi Rp 15.000. Jangan dikembalikan ke 500 tanpa pemilik memintanya.
+ */
+export const ROUND_TO = 1000;
 
 export const roundRupiah = (n: number) => Math.ceil(n / ROUND_TO) * ROUND_TO;
 

@@ -13,7 +13,7 @@
 import {
   laporanStokHarian, replay, stockDateOf, type Action, type Entry, type Genesis, type StokHariBaris,
 } from "../src/lib/engine";
-import { dariWib, tanggalWib } from "../src/lib/occupancy";
+import { businessDateOf, dariWib, tanggalWib } from "../src/lib/occupancy";
 
 let bad = 0, total = 0;
 const t = (label: string, got: unknown, want: unknown) => {
@@ -23,7 +23,17 @@ const t = (label: string, got: unknown, want: unknown) => {
 };
 
 const HARI = 86_400_000;
-const [Y, M, D] = tanggalWib(Date.now()).split("-").map(Number);
+/*
+ * Hari dasar uji = HARI OPERASIONAL, bukan tanggal kalender.
+ *
+ * Hari operasional berganti pukul 05.00 (venue tutup 02.00). Antara 00.00
+ * dan 05.00 tanggal kalender sudah maju sementara hari operasionalnya
+ * belum -- dan harness yang memakai `tanggalWib` membangun dunianya di hari
+ * berikutnya lalu bertanya ke mesin tentang hari ini. Hasilnya uji yang
+ * hijau sepanjang siang dan merah tiap lewat tengah malam, di jam yang
+ * justru masih jam kerja venue ini.
+ */
+const [Y, M, D] = businessDateOf(Date.now()).split("-").map(Number);
 /** Jam WIB pada hari ini + `geser` hari. */
 const jam = (geser: number, h: number, m = 0) => dariWib(Y, M, D, h, m) + geser * HARI;
 
@@ -109,7 +119,9 @@ console.log("\n-- Sesi di-void: barangnya kembali ke stok --");
   t("terjual dulu 7", cari(laporanStokHarian(d.genesis, d.entries)[stockDateOf(jam(0, 12))], TEH)?.terjual, 7);
 
   d.push(jam(0, 19, 30), {
-    t: "requestVoid", req: { targetKind: "sesi", targetId: id, reason: "tamu batal" },
+    // `label` & `amount` dari layar DIABAIKAN mesin (dihitung ulang dari
+    // sasarannya), tapi tetap bagian bentuk aksinya.
+    t: "requestVoid", req: { targetKind: "sesi", targetId: id, label: "sesi", amount: 0, reason: "tamu batal" },
   });
   const voidId = replay(d.genesis, d.entries).voids[0]?.id;
   t("permintaan void tercatat", typeof voidId, "string");

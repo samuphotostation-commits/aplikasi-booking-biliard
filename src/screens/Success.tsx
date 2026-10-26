@@ -1,16 +1,25 @@
 import { motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button, Card, Mark, PageHeader } from "../components/UI";
+import { SmokeMark } from "../components/Smoke";
+import { useVenueTamu } from "../lib/venueAktif";
 import { Ball } from "../components/motion/Billiard";
 import { useStore, type CartLine } from "../lib/store";
 import { useAdmin, businessDateOf, lineValue } from "../lib/adminStore";
-import { TABLES } from "../data/venue";
+import { SEMUA_MEJA } from "../data/venue";
 import { findItem } from "../data/menu";
 import { fmtDateLong, rupiah } from "../lib/core";
 import { TICKET_LABEL, TONE_CLASS, bookingMilikAkun, customerStatus, jamOf } from "../lib/customerStatus";
 
 export default function Success() {
   const nav = useNavigate();
+  /**
+   * Tiketnya memakai merek venue yang sedang dibuka tamu. Pesanan Smokehouse
+   * yang berkop bola biliar persis keluhan pemilik 12 Okt 2026: "smokehouse
+   * masih terlihat sama persis seperti SPL Sport, karena logonya juga bola
+   * biliar di pesanan".
+   */
+  const venueTamuIni = useVenueTamu();
   const loc = useLocation() as { state?: { refId?: string } };
   const { state } = useStore();
   const { a } = useAdmin();
@@ -35,7 +44,7 @@ export default function Success() {
   const isBooking = record.kind === "booking";
   const s = st.session;
   const o = st.order;
-  const tableName = (id?: string | null) => TABLES.find((t) => t.id === id)?.name;
+  const tableName = (id?: string | null) => SEMUA_MEJA.find((t) => t.id === id)?.name;
 
   const title = isBooking
     ? s?.status === "noshow" ? "Booking Dilepas"
@@ -63,8 +72,10 @@ export default function Success() {
             <div className="brick-tex relative px-5 py-4 text-center">
               <div className="absolute inset-0 bg-ink/45" />
               <div className="relative flex flex-col items-center text-amber">
-                <Mark size={38} />
-                <div className="mt-1 font-script text-xl leading-none">Sports Pool Lounge</div>
+                {venueTamuIni === "smh" ? <SmokeMark size={38} /> : <Mark size={38} />}
+                <div className="mt-1 font-script text-xl leading-none">
+                  {venueTamuIni === "smh" ? "Smokehouse Resto" : "Sports Pool Lounge"}
+                </div>
               </div>
             </div>
 

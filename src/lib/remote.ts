@@ -39,6 +39,11 @@ export type PushResult =
   | { ok: false; error: PushError; message: string };
 
 export type Remote = {
+  /**
+   * Sesi staf di server masih hidup? Token venue berlaku 12 jam, lalu mati
+   * sendiri — dan matinya tidak ada hubungannya dengan jaringan.
+   */
+  bersesi?(): boolean;
   /** Ambil kejadian sesudah `sinceSeq`. Dipakai saat aplikasi dibuka & setelah terputus. */
   pull(sinceSeq: number): Promise<PullResult>;
   /** Kirim aksi. Server yang menetapkan urutan, jam, dan pelaku. */
@@ -58,7 +63,21 @@ export type Remote = {
  * uang, dan tanpanya venue sama sekali tidak bisa beroperasi saat internet
  * mati di jam buka. Shift kedua tetap diabaikan mesin di semua perangkat.
  */
-export const MONEY_ACTIONS = new Set<Action["t"]>(["settle", "closeShift", "decideVoid", "settleRefund"]);
+/*
+ * `paySplit` dan `settleOrder` DITAMBAHKAN 21 Okt 2026, saat audit alur
+ * pesanan. Keduanya mencatat pembayaran persis seperti `settle`, jadi
+ * keduanya punya bahaya yang sama — dan selama ini lolos.
+ *
+ * Bahayanya bukan "uang tercatat dua kali" seperti dikira: mesin memang
+ * menolak penutupan kedua saat jejaknya disatukan. Yang terjadi justru
+ * kebalikannya, dan lebih buruk: perangkat yang terputus MENERIMA
+ * pembayarannya di layar, kasir mencetak struk, tamu pulang — lalu saat
+ * tersambung, kejadiannya ditolak karena sudah didahului perangkat lain.
+ * Uangnya sudah di laci, tapi tidak ada catatannya.
+ */
+export const MONEY_ACTIONS = new Set<Action["t"]>([
+  "settle", "paySplit", "settleOrder", "closeShift", "decideVoid", "settleRefund",
+]);
 
 export const isMoneyAction = (a: Action) => MONEY_ACTIONS.has(a.t);
 

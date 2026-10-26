@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { QrGambar } from "../../components/QrGambar";
 import { rupiah } from "../../lib/core";
 import { qrisKasir, statusQris, type QrisTagihan } from "../../lib/qris";
+import { kirimTampil } from "../../lib/tampilTamu";
 
 /* ═══════════════════════════════════════════════════════════════════
    QRIS DINAMIS DI MEJA KASIR
@@ -44,6 +45,28 @@ export function QrisKasir({ amount, ringkas, kode }: { amount: number; ringkas: 
       ? "QRIS belum dinyalakan pemilik — terima tunai/EDC, atau pakai QR statis."
       : h.alasan);
   }
+
+  /**
+   * Cerminkan keadaan ke LAYAR MENGHADAP TAMU (rute /tampil). Isinya cuma QR,
+   * nominal, dan status — tidak ada nama atau rincian pesanan, karena monitor
+   * itu menghadap ruangan. Kalau jendelanya tidak dibuka, kiriman ini tidak
+   * melakukan apa-apa.
+   */
+  useEffect(() => {
+    if (status === "menunggu" && tagihan?.qrString) {
+      kirimTampil({ jenis: "qr", qrString: tagihan.qrString, nominal: nominalQr ?? amount, ringkas });
+    } else if (status === "lunas") {
+      kirimTampil({ jenis: "lunas", nominal: nominalQr ?? amount });
+    } else if (status === "gagal") {
+      kirimTampil({ jenis: "gagal", pesan: alasan ?? "Kode QR gagal dibuat." });
+    } else if (status === "diam") {
+      kirimTampil({ jenis: "diam" });
+    }
+  }, [status, tagihan, nominalQr, amount, ringkas, alasan]);
+
+  // Panel ditutup (tab pindah, tagihan selesai): jangan tinggalkan QR lama
+  // terpampang di depan tamu berikutnya.
+  useEffect(() => () => kirimTampil({ jenis: "diam" }), []);
 
   // Tanya gateway sampai lunas. Yang memutuskan tetap gateway, bukan layar ini.
   useEffect(() => {

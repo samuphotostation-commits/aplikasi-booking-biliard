@@ -2,13 +2,23 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   useAdmin, recap, recapRange, periodeRange, recapDates, businessDateOf, settledRefundsOf,
-  clampRange, rangeDays, shiftDate, MAX_REKAP_HARI,
-  ARCHIVE_ROW_DAYS, type Refund, type RekapPeriode,
+  clampRange, rangeDays, shiftDate, MAX_REKAP_HARI, omzetPerShift,
+  ARCHIVE_ROW_DAYS, mejaDijual, cariMeja, type Refund, type RekapPeriode,
 } from "../../lib/adminStore";
 import { TABLES } from "../../data/venue";
 import { fmtDateLong, rupiah } from "../../lib/core";
-import { saveTextFile } from "../../lib/saveFile";
+import { LINI, LINI_LABEL, persenLini } from "../../lib/engine";
+
+/** Angka tabel pajak: tanpa "Rp" supaya lima kolom muat di layar kasir. */
+const ribu = (n: number) => n.toLocaleString("id-ID");
+import { unduhExcel } from "../../lib/excel";
 import LaporanStok from "./LaporanStok";
+import DetailTransaksi from "./DetailTransaksi";
+import LaporanProduk from "./LaporanProduk";
+import RekapTigaJenis from "./RekapTigaJenis";
+import LaporanRekap from "./LaporanRekap";
+import { useVenueAktif } from "../../lib/venueAktif";
+import { VENUE_LABEL, type Venue } from "../../data/venue";
 
 /* Rekap harian. Lima angka dipisah tegas (PRD §7.6):
    gross · pajak terpungut · MDR · net · dan pemisahan per kanal.
@@ -26,6 +36,20 @@ const METHOD_LABEL: Record<NonNullable<Refund["method"]>, string> = {
 };
 
 export default function Rekap() {
+  const { allow } = useAdmin();
+  /*
+   * KRU KASIR HANYA MELIHAT LAPORAN REKAP (permintaan pemilik 19 Okt 2026).
+   *
+   * Dipisah DI SINI, bukan dengan menyembunyikan bagian-bagiannya di bawah:
+   * isi tab ini kas shift, pajak, MDR, selisih laci, dan uang bersih yang
+   * masuk rekening. Menyaringnya satu per satu berarti satu bagian baru yang
+   * lupa dipagari akan diam-diam terbuka untuk orang lantai.
+   */
+  if (!allow("lihatLaporanKeuangan")) return <LaporanRekap />;
+  return <RekapKeuangan />;
+}
+
+function RekapKeuangan() {
   const { a, dispatchA, allow, peek } = useAdmin();
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [refundMsg, setRefundMsg] = useState<string | null>(null);
@@ -37,11 +61,41 @@ export default function Rekap() {
   const [ct, setCt] = useState({ dari: shiftDate(today, -6), sampai: today });
   const bizDate = dates.includes(picked) ? picked : today;
   const isToday = bizDate === today;
-  const r = recap(a, bizDate);
+  /**
+   * Rekap SPL dan Smokehouse WAJIB terpisah (keputusan pemilik 8 Okt 2026),
+   * jadi bawaannya venue yang sedang dibuka — bukan gabungan. Gabungan ada,
+   * tapi harus dipilih sadar, supaya tidak ada yang salah baca angka dua
+   * venue sebagai angka satu venue.
+   */
+  const venueAktifIni = useVenueAktif();
+  const [lingkup, setLingkup] = useState<Venue | "semua">(venueAktifIni);
+  /**
+   * Staf yang terikat satu venue tidak punya lingkup untuk dipilih — angka
+   * venue sebelah bukan urusannya, dan "Gabungan" berarti melihat keduanya.
+   */
+  const venueAkun = a.me?.venue;
+  const dipakai: Venue | "semua" = venueAkun ?? lingkup;
+  const venue = dipakai === "semua" ? undefined : dipakai;
+  const r = recap(a, bizDate, venue);
   // Periode: hari (seperti dulu), minggu (Senin–Minggu), bulan berjalan, atau rentang bebas.
   const rentang = periode === "custom" ? clampRange(ct.dari, ct.sampai) : { ...periodeRange(bizDate, periode), dipotong: false };
   const { dari, sampai } = rentang;
-  const rp = periode === "hari" ? null : recapRange(a, dari, sampai);
+  const rp = periode === "hari" ? null : recapRange(a, dari, sampai, venue);
+  /**
+   * SMH-13 & SMH-14 · omzet dipecah per shift dan per kanal bayar.
+   *
+   * Hanya untuk SATU hari: "Shift Pagi" seminggu adalah tujuh laci yang
+   * berbeda dengan tujuh orang yang berbeda, dan menjumlahkannya menghasilkan
+   * angka yang tidak bisa dipertanggungjawabkan siapa pun.
+   */
+  const os = periode === "hari" ? omzetPerShift(a, bizDate, venue) : null;
+  /** Shift yang sedang dilihat. null = ALL (semua shift). */
+  const [shiftPilih, setShiftPilih] = useState<string | null>(null);
+  const barisShift = os
+    ? (shiftPilih === null
+        ? os.semua
+        : [...os.shift, ...(os.tanpaShift ? [os.tanpaShift] : [])].find((x) => x.id === shiftPilih) ?? os.semua)
+    : null;
   /** Angka uang yang ditampilkan: sehari, atau jumlah hari-hari dalam periode. */
   const u = rp ? { ...rp.money, counts: rp.counts } : r;
   const dayLabel = periode === "hari"
@@ -55,7 +109,7 @@ export default function Rekap() {
   // Penyebut ikut periode: kalau yang dilihat 30 hari, kapasitasnya juga 30 hari —
   // kalau tidak, utilisasi sebulan terbaca seperti seperempat persen.
   const hariDihitung = rp ? rangeDays(dari, sampai) : 1;
-  const kapasitas = TABLES.length * OPEN_HOURS * hariDihitung;
+  const kapasitas = mejaDijual(a).length * OPEN_HOURS * hariDihitung;
   const adaHariIni = rp ? dari <= today && today <= sampai : isToday;
   // Hanya jam main nyata dalam periode itu: tab yang ditutup (bukan no-show —
   // mejanya tidak dipakai), ditambah sesi yang sedang berjalan bila hari ini ikut dihitung.
@@ -70,11 +124,11 @@ export default function Rekap() {
   const settledRefunds = settledRefundsOf(a);
 
   function settle(f: Refund, method: NonNullable<Refund["method"]>) {
-    dispatchA({ t: "settleRefund", id: f.id, method });
+    const tolak = dispatchA({ t: "settleRefund", id: f.id, method });
     const after = peek().refunds.find((x) => x.id === f.id);
     setRefundMsg(after?.settledAt
       ? `${f.guest}: ${rupiah(f.amount)} dicatat sudah dikembalikan (${METHOD_LABEL[method]}).`
-      : "Tidak tercatat — hanya superadmin yang bisa menandai dana sudah dikembalikan.");
+      : tolak ?? "Tidak tercatat — hanya superadmin yang bisa menandai dana sudah dikembalikan.");
     setTimeout(() => setRefundMsg(null), 5000);
   }
 
@@ -84,7 +138,7 @@ export default function Rekap() {
       ["hari_operasional", "kode", "meja", "status", "sumber", "tamu", "mulai", "selesai", "kanal",
         "nilai_meja", "nilai_fnb", "diskon", "diterima_kasir", "prabayar_online"],
       ...r.done.map((s) => {
-        const t = TABLES.find((x) => x.id === s.tableId);
+        const t = cariMeja(s.tableId);
         return [
           bizDate,
           s.bookingCode ?? s.id,
@@ -118,9 +172,7 @@ export default function Rekap() {
           f.settledAt ? "sudah" : "belum", waktu(f.settledAt), f.method ?? "", f.settledBy ?? ""]);
       }
     }
-    const csv = rows.map((r2) => r2.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const name = `rekap-spl-${bizDate}.csv`;
-    const hasil = await saveTextFile(name, csv);
+    const hasil = await unduhExcel(`rekap-spl-${bizDate}`, rows, `Rekap ${bizDate}`);
     setSaveMsg(
       hasil === "tersimpan" ? "Rekap tersimpan."
         : hasil === "dibatalkan" ? "Penyimpanan dibatalkan."
@@ -149,8 +201,7 @@ export default function Rekap() {
       ["per_kanal", "jumlah_transaksi", "nilai"],
       ...Object.entries(u.byChannel).map(([ch, v]) => [CHANNEL_LABEL[ch] ?? ch, String(v.n), String(v.gross)]),
     ];
-    const csv = rows.map((r2) => r2.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const hasil = await saveTextFile(`rekap-spl-${periode}-${dari}.csv`, csv);
+    const hasil = await unduhExcel(`rekap-spl-${periode}-${dari}`, rows, `Rekap ${periode}`);
     setSaveMsg(hasil === "tersimpan" ? "Rekap periode tersimpan."
       : hasil === "dibatalkan" ? "Penyimpanan dibatalkan." : "Gagal menyimpan berkas.");
     setTimeout(() => setSaveMsg(null), 4000);
@@ -158,6 +209,38 @@ export default function Rekap() {
 
   return (
     <div className="space-y-5 pb-6">
+      {/* Lingkup: venue mana yang dilaporkan */}
+      {venueAkun ? (
+        <div className="rounded-xl border border-line bg-ink-2 px-3 py-2 text-[12px] font-semibold text-amber">
+          {VENUE_LABEL[venueAkun]}
+          <span className="ml-2 font-normal text-dim">akun ini hanya mengurus satu venue</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {(["spl", "smh", "semua"] as const).map((v) => (
+            <button key={v} onClick={() => setLingkup(v)} aria-pressed={lingkup === v}
+              className={`min-h-[40px] rounded-xl border px-1 text-[12px] font-semibold ${
+                lingkup === v ? "border-amber bg-amber/10 text-amber" : "border-line bg-ink-2 text-mute"
+              }`}>
+              {v === "semua" ? "Gabungan" : VENUE_LABEL[v]}
+            </button>
+          ))}
+        </div>
+      )}
+      {dipakai === "semua" && (
+        <p className="rounded-lg border border-amber/40 bg-amber/5 px-3 py-2 text-[11px] leading-relaxed text-amber">
+          Angka di bawah ini <span className="text-cream">menjumlahkan kedua venue</span>.
+          Untuk membandingkan atau menyetor kas, pakai rekap per venue.
+        </p>
+      )}
+      {r.venueTercampur && (
+        <p className="rounded-lg border border-amber/40 bg-amber/5 px-3 py-2 text-[11px] leading-relaxed text-amber">
+          Hari ini sudah tutup buku, dan angka bekunya tersimpan GABUNGAN — jadi
+          yang tampil bukan {VENUE_LABEL[dipakai as Venue]} saja. Rekap per venue hanya
+          tepat untuk hari yang belum tutup buku.
+        </p>
+      )}
+
       {/* Periode rekap */}
       <div className="grid grid-cols-4 gap-2">
         {([["hari", "Harian"], ["minggu", "Mingguan"], ["bulan", "Bulanan"], ["custom", "Pilih tanggal"]] as const).map(([p, label]) => (
@@ -282,8 +365,53 @@ export default function Rekap() {
           </div>
           <div className="divide-y divide-line">
             <Line k="Dasar pengenaan (DPP)" v={rupiah(u.dpp)} muted />
-            <Line k="PBJT 10% — dipungut, bukan pendapatan" v={rupiah(u.tax)} warn />
-            <Line k="Potongan MDR gateway" v={`− ${rupiah(u.mdr)}`} warn />
+            <Line k="PPN — dipungut, bukan pendapatan" v={rupiah(u.tax)} warn />
+            {(u.service ?? 0) > 0 && (
+              <Line k="Service — sudah termasuk harga" v={rupiah(u.service ?? 0)} />
+            )}
+            {/* PECAHAN PER LINI (permintaan pemilik 18 Okt 2026). Hanya
+                muncul kalau datanya ada: hari yang sudah tutup buku sebelum
+                perubahan ini tidak menyimpannya, dan menampilkan nol di situ
+                akan terbaca seolah lini itu tidak berjualan. */}
+            {u.perLini && LINI.some((k) => u.perLini![k].gross > 0) && (
+              <div className="px-4 py-3">
+                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
+                  Pecahan per lini usaha
+                </div>
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-dim">
+                      <th className="text-left font-normal">Lini</th>
+                      <th className="text-right font-normal">Omzet</th>
+                      <th className="text-right font-normal">DPP</th>
+                      <th className="text-right font-normal">PPN</th>
+                      <th className="text-right font-normal">Service</th>
+                    </tr>
+                  </thead>
+                  <tbody className="tabular-nums text-mute">
+                    {LINI.map((k) => {
+                      const x = u.perLini![k];
+                      const p = persenLini(a, k);
+                      return (
+                        <tr key={k}>
+                          <td className="py-0.5 text-cream">
+                            {LINI_LABEL[k]}
+                            <span className="ml-1 text-[10px] text-dim">
+                              {p.ppn}%{p.service > 0 ? ` +${p.service}%` : ""}
+                            </span>
+                          </td>
+                          <td className="text-right">{ribu(x.gross)}</td>
+                          <td className="text-right">{ribu(x.dpp)}</td>
+                          <td className="text-right text-amber">{ribu(x.tax)}</td>
+                          <td className="text-right">{ribu(x.service)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <Line k="Potongan biaya QRIS & kartu" v={`− ${rupiah(u.mdr)}`} warn />
             <div className="flex items-baseline justify-between px-4 py-3">
               <span className="text-sm font-semibold text-cream">Masuk rekening (net)</span>
               <span className="font-serif text-xl font-bold tabular-nums text-emerald-400">
@@ -310,7 +438,7 @@ export default function Rekap() {
           Nilai penjualan = semua yang terjual {rp ? "di rentang ini" : "hari ini"}, termasuk meja yang sudah
           dibayar online sebelumnya. Uang yang benar-benar diterima di kasir bisa
           lebih kecil — itu wajar, bukan kebocoran.
-          PBJT adalah uang titipan untuk pemerintah daerah — bukan keuntungan.
+          PPN adalah uang titipan untuk pemerintah daerah — bukan keuntungan; persennya diatur di tab Atur.
           MDR QRIS memakai skema berjenjang: transaksi sampai Rp 500.000 bebas biaya
           untuk merchant kategori Usaha Mikro.
         </p>
@@ -336,8 +464,21 @@ export default function Rekap() {
         {u.discount > 0 && (
           <div className="mt-2 flex items-baseline justify-between rounded-xl border border-line
             bg-ink-2 px-4 py-2.5">
-            <span className="text-[13px] text-dim">Total diskon promo diberikan</span>
+            <span className="text-[13px] text-dim">
+              Total diskon diberikan
+              {(u.diskonManual ?? 0) > 0 && ` · ${rupiah(u.diskonManual ?? 0)} di antaranya diskon manual kasir`}
+            </span>
             <span className="font-serif text-[14px] tabular-nums text-amber">− {rupiah(u.discount)}</span>
+          </div>
+        )}
+        {/* SMH-11b: barang yang digratiskan punya barisnya sendiri. Nilainya
+            TIDAK ikut omzet (barangnya memang tidak dibayar), tapi tidak boleh
+            hilang dari laporan — ini biaya yang ditanggung venue. */}
+        {(u.compliment ?? 0) > 0 && (
+          <div className="mt-2 flex items-baseline justify-between rounded-xl border border-sky-500/40
+            bg-sky-500/5 px-4 py-2.5">
+            <span className="text-[13px] text-sky-200">Compliment — barang digratiskan venue</span>
+            <span className="font-serif text-[14px] tabular-nums text-sky-200">{rupiah(u.compliment ?? 0)}</span>
           </div>
         )}
         <p className="mt-2 text-[11px] leading-relaxed text-dim">
@@ -413,6 +554,98 @@ export default function Rekap() {
         </section>
       )}
 
+      {/* SMH-13 & SMH-14 · Omzet per shift: TUNAI | QRIS | EDC, pagi/sore/ALL */}
+      {os && (
+        <section>
+          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+            Omzet per shift
+          </h2>
+
+          {os.shift.length === 0 && !os.tanpaShift ? (
+            <div className="rounded-xl border border-line bg-ink-2 px-4 py-6 text-center text-sm text-dim">
+              Belum ada shift dibuka {dayLabel}.
+            </div>
+          ) : (
+            <>
+              {/* Saringan: ALL · tiap shift. Bawaannya ALL supaya yang pertama
+                  terlihat adalah angka harian yang utuh. */}
+              <div className="no-bar flex gap-1.5 overflow-x-auto pb-1">
+                {[{ id: null as string | null, nama: "Semua shift" },
+                  ...os.shift.map((s) => ({ id: s.id as string | null, nama: s.nama })),
+                  ...(os.tanpaShift ? [{ id: os.tanpaShift.id as string | null, nama: "Tanpa shift" }] : []),
+                ].map((x) => (
+                  <button key={x.id ?? "all"} onClick={() => setShiftPilih(x.id)}
+                    aria-pressed={shiftPilih === x.id}
+                    className={`shrink-0 rounded-lg border px-3 py-2 text-[12px] font-semibold ${
+                      shiftPilih === x.id ? "border-amber bg-amber/10 text-amber" : "border-line bg-ink-2 text-mute"
+                    }`}>
+                    {x.nama}
+                  </button>
+                ))}
+              </div>
+
+              {barisShift && (
+                <div className="mt-2 overflow-hidden rounded-2xl border border-line bg-ink-2">
+                  <div className="flex items-baseline justify-between border-b border-line px-4 py-3">
+                    <div>
+                      <div className="text-[13px] font-semibold text-cream">{barisShift.nama}</div>
+                      <div className="text-[11px] text-dim">
+                        {barisShift.openedAt
+                          ? `buka ${new Date(barisShift.openedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
+                          : "gabungan"}
+                        {barisShift.closedAt
+                          ? ` · tutup ${new Date(barisShift.closedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
+                          : barisShift.openedAt ? " · masih jalan" : ""}
+                        {" · "}{barisShift.trx} pembayaran
+                      </div>
+                    </div>
+                    <span className="font-serif text-2xl font-bold tabular-nums text-amber">
+                      {rupiah(barisShift.diterima)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 divide-x divide-line">
+                    {([["TUNAI", barisShift.tunai], ["QRIS", barisShift.qris], ["EDC", barisShift.edc]] as const)
+                      .map(([k, v]) => (
+                        <div key={k} className="px-3 py-3">
+                          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-dim">{k}</div>
+                          <div className="font-serif text-[15px] font-bold tabular-nums text-cream">{rupiah(v)}</div>
+                          <div className="text-[10px] text-dim">
+                            {barisShift.diterima > 0 ? `${Math.round((v / barisShift.diterima) * 100)}%` : "—"}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                  <div className="divide-y divide-line border-t border-line">
+                    <Line k="Sewa meja" v={rupiah(barisShift.sewaMeja)} muted />
+                    <Line k="Makanan & minuman" v={rupiah(barisShift.barang)} muted />
+                    {barisShift.diskon > 0 && <Line k="Diskon diberikan" v={`− ${rupiah(barisShift.diskon)}`} warn />}
+                    {barisShift.compliment > 0 && (
+                      <Line k="Compliment (ditanggung venue)" v={`− ${rupiah(barisShift.compliment)}`} warn />
+                    )}
+                    {barisShift.prabayar > 0 && (
+                      <Line k="Prabayar online — tidak ada di laci" v={rupiah(barisShift.prabayar)} muted />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <p className="mt-2 text-[11px] leading-relaxed text-dim">
+                Satu pembayaran masuk shift tempat uangnya DITERIMA, bukan shift yang membuka
+                mejanya — tab yang dibuka shift pagi dan dibayar shift sore adalah uang shift sore.
+                Prabayar online dipisah karena uangnya tidak pernah lewat laci.
+                {os.tanpaShift && " Baris \u201cTanpa shift\u201d adalah uang yang tidak bisa ditempelkan ke shift mana pun — biasanya jejak lama; sengaja ditampilkan supaya jumlahnya tetap cocok dengan rekap harian."}
+              </p>
+            </>
+          )}
+        </section>
+      )}
+
+      {/* Rincian yang menyusun angka di atas — bentuknya mengikuti laporan
+          "DETAIL TRANSAKSI" yang sudah dicetak pemilik tiap malam. */}
+      {os && barisShift && (
+        <DetailTransaksi os={os} pilih={shiftPilih} nama={barisShift.nama} bizDate={bizDate} venue={venue} />
+      )}
+
       {/* Per kanal — tanpa ini laporan menyesatkan */}
       <section>
         <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
@@ -473,46 +706,30 @@ export default function Rekap() {
           )}
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Penyebut utilisasi adalah jam-meja tersedia ({TABLES.length} meja × {OPEN_HOURS} jam
+          Penyebut utilisasi adalah jam-meja tersedia ({mejaDijual(a).length} meja × {OPEN_HOURS} jam
           {hariDihitung > 1 ? ` × ${hariDihitung} hari` : ""}), bukan 24 jam. Meja rusak tetap dihitung
           supaya kerugiannya terlihat.
         </p>
       </section>
 
+      {/* SPL-11 · penjualan per produk. Rentang & venue-nya diwarisi dari
+          layar ini supaya tidak ada dua tanggal di satu halaman. */}
+      <LaporanProduk dari={rp ? dari : bizDate} sampai={rp ? sampai : bizDate} venue={venue} />
+
       {/* Laporan stok 05.00 → 05.00 */}
+      <RekapTigaJenis bizDate={bizDate} venue={venue} />
+
       <LaporanStok />
 
-      {/* Jejak audit */}
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Jejak aktivitas
-        </h2>
-        {a.log.length === 0 ? (
-          <div className="rounded-xl border border-line bg-ink-2 px-4 py-6 text-center text-sm text-dim">
-            Belum ada aktivitas.
-          </div>
-        ) : (
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
-            {a.log.slice(0, 12).map((l, i) => (
-              <div key={i} className="flex items-baseline gap-3 px-3 py-2">
-                <span className="shrink-0 font-mono text-[11px] tabular-nums text-dim">
-                  {new Date(l.at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-                </span>
-                <span className="min-w-0 flex-1 text-[12px] leading-snug text-mute">{l.what}</span>
-                {l.amount ? (
-                  <span className="shrink-0 font-serif text-[12px] tabular-nums text-cream">
-                    {rupiah(l.amount)}
-                  </span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
-        <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Setiap penutupan tab, perpanjangan, dan perubahan tarif tercatat lengkap dengan
-          siapa pelakunya. Ini kontrol utama terhadap kebocoran kas.
-        </p>
-      </section>
+      {/* JEJAK AKTIVITAS PINDAH KE TABNYA SENDIRI (permintaan pemilik 21 Okt
+          2026: *"untuk rekap ini focus ke keuangan dan finance saja dan jejak
+          aktivitas di panel khusus"*).
+
+          Yang dulu ada di sini cuma 12 baris terakhir, tanpa nama pelakunya,
+          dua venue bercampur — padahal keterangannya menjanjikan "tercatat
+          lengkap dengan siapa pelakunya". Sekarang janjinya ditepati di tab
+          Jejak: lengkap, bernama, bisa disaring per orang, dan terpisah per
+          venue. Tab ini tinggal uang. */}
 
       <div>
         <button
@@ -521,7 +738,7 @@ export default function Rekap() {
           className="min-h-[48px] w-full rounded-xl border border-line bg-ink-2 text-sm
             font-semibold text-cream hover:border-amber hover:text-amber disabled:opacity-40"
         >
-          Unduh rekap CSV{rp ? " (per hari)" : ""}
+          Unduh rekap Excel{rp ? " (per hari)" : ""}
         </button>
         {!r.rowsAvailable ? (
           <p className="mt-1.5 text-center text-[11px] text-dim">

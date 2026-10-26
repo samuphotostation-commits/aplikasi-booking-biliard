@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { MENU, type MenuItem } from "../../data/menu";
-import { useAdmin, priceOf } from "../../lib/adminStore";
+import type { MenuItem } from "../../data/menu";
+import { useAdmin, priceOf, kategoriJual } from "../../lib/adminStore";
 import { rupiah } from "../../lib/core";
 
 /* Ketersediaan menu + stok barang.
@@ -17,6 +17,24 @@ export default function MenuAdmin() {
   const { a, dispatchA, allow } = useAdmin();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"semua" | "habis" | "stok">("semua");
+  const MENU = kategoriJual(a, { staf: true });
+  /** Borang tambah/ubah barang milik pemilik sendiri. */
+  const [form, setForm] = useState<
+    { id?: string; name: string; price: string; station: "kitchen" | "bar" | "billiard" } | null
+  >(null);
+  const [kabar, setKabar] = useState<string | null>(null);
+  const bilang = (t: string) => { setKabar(t); setTimeout(() => setKabar(null), 4000); };
+
+  function simpanMenu() {
+    if (!form) return;
+    const harga = Math.round(Number(form.price.replace(/[^0-9]/g, "")));
+    if (!form.name.trim() || !Number.isFinite(harga) || harga < 0) {
+      bilang("Nama dan harga harus diisi."); return;
+    }
+    dispatchA({ t: "saveMenuItem", item: { id: form.id, name: form.name, price: harga, station: form.station } });
+    bilang(form.id ? "Menu diperbarui." : `"${form.name.trim()}" ditambahkan.`);
+    setForm(null);
+  }
 
   const stokOf = (id: string) => a.stock.find((r) => r.itemId === id);
 
@@ -38,6 +56,74 @@ export default function MenuAdmin() {
 
   return (
     <div className="pb-6">
+      {/* Tambah barang sendiri — tanpa ini pemilik harus menunggu aplikasi
+          dibangun ulang hanya untuk menjual satu menu baru. */}
+      {allow("ubahTarif") && (
+        <div className="mb-3 rounded-xl border border-line bg-ink-2 p-3">
+          {!form ? (
+            <button onClick={() => setForm({ name: "", price: "", station: "kitchen" })}
+              className="min-h-[42px] w-full rounded-xl border border-amber/50 bg-amber/10 text-[13px] font-bold text-amber">
+              + Tambah menu baru
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
+                {form.id ? "Ubah menu" : "Menu baru"}
+              </div>
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value.slice(0, 60) })}
+                placeholder="Nama menu"
+                className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-[13px] text-cream placeholder:text-dim focus:border-amber focus:outline-none" />
+              <input value={form.price} inputMode="numeric"
+                onChange={(e) => setForm({ ...form, price: e.target.value.replace(/[^0-9]/g, "").slice(0, 9) })}
+                placeholder="Harga (rupiah)"
+                className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-right text-[13px] tabular-nums text-cream placeholder:text-left placeholder:text-dim focus:border-amber focus:outline-none" />
+              <div className="grid grid-cols-3 gap-1.5">
+                {([["kitchen", "Dapur"], ["bar", "Bar"], ["billiard", "Counter"]] as const).map(([k, label]) => (
+                  <button key={k} onClick={() => setForm({ ...form, station: k })} aria-pressed={form.station === k}
+                    className={`min-h-[40px] rounded-lg border text-[12px] ${
+                      form.station === k ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink text-cream"
+                    }`}>{label}</button>
+                ))}
+              </div>
+              <p className="text-[11px] leading-snug text-dim">
+                Dapur &amp; Bar membuat tiket pesanan. <span className="text-cream">Counter</span> tidak —
+                barang jadi yang langsung diserahkan kasir (rokok, botolan), dan tidak muncul di menu HP pelanggan.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setForm(null)}
+                  className="min-h-[42px] flex-1 rounded-xl border border-line text-[13px] text-mute">Batal</button>
+                <button onClick={simpanMenu}
+                  className="min-h-[42px] flex-[2] rounded-xl bg-amber text-[13px] font-bold text-ink">Simpan</button>
+              </div>
+            </div>
+          )}
+          {(a.customItems ?? []).length > 0 && !form && (
+            <div className="mt-2 space-y-1">
+              {(a.customItems ?? []).map((it) => (
+                <div key={it.id} className="flex items-center gap-2 text-[12px]">
+                  <span className={`flex-1 truncate ${it.aktif === false ? "text-dim line-through" : "text-cream"}`}>
+                    {it.name}
+                  </span>
+                  <span className="tabular-nums text-mute">{rupiah(priceOf(a, it.id))}</span>
+                  <button onClick={() => setForm({ id: it.id, name: it.name, price: String(priceOf(a, it.id)), station: it.station })}
+                    className="min-h-[30px] rounded-lg border border-line px-2 text-[11px] text-mute">ubah</button>
+                  {it.aktif !== false && (
+                    <button onClick={() => { dispatchA({ t: "removeMenuItem", id: it.id }); bilang(`"${it.name}" dinonaktifkan.`); }}
+                      className="min-h-[30px] rounded-lg border border-line px-2 text-[11px] text-dim">nonaktifkan</button>
+                  )}
+                </div>
+              ))}
+              <p className="pt-1 text-[11px] leading-snug text-dim">
+                Menu yang dinonaktifkan tidak muncul lagi saat memesan, tapi namanya tetap
+                terbaca di pesanan dan laporan lama — kalau dihapus betulan, riwayat
+                penjualannya berubah jadi deretan kode tanpa nama.
+              </p>
+            </div>
+          )}
+          {kabar && <p role="status" className="mt-2 text-[12px] text-amber">{kabar}</p>}
+        </div>
+      )}
+
       {menipis.length > 0 && (
         <div className="mb-3 rounded-xl border border-red-500/40 bg-red-500/8 p-3">
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-red-300">
@@ -135,8 +221,14 @@ export default function MenuAdmin() {
                             </span>
                             <button onClick={() => dispatchA({ t: "addStock", itemId: it.id, delta: 1 })}
                               className="h-8 w-8 rounded-lg border border-line text-amber">+</button>
-                            <button onClick={() => dispatchA({ t: "addStock", itemId: it.id, delta: 12 })}
-                              className="h-8 rounded-lg border border-line px-2 text-[11px] text-mute">+12</button>
+                            {/* Tambah cepat (permintaan pemilik 8 Okt 2026) — mengisi
+                                stok sekardus tidak perlu dua puluh ketukan. */}
+                            {[5, 10, 20].map((n) => (
+                              <button key={n} onClick={() => dispatchA({ t: "addStock", itemId: it.id, delta: n })}
+                                className="h-8 rounded-lg border border-line px-2 text-[11px] text-mute hover:border-amber hover:text-amber">
+                                +{n}
+                              </button>
+                            ))}
                             <button onClick={() => dispatchA({ t: "setStock", itemId: it.id, qty: null })}
                               className="ml-auto text-[11px] text-dim underline underline-offset-2">
                               lepas

@@ -8,24 +8,31 @@ import { AdminProvider } from "./lib/adminStore";
 
 /** Build khusus HP pelanggan: panel staf tidak ikut dibangun. */
 const MODE_TAMU = !!import.meta.env.VITE_MODE_TAMU;
-import Home from "./screens/Home";
+import Home from "./screens/Home";
+import Landing from "./screens/Landing";
+import Smokehouse from "./screens/Smokehouse";
+import ReservasiResto from "./screens/ReservasiResto";
+import BukuMenu from "./screens/BukuMenu";
+import TampilTamu from "./screens/TampilTamu";
 import Booking from "./screens/Booking";
 import MenuScreen from "./screens/MenuScreen";
 import Checkout from "./screens/Checkout";
 import Payment from "./screens/Payment";
 import Success from "./screens/Success";
 import Orders from "./screens/Orders";
-import RestoReservasi from "./screens/RestoReservasi";
 import Akun from "./screens/Akun";
 import AdminShell from "./screens/admin/AdminShell";
 import Board from "./screens/admin/Board";
 import Kasir from "./screens/admin/Kasir";
 import Kitchen from "./screens/admin/Kitchen";
+import Gudang from "./screens/admin/Gudang";
 import MenuAdmin from "./screens/admin/MenuAdmin";
 import VoidScreen from "./screens/admin/Void";
 import ShiftScreen from "./screens/admin/Shift";
 import PromoScreen from "./screens/admin/Promo";
 import Rekap from "./screens/admin/Rekap";
+import Jejak from "./screens/admin/Jejak";
+import Antar from "./screens/admin/Antar";
 import Pengaturan from "./screens/admin/Pengaturan";
 import PelangganScreen from "./screens/admin/Pelanggan";
 import PesanScreen from "./screens/admin/Pesan";
@@ -52,7 +59,9 @@ const page = {
 
 function Shell() {
   const loc = useLocation();
-  const isAdmin = !MODE_TAMU && loc.pathname.startsWith("/admin");
+  const layarTamu = !MODE_TAMU && loc.pathname.startsWith("/tampil");
+  const diLanding = loc.pathname === "/";
+  const isAdmin = (!MODE_TAMU && loc.pathname.startsWith("/admin")) || layarTamu || diLanding;
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
@@ -64,21 +73,33 @@ function Shell() {
           menghilang dulu sebelum yang baru boleh tampil. */}
       <motion.main key={isAdmin ? "admin" : loc.pathname} {...page}>
           <Routes location={loc}>
-            <Route path="/" element={<Home />} />
+            {/* Landing utama = master. Tiap venue punya alamatnya sendiri
+                supaya tautannya bisa dibagikan langsung ke pelanggan. */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/sport" element={<Home />} />
+            <Route path="/smokehouse" element={<Smokehouse />} />
+            {/* Reservasi meja MAKAN — bukan booking biliar. Koreksi pemilik
+                12 Okt 2026: yang dipesan di Smokehouse adalah meja restonya. */}
+            <Route path="/smokehouse/reservasi" element={<ReservasiResto />} />
+            <Route path="/smokehouse/buku-menu" element={<BukuMenu />} />
             <Route path="/booking" element={<Booking />} />
             <Route path="/menu" element={<MenuScreen />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/bayar" element={<Payment />} />
             <Route path="/sukses" element={<Success />} />
-            <Route path="/resto" element={<RestoReservasi />} />
             <Route path="/akun" element={<Akun />} />
             <Route path="/pesanan" element={<Orders />} />
 
             {/* Build HP pelanggan tidak memuat panel staf sama sekali. */}
+            {/* Layar menghadap tamu: jendela kedua di monitor depan kasir.
+                Sengaja di luar AdminShell — tanpa PIN, tanpa menu, tanpa
+                satu pun tombol yang bisa mengubah uang. */}
+            {!MODE_TAMU && <Route path="/tampil" element={<TampilTamu />} />}
             {!MODE_TAMU && <Route path="/admin" element={<AdminShell />}>
               <Route index element={<Board />} />
               <Route path="kasir" element={<Kasir />} />
               <Route path="dapur" element={<Kitchen />} />
+              <Route path="gudang" element={<Gudang />} />
               <Route path="menu" element={<MenuAdmin />} />
               <Route path="void" element={<VoidScreen />} />
               <Route path="shift" element={<ShiftScreen />} />
@@ -87,6 +108,8 @@ function Shell() {
               <Route path="pesan" element={<PesanScreen />} />
               <Route path="absen" element={<AbsenScreen />} />
               <Route path="rekap" element={<Rekap />} />
+              <Route path="jejak" element={<Jejak />} />
+              <Route path="antar" element={<Antar />} />
               <Route path="atur" element={<Pengaturan />} />
             </Route>}
           </Routes>
@@ -100,7 +123,10 @@ export default function App() {
   const { seen, markSeen } = useIntroSeen();
   // App berada di dalam Router (main.tsx). Di build online rute ada di hash,
   // jadi window.location.pathname tidak bisa dipakai.
-  const isAdmin = useLocation().pathname.startsWith("/admin");
+  // Intro juga dilewati di layar menghadap tamu: monitor itu menyala
+  // semalaman dan tidak boleh memutar animasi pembuka tiap dimuat ulang.
+  const jalur = useLocation().pathname;
+  const isAdmin = jalur.startsWith("/admin") || jalur.startsWith("/tampil");
 
   return (
     <AdminProvider>

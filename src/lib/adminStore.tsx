@@ -11,7 +11,18 @@ export * from "./engine";
 
 const Ctx = createContext<{
   a: State;
-  dispatchA: (action: Action) => void;
+  /**
+   * Mengembalikan ALASAN penolakan, atau null kalau diterima.
+   *
+   * Dulu bertipe `void`, dan itu temuan paling mahal dari audit 21 Okt 2026:
+   * penyimpanan sudah mengembalikan alasannya sejak awal (mis. "aksi uang
+   * ditahan sampai koneksi kembali"), tapi tipenya membuang alasan itu —
+   * jadi seluruh layar memanggilnya seolah selalu berhasil. Kasir menekan
+   * "Tunai" saat internet mati, layar lanjut ke struk, struk tercetak, tamu
+   * pulang, dan mejanya tetap merah karena pembayarannya tidak pernah
+   * tercatat.
+   */
+  dispatchA: (action: Action) => string | null;
   byTable: Map<string, LiveSession>;
   clashes: ReturnType<typeof findClashes>;
   tick: number;
@@ -25,10 +36,14 @@ const Ctx = createContext<{
   signIn: (pin: string) => Promise<string | null>;
   /** Masuk dengan email: kirim kode 6 angka ke email staf. */
   kirimKodeEmail: (email: string) => Promise<string | null>;
+  /** Masuk dengan email + password — layar pertama aplikasi. */
+  signInSandi: (email: string, password: string) => Promise<{ ok: true; staffId: string; nama: string; peran: Role } | { ok: false; alasan: string }>;
   /** Masuk dengan email: tukar kodenya jadi sesi venue. */
   signInEmail: (email: string, kode: string) => Promise<{ ok: true; staffId: string; nama: string; peran: Role } | { ok: false; alasan: string }>;
   signOut: () => void;
   terbitkanSekarang: () => Promise<void>;
+  /** Coba sambungkan ulang sekarang juga, lalu kirim antrean yang menunggu. */
+  sambungkanLagi: () => Promise<void>;
 } | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
@@ -67,8 +82,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{
       a, dispatchA: store.dispatch, byTable, clashes, tick, role, allow,
       sync: store.info(), resetData: store.reset, peek: store.getView,
+      sambungkanLagi: store.sync,
       signIn: store.signIn, signOut: store.signOut,
       kirimKodeEmail: store.kirimKodeEmail, signInEmail: store.signInEmail,
+      signInSandi: store.signInSandi,
       terbitkanSekarang: store.terbitkanSekarang,
     }}>
       {children}

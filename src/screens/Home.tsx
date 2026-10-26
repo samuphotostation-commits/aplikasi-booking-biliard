@@ -1,11 +1,13 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button, Card, Mark } from "../components/UI";
 import { AmbientBalls, Ball, RollingDivider } from "../components/motion/Billiard";
 import { TABLES, TABLE_COUNT, PAKET_SIANG, VENUE } from "../data/venue";
-import { useAdmin, hourIdx, OPEN_IDX, CLOSE_IDX, classOf } from "../lib/adminStore";
+import { useAdmin, hourIdx, OPEN_IDX, CLOSE_IDX, classOf, mejaDijual } from "../lib/adminStore";
 import { tableFreeForRange } from "../lib/occupancy";
 import { rupiah } from "../lib/core";
+import { setVenueTamu } from "../lib/venueAktif";
 
 // Diimpor lewat glob supaya Vite yang mengurus URL-nya — ini juga yang membuat
 // build satu-berkas bisa menanam fotonya sebagai data URI tanpa tambalan regex.
@@ -27,6 +29,9 @@ const fade = {
 
 export default function Home() {
   const nav = useNavigate();
+  // Halaman ini adalah venue SPL Sport — pesanan yang dibuat dari sini masuk
+  // rekap SPL. Lihat Smokehouse.tsx untuk pasangannya.
+  useEffect(() => { setVenueTamu("spl"); }, []);
   const { a: venue } = useAdmin();
   const RATES = venue.rates; // tarif terkini dari panel admin, bukan angka tertanam
   // Meja yang benar-benar bisa dipakai SEKARANG — dari sesi nyata, termasuk
@@ -36,7 +41,7 @@ export default function Home() {
   // biliar", jadi kalau resto ikut, angkanya bisa lebih besar dari totalnya
   // sendiri ("46 meja kosong dari 34 meja biliar"). Kelasnya diambil dari
   // pengaturan pemilik, sama seperti layar booking.
-  const freeNow = TABLES.filter((t) =>
+  const freeNow = mejaDijual(venue).filter((t) =>
     classOf(venue, t.id) !== "resto" &&
     tableFreeForRange(venue.sessions, t.id, nowTs, nowTs + 60_000, undefined, nowTs)).length;
   // Di luar jam buka (02.00–11.00) semua meja tampak "kosong" padahal venue tutup.
@@ -85,7 +90,14 @@ export default function Home() {
           >
             <Button full onClick={() => nav("/booking")}>Booking Meja Sekarang</Button>
             <Button full variant="brick" onClick={() => nav("/booking?tipe=vip")}>Reservasi VIP &amp; VVIP Room</Button>
-            <Button full variant="ghost" onClick={() => nav("/resto")}>Reservasi Meja Resto</Button>
+            {/* PESAN TANPA MEJA — permintaan pemilik 18 Okt 2026: tamu di SPL
+                Sport juga bisa memesan walau tidak sedang menyewa meja.
+                Yang datang nonton, nunggu teman, atau cuma mampir beli
+                minum tidak perlu membuka meja biliar lebih dulu. Pesanannya
+                dibayar di kasir saat diambil. */}
+            <Button full variant="ghost" onClick={() => nav("/menu?ambil=1")}>
+              Pesan Tanpa Meja · Ambil di Kasir
+            </Button>
             <Button full variant="ghost" onClick={() => nav("/menu")}>Lihat Menu Smokehouse</Button>
           </motion.div>
 

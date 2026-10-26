@@ -13,7 +13,8 @@ const BILLING = "src/lib/billing.ts";
 const VENUE = "src/lib/venueStore.ts";
 const REMOTE = "src/lib/remote.ts";
 const PUBLIC = "src/lib/publicView.ts";
-const FILES = [ENGINE, BILLING, VENUE, REMOTE, PUBLIC];
+const STAF = "src/data/staff.ts";
+const FILES = [ENGINE, BILLING, VENUE, REMOTE, PUBLIC, STAF];
 const OUT = process.env.MUT_OUT ?? "node_modules/.cache";
 /** Hanya jalankan mutasi nomor tertentu, mis. MUT_ONLY=28,68,69 — untuk perbaikan cepat. */
 const ONLY = (process.env.MUT_ONLY ?? "").split(",").map((x) => Number(x.trim())).filter((x) => x > 0);
@@ -63,8 +64,12 @@ const MUTATIONS = [
   {
     name: "Order F&B tanpa shift terbuka",
     expect: ["INV-11"],
-    from: `if (!allow(s, "orderFnb") || !s.shift) return s;`,
-    to: `if (!allow(s, "orderFnb")) return s;`,
+    from: `if (!allow(s, "orderFnb") || !s.shift) return s;
+      const sess = s.sessions.find((x) => x.id === a.sessionId);
+      const item = itemOf(s, a.line.itemId);`,
+    to: `if (!allow(s, "orderFnb")) return s;
+      const sess = s.sessions.find((x) => x.id === a.sessionId);
+      const item = itemOf(s, a.line.itemId);`,
   },
   {
     name: "Stok tidak dicek (boleh oversell)",
@@ -77,6 +82,61 @@ const MUTATIONS = [
     expect: ["INV-09"],
     from: `const expected = shiftCashExpected(s);`,
     to: `const expected = a.expected ?? shiftCashExpected(s);`,
+  },
+  {
+    // Transfer gudang harus MEMINDAH, bukan menciptakan. Mutan ini membiarkan
+    // Central mengirim lebih banyak daripada yang dipunyainya.
+    name: "Transfer gudang boleh melebihi isi Central",
+    expect: ["INV-54"],
+    from: `      if (!asal || asal.qty === null || asal.qty < qty) return s;`,
+    to: `      if (!asal || asal.qty === null) return s;`,
+  },
+  {
+    // Gudang Bar berdiri sendiri — kalau pagar ini hilang, stok bar bisa
+    // ditambah dari Central tanpa ada yang sadar.
+    name: "Gudang Bar ikut dipasok Central",
+    expect: ["INV-54"],
+    from: `      if (!it || !bolehDariCentral(a.itemId, s)) return s;`,
+    to: `      if (!it) return s;`,
+  },
+  {
+    // PPN & service sudah termasuk harga (keputusan pemilik 8 Okt 2026), jadi
+    // pemecahannya harus menjumlah TEPAT ke gross — tidak boleh ada rupiah
+    // yang hilang atau muncul karena pembulatan.
+    name: "Pemecahan PPN/service tidak lagi menjumlah tepat ke gross",
+    expect: ["INV-08"],
+    from: `    const taxK = sisaK - serviceK;`,
+    to: `    const taxK = Math.round(dppK * (p.ppn / 100));`,
+  },
+  {
+    // Service 0% harus benar-benar 0, bukan sisa pembulatan — kalau tidak,
+    // laporan memunculkan "service" yang tidak pernah dipungut siapa pun.
+    name: "Service muncul walau persennya 0",
+    expect: ["INV-08"],
+    from: `    const serviceK = p.service > 0 && totalPersen > 0
+      ? Math.round(sisaK * (p.service / totalPersen)) : 0;`,
+    to: `    const serviceK = Math.round(sisaK / 2);`,
+  },
+  {
+    // Peta izin 7 peran (8 Okt 2026) harus benar-benar menolak, bukan sekadar
+    // menyembunyikan tab. Mutan ini memberi kru gudang hak membuka meja.
+    name: "Kru gudang boleh membuka meja",
+    file: STAF,
+    test: "peran",
+    expect: ["PERAN"],
+    from: `  bukaMeja: ["superadmin", "manager", "kru_kasir", "karyawan"],`,
+    to: `  bukaMeja: ["superadmin", "manager", "kru_kasir", "karyawan", "kru_gudang"],`,
+  },
+  {
+    // Kebalikannya: peran yang memang bertugas di gudang tidak boleh kehilangan
+    // haknya diam-diam. Kalau ini LOLOS, berarti tidak ada yang menguji
+    // bahwa kru gudang benar-benar bisa bekerja.
+    name: "Kru kitchen & bar kehilangan hak stok gudang",
+    file: STAF,
+    test: "peran",
+    expect: ["PERAN"],
+    from: `  kelolaStok: ["superadmin", "manager", "finance", "kru_gudang", "kru_kitchen", "kru_bar"],`,
+    to: `  kelolaStok: ["superadmin", "manager", "finance", "kru_gudang"],`,
   },
   {
     name: "Karyawan boleh ubah tarif",
@@ -93,8 +153,8 @@ const MUTATIONS = [
   {
     name: "Check-in menggeser jam selesai",
     expect: ["INV-19"],
-    from: `const running: LiveSession = { ...bk, status: "running", startsAt };`,
-    to: `const running: LiveSession = { ...bk, status: "running", startsAt, endsAt: now + (bk.endsAt - bk.startsAt) };`,
+    from: `const running: LiveSession = { ...bk, status: "running", startsAt, fnb };`,
+    to: `const running: LiveSession = { ...bk, status: "running", startsAt, fnb, endsAt: now + (bk.endsAt - bk.startsAt) };`,
   },
   {
     name: "Promo memotong yang sudah prabayar",
@@ -111,8 +171,8 @@ const MUTATIONS = [
   {
     name: "Tidak ada tiket dapur untuk pesanan online",
     expect: ["INV-20"],
-    from: "tickets: [...ticketsFor(forSession(running), bk.fnb.filter((l) => l.prepaid), now, `Pra-order · ${bk.guest}`), ...s.tickets],",
-    to: `tickets: s.tickets,`,
+    from: "...ticketsFor(forSession(s, running), [...bk.fnb.filter((l) => l.prepaid), ...f.taken], now, `Pra-order · ${bk.guest}`),",
+    to: "",
   },
   {
     name: "Rekap tidak dibatasi hari operasional",
@@ -128,12 +188,23 @@ const MUTATIONS = [
     to: `} else if (false) {`,
   },
   {
-    name: "Pesanan QR diterima walau meja belum dibuka kasir",
+    name: "Pesanan QR diterima walau meja BILIAR belum dibuka kasir",
     expect: ["INV-29"],
-    edits: [
-      ["if (!run) return `${t.name} belum dibuka kasir — minta kasir membuka meja dulu`;", ""],
-      ["if (o.sessionId && !o.sessionId.startsWith(\"pub-\") && run.id !== o.sessionId) {", "if (run && o.sessionId && !o.sessionId.startsWith(\"pub-\") && run.id !== o.sessionId) {"],
-    ],
+    from: `      if (classOf(s, t.id) !== "resto") {
+        return \`\${t.name} belum dibuka kasir — minta kasir membuka meja dulu\`;
+      }`,
+    to: ``,
+  },
+  {
+    // Kebalikannya: meja resto yang dibuka pesanan tamu TETAP harus kosong.
+    // Tanpa pemeriksaan ini, pesanan bisa masuk ke meja yang sudah dipesan
+    // rombongan lain untuk jam yang sama.
+    name: "Meja resto dibuka pesanan tamu walau bentrok reservasi",
+    expect: ["INV-01", "INV-29"],
+    from: `      if (!tableFreeForRange(s.sessions, t.id, now, now + RESTO_BUKA_MENIT * 60_000, undefined, now)) {
+        return \`\${t.name} sudah dipesan untuk jam ini — tanya kasir ya\`;
+      }`,
+    to: ``,
   },
   {
     name: "Takeaway tidak masuk laporan",
@@ -162,7 +233,7 @@ const MUTATIONS = [
   {
     name: "Void minuman gratis tidak mengembalikan jatah Paket Siang",
     expect: ["INV-28"],
-    from: `...(line.unitPrice === 0 && x.freeDrinks !== undefined ? { freeDrinks: x.freeDrinks + line.qty } : {}),`,
+    from: `...(jatahMinuman(line) && x.freeDrinks !== undefined ? { freeDrinks: x.freeDrinks + line.qty } : {}),`,
     to: ``,
   },
   {
@@ -232,8 +303,9 @@ const MUTATIONS = [
   {
     name: "Walk-in tidak membekukan tarif saat dibuka",
     expect: ["INV-37"],
-    from: `rates: { ...s.rates },`,
-    to: ``,
+    from: `        tableAmount: pk ? pk.price : (jam ? priceWith(s.rates, kelas, h, jam) : 0),
+        rates: { ...s.rates },`,
+    to: `        tableAmount: pk ? pk.price : (jam ? priceWith(s.rates, kelas, h, jam) : 0),`,
   },
   {
     name: "Open bill contoh (seed) tanpa tarif beku",
@@ -309,13 +381,13 @@ const MUTATIONS = [
   {
     name: "Pulihkan no-show: pra-order yang sudah habis tidak dikembalikan dananya",
     expect: ["INV-40", "INV-06"],
-    from: `const f = fulfil(s, x.noShowFnb ?? []);\n      const refundAmt = f.dropped.reduce((n, l) => n + lineValue(l), 0);`,
-    to: `const f = fulfil(s, x.noShowFnb ?? []);\n      const refundAmt = 0;`,
+    from: `const refundAmt = f.dropped.filter((l) => l.prepaid).reduce((n, l) => n + lineValue(l), 0);`,
+    to: `const refundAmt = 0;`,
   },
   {
     name: "Pulihkan no-show tanpa tiket dapur untuk pra-order",
     expect: ["INV-40"],
-    from: "tickets: [...ticketsFor(forSession(running), f.taken, now, `Pra-order · ${x.guest}`), ...s.tickets],",
+    from: "tickets: [...ticketsFor(forSession(s, running), f.taken, now, `Pra-order · ${x.guest}`), ...s.tickets],",
     to: `tickets: s.tickets,`,
   },
   {
@@ -355,7 +427,7 @@ const MUTATIONS = [
   {
     name: "Pesanan QR masuk ke tab rombongan lain (tab tamu sudah ditutup)",
     expect: ["INV-29"],
-    from: 'if (o.sessionId && !o.sessionId.startsWith("pub-") && run.id !== o.sessionId) {\n      return `tab ${t.name} sudah berganti — scan QR di meja lagi`;\n    }',
+    from: 'if (run && o.sessionId && !o.sessionId.startsWith("pub-") && run.id !== o.sessionId) {\n      return `tab ${t.name} sudah berganti — scan QR di meja lagi`;\n    }',
     to: ``,
   },
   /* ── Tutup buku harian (uji ketahanan berhari-hari) ──────────────── */
@@ -377,15 +449,15 @@ const MUTATIONS = [
     name: "Arsip dulu baru lepas no-show (no-show hari itu tertinggal di luar arsipnya)",
     test: "soak",
     expect: ["INV-S2"],
-    from: `  const released = withStockMoves(s, releaseDue(s, now), now, () => "kembali");\n  const today = businessDateOf(now);\n  if (today <= released.day) return released;`,
+    from: `  const released = withStockMoves(s, releaseDue(s, now), now, () => "kembali");\n  const today = businessDateOf(now);\n  if (today <= released.day) return rapikanLampu(rapikanGrup(released));`,
     to: `  const today = businessDateOf(now);\n  const arsipDulu = today > s.day ? closeBooks(closeAbandoned(s, today, now), today, now) : s;\n  const released = withStockMoves(arsipDulu, releaseDue(arsipDulu, now), now, () => "kembali");\n  if (true) return released;`,
   },
   {
     name: "Tutup buku tidak pernah berjalan (setiap aksi makin lambat)",
     test: "soak",
     expect: ["INV-S1"],
-    from: `  return closeBooks(closeAbandoned(released, today, now), today, now);`,
-    to: `  return closeAbandoned(released, today, now);`,
+    from: `  return rapikanLampu(rapikanGrup(closeBooks(closeAbandoned(released, today, now), today, now)));`,
+    to: `  return rapikanLampu(rapikanGrup(closeAbandoned(released, today, now)));`,
   },
   {
     name: "Arsip menghapus waktu pulang rombongan yang dipakai hitungan no-show",
@@ -546,7 +618,7 @@ const MUTATIONS = [
   {
     name: "Pindah pesanan tidak memindahkan tiket dapur",
     expect: ["INV-45","INV-34"],
-    from: `        tickets: s.tickets.map((t) => (t.sessionId === from.id && t.lineKey && peta.has(t.lineKey)\n          ? { ...t, sessionId: to.id, tableName: nameOf(to.tableId), lineKey: peta.get(t.lineKey)! }\n          : t)),`,
+    from: `        tickets: s.tickets.map((t) => (t.sessionId === from.id && t.lineKey && peta.has(t.lineKey)\n          ? { ...t, sessionId: to.id, tableName: namaMeja(s, to.tableId), lineKey: peta.get(t.lineKey)! }\n          : t)),`,
     to: `        tickets: s.tickets,`,
   },
   {
@@ -558,14 +630,8 @@ const MUTATIONS = [
   {
     name: "Venue boleh kehilangan seluruh superadmin aktifnya",
     expect: ["INV-48"],
-    from: `      if (!list.some((x) => x.active && x.role === "superadmin")) return s;\n      if (JSON.stringify(list) === JSON.stringify(s.employees)) return s;`,
+    from: `      if (!adaKunciInduk(list)) return s;\n      if (JSON.stringify(list) === JSON.stringify(s.employees)) return s;`,
     to: `      if (JSON.stringify(list) === JSON.stringify(s.employees)) return s;`,
-  },
-  {
-    name: "Reservasi resto tidak memeriksa kelas & kapasitas meja",
-    expect: ["INV-47"],
-    from: `    if (!t || classOf(s, t.id) !== "resto" || t.capacity < r.pax || !kosong(t.id)) return null;`,
-    to: `    if (!t || !kosong(t.id)) return null;`,
   },
   {
     name: "Void sesi tidak mengembalikan uang split bill",
@@ -582,8 +648,8 @@ const MUTATIONS = [
   {
     name: "Promo memotong tagihan di bawah uang yang sudah diterima",
     expect: ["INV-06","INV-07","INV-08"],
-    from: `  const discount = Math.max(0, Math.min(promo?.discount ?? 0, counterBilliard + counterFnb - dibayarSebagian));`,
-    to: `  const discount = promo?.discount ?? 0;`,
+    from: `  const discount = Math.max(0, Math.min(diminta, counterBilliard + counterFnb - dibayarSebagian));`,
+    to: `  const discount = diminta;`,
   },
   {
     name: "Kelas meja diabaikan: VIP/VVIP ditagih tarif reguler",
@@ -603,6 +669,354 @@ const MUTATIONS = [
     from: `    const kasirBack = Math.min(o.payment?.amount ?? 0, Math.max(0, value - refundAmt));`,
     to: `    const kasirBack = 0;`,
   },
+  /* ── SMH-11b & SMH-14 & SPL-11 (Okt 2026) ───────────────────────── */
+  {
+    name: "Compliment boleh diberikan siapa saja",
+    expect: ["INV-10"],
+    from: `      if (!allow(s, "beriDiskonManual") || !s.shift) return s;
+      const sess = s.sessions.find((x) => x.id === a.sessionId);
+      if (!sess || sess.status !== "running") return s;
+      const line = sess.fnb.find((l) => l.key === a.key);`,
+    to: `      if (!s.shift) return s;
+      const sess = s.sessions.find((x) => x.id === a.sessionId);
+      if (!sess || sess.status !== "running") return s;
+      const line = sess.fnb.find((l) => l.key === a.key);`,
+  },
+  {
+    name: "Compliment pada baris yang sudah dibayar (uang tamu hilang)",
+    expect: ["INV-06","INV-08","INV-44"],
+    from: `      if (line.prepaid || paidLineKeys(sess).has(line.key)) return s;
+      // Sudah gratis (minuman Paket Siang, atau sudah di-compliment).`,
+    to: `      // Sudah gratis (minuman Paket Siang, atau sudah di-compliment).`,
+  },
+  {
+    name: "Diskon manual ditumpuk dengan promo",
+    expect: ["INV-07"],
+    from: `  const diminta = Math.max(promo?.discount ?? 0, manual);`,
+    to: `  const diminta = (promo?.discount ?? 0) + manual;`,
+  },
+  {
+    name: "Diskon manual diterima walau perannya tidak berhak",
+    expect: ["INV-07","INV-10"],
+    from: `      const pst = allow(s, "beriDiskonManual") ? (a.diskonPersen ?? 0) : 0;`,
+    to: `      const pst = a.diskonPersen ?? 0;`,
+  },
+  {
+    name: "Nilai compliment tidak dibekukan saat tab ditutup",
+    expect: ["INV-56"],
+    from: `          ...(bill.compliment > 0 ? { settledCompliment: bill.compliment } : {}),`,
+    to: ``,
+  },
+  {
+    name: "Compliment dihitung sebagai omzet barang",
+    expect: ["INV-56"],
+    from: `      b.total += nilai;`,
+    to: `      b.total += nilai + (l.comp ?? 0);`,
+  },
+  {
+    name: "Split bill tidak ikut dihitung di omzet per shift",
+    expect: ["INV-55"],
+    from: `    for (const p of s.payments ?? []) {
+      if (p.amount > 0) {
+        terima(cari(p.shiftId, p.at), p.channel, p.amount, {
+          at: p.at, kode, meja, keterangan: p.label ? \`\${s.guest} · \${p.label}\` : s.guest,
+          ...(p.mesin ? { mesin: p.mesin } : {}),
+        });
+      }
+    }`,
+    to: ``,
+  },
+  {
+    name: "Omzet per shift memaksa pembayaran tanpa shift ke kanal tunai",
+    expect: ["INV-55"],
+    from: `    if (kanal === "cash") b.tunai += jumlah;
+    else if (kanal === "edc") {
+      b.edc += jumlah;
+      // Mesin lama tanpa penanda dikumpulkan sendiri, BUKAN dibagi rata ke
+      // mesin yang ada — setoran bank hanya bisa dicocokkan dengan angka yang
+      // benar-benar tercatat atas namanya.
+      const m = baris.mesin ?? "Tanpa mesin";
+      b.edcPer[m] = (b.edcPer[m] ?? 0) + jumlah;
+    }
+    else b.qris += jumlah;`,
+    to: `    b.tunai += jumlah;`,
+  },
+  {
+    name: "Baris prabayar dilaporkan sebagai penjualan tunai per produk",
+    expect: ["INV-56"],
+    from: `  if (l.prepaid) return "prabayar";`,
+    to: `  if (l.prepaid) return "tunai";`,
+  },
+  /* ── SMH-4 gabung meja ──────────────────────────────────────────── */
+  {
+    name: "Gabung meja lintas venue diizinkan",
+    expect: ["INV-57"],
+    from: `      if (new Set(anggota.map((x) => venueDari(x.tableId))).size > 1) return s;`,
+    to: ``,
+  },
+  {
+    name: "Gabungan menerima tab yang sudah ditutup",
+    expect: ["INV-57"],
+    from: `      if (anggota.some((x) => x.status !== "running")) return s;`,
+    to: ``,
+  },
+  {
+    name: "Penanda gabungan tidak pernah dibersihkan",
+    expect: ["INV-57"],
+    from: `  const next = capVenue(s, rapikanLampu(rapikanGrup(reduce(s, a))), a);`,
+    to: `  const next = capVenue(s, rapikanLampu(reduce(s, a)), a);`,
+  },
+  {
+    name: "Tab yang sudah ditutup tetap boleh bergrup",
+    expect: ["INV-57"],
+    from: `  const sah = (x: LiveSession) => !x.grup || (x.status === "running" && (jalan.get(x.grup) ?? 0) >= 2);`,
+    to: `  const sah = (x: LiveSession) => !x.grup || (jalan.get(x.grup) ?? 0) >= 2;`,
+  },
+  {
+    name: "Gabungan bersisa satu meja dibiarkan jadi grup",
+    expect: ["INV-57"],
+    edits: [[
+      `  const sah = (x: LiveSession) => !x.grup || (x.status === "running" && (jalan.get(x.grup) ?? 0) >= 2);`,
+      `  const sah = (x: LiveSession) => !x.grup || (x.status === "running" && (jalan.get(x.grup) ?? 0) >= 1);`,
+    ]],
+  },
+  {
+    name: "Mesin EDC karangan ikut masuk laporan",
+    expect: ["INV-55"],
+    from: `  if (kanal !== "edc" || !mesin) return undefined;
+  return mesinEdc(s).find((m) => m.toLowerCase() === mesin.trim().toLowerCase());`,
+    to: `  if (kanal !== "edc" || !mesin) return undefined;
+  return mesin.trim();`,
+  },
+  {
+    name: "Tagihan gabungan cuma menghitung meja pertama",
+    expect: ["INV-57"],
+    from: `  return grupSesi(st, id)
+    .filter((x) => x.status === "running")
+    .reduce((n, x) => n + settlementOf(x, st, now, code).due, 0);`,
+    to: `  const xs = grupSesi(st, id).filter((x) => x.status === "running");
+  return xs.length ? settlementOf(xs[0], st, now, code).due : 0;`,
+  },
+  {
+    // Pagar venue dicabut seluruhnya: kasir Smokehouse bisa mengurus meja biliar.
+    name: "Pagar venue dimatikan",
+    expect: ["INV-58"],
+    from: `  if (lintasVenue(s, a)) return s;              // staf venue sebelah: ditolak mesin`,
+    to: `  if (false) return s;                          // staf venue sebelah: ditolak mesin`,
+  },
+  {
+    // Hanya disembunyikan layarnya, mesinnya membiarkan — bentuk kesalahan yang
+    // paling mudah terjadi: "kan tombolnya sudah tidak ada".
+    name: "Pagar venue hanya memeriksa venue pertama yang disentuh",
+    expect: ["INV-58"],
+    from: `  return venueAksi(s, a).some((v) => v !== milik);`,
+    to: `  return venueAksi(s, a).slice(0, 1).some((v) => v !== milik);`,
+  },
+  /* DIHAPUS — mutan ekuivalen: "Pindah meja tidak memeriksa venue tujuan".
+     `relocate` sudah menuntut meja tujuan SEKELAS, dan `setTableClass`
+     menolak mengubah meja biliar jadi meja resto (dan sebaliknya). Jadi
+     tidak ada satu pun keadaan di mana mutan ini berperilaku berbeda —
+     dibiarkan sebagai mutasi, ia akan selamanya tercatat "tes bolong" untuk
+     lubang yang tidak ada. Pagarnya tetap dipasang di mesin sebagai sabuk
+     kedua, dengan alasannya ditulis di sana. */
+  {
+    file: STAF,
+    test: "venue",
+    // Kalau ini LOLOS, berarti tidak ada yang menguji bahwa akun bisa diikat
+    // ke satu venue — dan "dua perusahaan" cuma tulisan di layar.
+    name: "Penanda venue akun staf diabaikan",
+    expect: ["VENUE"],
+    from: `  { id: "u-dewi", name: "Dewi", pin: "3456", role: "kru_kasir", active: true, venue: "smh" },`,
+    to: `  { id: "u-dewi", name: "Dewi", pin: "3456", role: "kru_kasir", active: true },`,
+  },
+  {
+    // Stok dipotong sejak reservasi dibuat. Reservasi untuk dua minggu lagi
+    // akan menghilangkan barang dari penjualan MALAM INI tanpa ada yang
+    // memakannya — dan laporan stok harian ikut bohong.
+    name: "Pra-pesan reservasi memotong stok sejak dipesan",
+    test: "smh",
+    expect: ["SMH"],
+    from: `  const pra = withUniqueKeys([], priceLines(s, diminta, 0).lines, "pra")
+    .map((l): CartLine => ({ ...l, pra: true }));`,
+    to: `  const pra = withUniqueKeys([], priceLines(s, diminta, 0).lines, "pra");`,
+  },
+  {
+    // Kebalikannya: pra-pesan tidak pernah sampai ke dapur saat tamunya
+    // datang. Tamu merasa sudah memesan, dapur tidak tahu apa-apa.
+    name: "Pra-pesan tidak ikut dikirim ke dapur saat check-in",
+    test: "smh",
+    expect: ["SMH"],
+    from: `          ...ticketsFor(forSession(s, running), [...bk.fnb.filter((l) => l.prepaid), ...f.taken], now, \`Pra-order · \${bk.guest}\`),`,
+    to: `          ...ticketsFor(forSession(s, running), bk.fnb.filter((l) => l.prepaid), now, \`Pra-order · \${bk.guest}\`),`,
+  },
+  {
+    // Baris yang belum pernah memotong stok ikut "dikembalikan" ke stok:
+    // barang tercipta dari udara, dan baru ketahuan saat opname.
+    name: "Pra-pesan ikut dikembalikan ke stok walau belum pernah diambil",
+    expect: ["INV-05"],
+    from: `  lines = lines.filter((l) => !l.pra);`,
+    to: `  lines = lines.slice();`,
+  },
+  {
+    // No-show reservasi resto dihanguskan sebagai omzet, padahal tidak ada
+    // satu rupiah pun yang pernah masuk.
+    name: "No-show resto menghanguskan makanan yang tak pernah dibayar",
+    expect: ["INV-08"],
+    from: `      settledBilliard: x.tableAmount, settledFnb: fnbTotalOf({ ...x, fnb: hangus }), settledDiscount: 0,`,
+    to: `      settledBilliard: x.tableAmount, settledFnb: fnbTotalOf(x), settledDiscount: 0,`,
+  },
+  {
+    // Isi paket tidak memotong stok: gudang terlihat penuh padahal
+    // barangnya sudah keluar, dan baru ketahuan saat opname.
+    name: "Isi paket tidak memotong stok",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `      const f = fulfil(s, isi);`,
+    to: `      const f = { taken: isi, dropped: [], stock: s.stock };`,
+  },
+  {
+    // Baris harga paket ikut membuat tiket: dapur menerima dua tiket untuk
+    // makanan yang sama, satu atas nama paketnya.
+    name: "Baris harga paket ikut jadi tiket dapur",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `    if (l.paket) return [];`,
+    to: ``,
+  },
+  {
+    // Paket bersewa waktu boleh dijual sebagai baris bill: tamu membayar
+    // harga blok tanpa mendapat jam mainnya.
+    name: "Paket bersewa waktu boleh dijual sebagai baris bill",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `      if (pk.hours > 0) return s;`,
+    to: ``,
+  },
+  {
+    // Pagar tanggal dicabut: karyawan bisa menurunkan jumlah baris lagi,
+    // tanpa alasan dan tanpa persetujuan siapa pun.
+    name: "Ubah baris pesanan hidup lagi",
+    test: "smh",
+    expect: ["SMH"],
+    from: `      if (now >= KOREKSI_BARIS_DITUTUP) return s;`,
+    to: ``,
+  },
+  {
+    // Pagar meja kosong dicabut: pindah pesanan membuka meja yang sedang
+    // DIPAKAI tamu lain -- dua sesi di satu meja, dan tagihan yang menumpuk
+    // di meja yang sama tanpa ada yang tahu milik siapa.
+    name: "Pindah ke meja kosong tidak memeriksa mejanya memang kosong",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `        if (!canOpenWalkin(s.sessions, meja.id, now)) return s;`,
+    to: ``,
+  },
+  {
+    // Uang yang sudah dibayar per orang di meja asal tidak dijaga lagi:
+    // barisnya dipindah keluar, tagihan meja asal jatuh di bawah uang yang
+    // sudah diterima, dan selisihnya hilang dari rekap.
+    name: "Pindah pesanan boleh membuat tagihan lebih kecil dari uang yang sudah dibayar",
+    test: "sim",
+    expect: ["INV-06", "INV-07", "INV-45"],
+    from: `      if (counterWith(from, from.fnb.filter((l) => !dipindah.has(l.key)), s, now) < splitPaidOf(from)) return s;`,
+    to: ``,
+  },
+  {
+    // Jatah minuman dikembalikan untuk SETIAP baris Rp 0 — bug sungguhan yang
+    // ditemukan simulasi 21 Okt 2026: void satu compliment di meja Paket Siang
+    // menambah jatah minuman tamu, dan venue memberi gelas gratis cuma-cuma.
+    name: "Void baris Rp 0 apa pun mengembalikan jatah minuman paket",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `const jatahMinuman = (l: CartLine) =>
+  l.unitPrice === 0 && l.comp === undefined && !l.paket && !l.isiPaket
+  && PAKET_FREE_CATEGORIES.includes(MENU_CATEGORY_OF[l.itemId]);`,
+    to: `const jatahMinuman = (l: CartLine) => l.unitPrice === 0;`,
+  },
+  {
+    // Pagar venue dicabut dari buka-meja-pakai-paket: paket SPL bisa membuka
+    // meja Smokehouse, dan harga blok biliar masuk ke bill meja makan.
+    name: "Paket venue sebelah boleh membuka meja",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `        if ((pk.venue ?? "spl") !== venueDari(a.tableId)) return s;`,
+    to: ``,
+  },
+  {
+    // Syarat kelas meja dicabut: Paket Siang (harga meja reguler) dipakai
+    // membuka meja VVIP yang tarifnya jauh lebih mahal.
+    name: "Paket meja reguler boleh dipakai di meja VIP",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `  if (r.kelas !== "regular") return \`\${pk.name} hanya untuk meja reguler\`;`,
+    to: ``,
+  },
+  {
+    // Cap venue dicabut dari jejak: panel jejak Smokehouse ikut menampilkan
+    // setiap tutup tab, void, dan diskon meja biliar — dan sebaliknya. Dua
+    // venue yang diperlakukan seperti dua perusahaan kembali bercampur persis
+    // di tempat yang paling tidak boleh bercampur: catatan pengawasannya.
+    name: "Jejak aktivitas tidak dicap venue",
+    test: "venue",
+    expect: ["VENUE"],
+    from: `  const next = capVenue(s, rapikanLampu(rapikanGrup(reduce(s, a))), a);`,
+    to: `  const next = rapikanLampu(rapikanGrup(reduce(s, a)));`,
+  },
+  {
+    // Dikembalikan ke daftar lama: bayar per orang dan takeaway bayar di kasir
+    // kembali lolos saat internet mati. Kasir menerima uangnya di layar,
+    // mencetak struk, tamu pulang — lalu kejadiannya ditolak saat tersambung
+    // karena sudah didahului perangkat lain. Uang di laci, tanpa catatan.
+    name: "Bayar per orang & takeaway lolos saat terputus",
+    file: REMOTE,
+    test: "sync",
+    expect: ["SYNC"],
+    from: `export const MONEY_ACTIONS = new Set<Action["t"]>([
+  "settle", "paySplit", "settleOrder", "closeShift", "decideVoid", "settleRefund",
+]);`,
+    to: `export const MONEY_ACTIONS = new Set<Action["t"]>(["settle", "closeShift", "decideVoid", "settleRefund"]);`,
+  },
+  {
+    // Kelas meja dibaca dari meja yang kebetulan sedang DIJUAL, bukan dari
+    // katalog: meja makan cadangan yang baru diaktifkan jatuh ke "regular",
+    // dan meteran Rp 29.000/jam mulai berjalan di meja yang seharusnya Rp 0.
+    name: "Kelas meja baru ditebak, bukan dibaca katalog",
+    test: "venue",
+    expect: ["VENUE"],
+    from: `const typeOf = (tableId: string): TableType => cariMeja(tableId)?.type ?? "regular";`,
+    to: `const typeOf = (tableId: string): TableType => TABLES.find((t) => t.id === tableId)?.type ?? "regular";`,
+  },
+  {
+    // Pagar "meja ini sedang dijual" dicabut dari buka meja: meja yang sudah
+    // ditarik dari denah bisa dibuka lagi, dan tamunya duduk di meja yang
+    // tidak ada di papan siapa pun.
+    name: "Meja yang ditarik dari denah masih bisa dibuka",
+    test: "venue",
+    expect: ["VENUE"],
+    from: `      if (!table || !mejaDipakai(s, a.tableId) || !allow(s, "bukaMeja") || !s.shift) return s;`,
+    to: `      if (!table || !allow(s, "bukaMeja") || !s.shift) return s;`,
+  },
+  {
+    // Jam kejadian kembali selalu jam server: meja yang dibuka tiga jam lalu
+    // di perangkat yang terputus tercatat baru dibuka saat kirimannya sampai,
+    // dan meterannya menagih nyaris nol.
+    name: "Jam kejadian memakai jam kiriman, bukan jam aksinya",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `  const at = jamKejadian(e);
+  clockFn = () => at;`,
+    to: `  clockFn = () => e.at;`,
+  },
+  {
+    // Pagar jam perangkat dicabut: perangkat dengan jam yang dimajukan bisa
+    // mengarang kejadian di masa depan — dan memindahkan omzet ke hari
+    // berikutnya tanpa ada yang menyadarinya.
+    name: "Jam perangkat dipercaya melebihi jam server",
+    test: "rekap",
+    expect: ["REKAP"],
+    from: `  return Math.min(e.at, Math.max(dev, e.at - MAKS_ANTRE_MS));`,
+    to: `  return dev;`,
+  },
 ];
 
 const TESTS = {
@@ -611,6 +1025,17 @@ const TESTS = {
   soak: { src: "test/soak.test.ts", env: { DAYS: "14" }, parse: (out) => [...out.matchAll(/✗ (INV-S\d+)/g)].map((x) => x[1]) },
   sync: { src: "test/sync.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["SYNC"] : []) },
   remote: { src: "test/remote.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["LINTAS"] : []) },
+  // Peta izin: satu-satunya bagian yang harus dijaga DUA ARAH (hak yang
+  // hilang tidak pernah terlihat di simulasi — ditolak adalah hal normal).
+  peran: { src: "test/peran.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["PERAN"] : []) },
+  // Pemisahan dua venue: arah "yang boleh wajib tetap boleh" juga tidak
+  // pernah terlihat di simulasi, sama alasannya dengan peta izin.
+  venue: { src: "test/venue.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["VENUE"] : []) },
+  // Alur Smokehouse ujung ke ujung: pesan online, pesan di kasir, dan
+  // reservasi meja + makanannya sekalian.
+  smh: { src: "test/smokehouse.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["SMH"] : []) },
+  // Rekap tiga jenis, omzet per shift, pajak per lini, dan paket berisi barang.
+  rekap: { src: "test/rekap.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["REKAP"] : []) },
 };
 
 const only = process.env.ONLY ? new Set(process.env.ONLY.split(",").map(Number)) : null;

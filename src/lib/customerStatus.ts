@@ -126,7 +126,7 @@ const draftDariSesi = (s: LiveSession): Draft => ({
   hours: Math.max(1, Math.round((s.endsAt - s.startsAt) / 3_600_000)),
   tableId: s.tableId,
   tableType: s.tableType ?? "regular",
-  paketSiang: s.paket === "siang",
+  paketId: s.paket ?? null,
   fnbMode: "meja",
   fnbTable: s.tableId,
   fnbTableAt: null,

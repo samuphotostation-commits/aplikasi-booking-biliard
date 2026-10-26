@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import { cetakSenyapMungkin, cetakStruk, daftarPrinter, printerTersimpan, simpanPrinter } from "../../lib/cetak";
+import { bukaJendelaTamu } from "../../lib/tampilTamu";
 
 export function PilihPrinter() {
   const bisaSenyap = cetakSenyapMungkin();
@@ -55,6 +56,37 @@ export function PilihPrinter() {
           {kabar && <p className="text-[12px] text-amber">{kabar}</p>}
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * Layar menghadap tamu — juga setelan PERANGKAT, bukan data venue: monitor
+ * keduanya menempel di satu komputer kasir, bukan milik venue secara umum.
+ */
+export function LayarTamu() {
+  return (
+    <section>
+      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">Layar menghadap tamu</h2>
+      <div className="rounded-xl border border-line bg-ink-2 p-3.5">
+        <p className="text-[12px] leading-relaxed text-dim">
+          Buka jendela kedua, lalu geser ke monitor atau tablet yang menghadap tamu. QR dinamis
+          muncul di sana dengan ukuran besar dan berubah sendiri jadi{" "}
+          <span className="text-cream">LUNAS</span> begitu pembayaran masuk — kasir tidak perlu
+          memutar layarnya lagi.
+        </p>
+        <button
+          type="button"
+          onClick={() => bukaJendelaTamu()}
+          className="mt-2 min-h-[42px] w-full rounded-xl border border-amber/50 bg-amber/10 text-[13px] font-semibold text-amber"
+        >
+          Buka jendela layar tamu
+        </button>
+        <p className="mt-2 text-[11px] leading-snug text-dim">
+          Tidak ada satu pun tombol di layar itu, jadi aman diletakkan menghadap ruangan.
+          Biarkan jendelanya terbuka semalaman; layarnya dijaga supaya tidak tidur sendiri.
+        </p>
+      </div>
     </section>
   );
 }

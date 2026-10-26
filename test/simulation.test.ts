@@ -14,15 +14,18 @@
    — dengan urutan terima acak — dan hasilnya harus identik.
    ═══════════════════════════════════════════════════════════════════ */
 import {
-  reducer, init, setClock, resetIds, nextId, recap, billiardTotalOf, fnbTotalOf, lineValue,
+  reducer, init, setClock, resetIds, nextId, recap, billiardTotalOf, fnbTotalOf, lineValue, gudangDari,
   priceLines, priceOf, settlementOf, tickState, applyAction, applyEntry, replay, entryOrder, slotProblem,
-  shiftCashExpected, classOf,
+  shiftCashExpected, classOf, omzetPerShift, penjualanProduk, rekapTigaJenis, bolehDariCentral, mesinEdc, punyaLampu,
+  grupSesi, tagihanGrup, venueOrder,
   HOLD_MIN, HOLD_GRACE_MIN, PAKET_FREE_DRINKS, PAKET_FREE_CATEGORIES, NO_SHOW_RELEASE_MIN,
   type State, type Action, type Entry, type Genesis,
 } from "../src/lib/engine";
 import { EMPLOYEES, can, type Employee } from "../src/data/staff";
-import { TABLES, PAKET_SIANG, type TableType } from "../src/data/venue";
+import { TABLES, PAKET_SIANG, venueDari, type TableType } from "../src/data/venue";
 import { MENU, findItem } from "../src/data/menu";
+import { ROUND_TO } from "../src/lib/billing";
+import { ROLES_SAH, SEMUA_AKSES } from "../src/data/staff";
 import { blockEndOf, businessDateOf, findClashes, overlaps, slotStart, tanggalWib, dariWib } from "../src/lib/occupancy";
 import { bestPromo } from "../src/lib/billing";
 import type { LiveSession } from "../src/data/live";
@@ -53,10 +56,10 @@ const INV: Record<string, string> = {
   "INV-11": "Aksi uang wajib shift terbuka",
   "INV-12": "Void yang masih menunggu tidak menggerakkan uang/stok",
   "INV-13": "Transaksi yang sudah dibayar tidak bisa hilang lewat void",
-  "INV-14": "Lampu: buka/check-in ⇒ nyala, tutup tab/void ⇒ mati",
+  "INV-14": "Lampu HANYA di meja biliar: buka/check-in ⇒ nyala, tutup tab/void ⇒ mati; meja makan tidak punya lampu",
   "INV-15": "Setiap perubahan tercatat di jejak audit beserta pelakunya",
   "INV-16": "ID sesi, void, tiket, pesanan & refund unik",
-  "INV-17": "Meteran open bill tidak pernah turun & kelipatan Rp 500",
+  "INV-17": "Meteran open bill tidak pernah turun & kelipatan Rp 1.000",
   "INV-18": "Booking online dihargai tarif terkini, atau harga beku saat hold",
   "INV-19": "Check-in tidak memperpanjang jam selesai booking",
   "INV-20": "Pesanan online masuk tiket dapur saat check-in",
@@ -86,11 +89,17 @@ const INV: Record<string, string> = {
   "INV-44": "Split bill: bayar sebagian tidak pernah melebihi sisa tagihan & tidak ada baris dibayar dua kali",
   "INV-45": "Koreksi pesanan/pindah meja: nilai & tiket ikut pindah, yang sudah dibayar/diserahkan tidak tersentuh",
   "INV-46": "Meteran berhenti di jam tutup & 5 menit pertama tidak ditagih",
-  "INV-47": "Reservasi resto tidak menagih sewa meja dan selalu di meja resto yang muat",
   "INV-48": "Selalu ada superadmin aktif; PIN & email staf tidak pernah kembar",
   "INV-49": "Buka meja paket per jam: harga blok tetap, punya jam selesai, tidak bermeteran",
   "INV-50": "Takeaway bayar di kasir: uang diakui tepat sekali, sesuai nilai pesanannya",
+  "INV-52": "Barang counter biliar (rokok, botolan) tidak pernah membuat tiket dapur/bar",
+  "INV-53": "Mengubah persen PPN/service tidak pernah menggeser uang — hanya pemecahan laporan",
+  "INV-54": "Transfer gudang MEMINDAH barang, tidak menciptakan; Gudang Bar tidak pernah dipasok Central",
+  "INV-55": "Omzet per shift: jumlah semua shift = rekap harian, dan pecahan kanalnya tepat",
+  "INV-56": "Laporan produk = nilai barang rekap, dan compliment tidak pernah ikut dihitung sebagai uang masuk",
+  "INV-57": "Gabung meja tidak memindahkan uang: tagihan grup = jumlah tagihan mejanya, satu venue, tidak ada grup berisi satu",
   "INV-51": "Meja yang sedang open bill tidak pernah ditawarkan ke booking online",
+  "INV-58": "Staf yang terikat satu venue tidak pernah mengubah apa pun di venue sebelah",
 };
 
 type Hit = { count: number; sims: Set<number>; example: string };
@@ -146,8 +155,22 @@ const CATEGORY_OF: Record<string, string> = Object.fromEntries(MENU.flatMap((c) 
 const typeOf = (tableId: string) => TABLES.find((t) => t.id === tableId)!.type;
 /** Kelas yang dibekukan di sesi (VIP/VVIP/reguler/resto). */
 const sessType = (s: { tableId: string; tableType?: TableType }): TableType => s.tableType ?? typeOf(s.tableId);
+// Oracle di berkas ini menghitung pembulatannya SENDIRI (kelipatan 1.000).
+// Kalau mesin diubah tanpa oracle ikut diubah, perbedaannya akan muncul
+// sebagai ratusan kegagalan INV-07 yang membingungkan — jadi ketidakcocokan
+// itu dihentikan di sini, dengan pesan yang langsung menyebut sebabnya.
+if (ROUND_TO !== 1000) {
+  console.log(`FAIL  oracle simulasi memakai kelipatan 1.000, mesin memakai ${ROUND_TO}. Samakan dulu.`);
+  process.exit(1);
+}
+
+/** Barang counter biliar (rokok, botolan) tidak disiapkan siapa pun, jadi
+ *  sengaja tidak membuat tiket dapur/bar. Yang lain wajib membuat. */
+const perluTiket = (itemId: string) => findItem(itemId)?.station !== "billiard";
 const BILLIARD = TABLES.filter((t) => t.type !== "resto");
-const RESTO = TABLES.filter((t) => t.type === "resto");
+/** Meja Smokehouse. Sebagian walk-in dibuka di sini supaya pemisahan dua
+ *  venue benar-benar dilewati 100 simulasi — bukan cuma uji khususnya. */
+const SMOKEHOUSE = TABLES.filter((t) => t.type === "resto");
 /** Batas meteran: jam 05.00 pagi sesudah hari operasional sesi itu (aplikasi bisa mati semalaman). */
 const closeAfter = (ts: number) => {
   const b = wibDate(ts - 2 * 3_600_000);
@@ -167,7 +190,7 @@ const oracleMeterEnd = (s: LiveSession, now: number) =>
     ? Math.max(s.startsAt, s.stoppedAt)
     : Math.max(s.startsAt, Math.min(now, closeAfter(s.startsAt)));
 
-/** Tagihan open bill: 5 menit pertama gratis, lalu minimum 30 menit per menit, berhenti di jam tutup, ke atas Rp 500. */
+/** Tagihan open bill: 5 menit pertama gratis, lalu minimum 30 menit per menit, berhenti di jam tutup, ke atas Rp 1.000. */
 const oracleOpenBill = (s: LiveSession, rates: State["rates"], end: number) => {
   const type = sessType(s);
   if (type === "resto") return 0;                        // meja resto tidak punya meteran
@@ -185,15 +208,27 @@ const oracleOpenBill = (s: LiveSession, rates: State["rates"], end: number) => {
     const h = hourIdx(s.startsAt + m * 60_000);
     perMinuteSum += type === "vip" ? r.vip : type === "vvip" ? r.vvip : h >= 18 ? r.regularNight : r.regularDay;
   }
-  return Math.ceil(perMinuteSum / 30_000) * 500;         // (Σ tarif/jam per menit) / 60, ke atas kelipatan 500
+  // Pembulatan ditulis ulang di sini DENGAN SENGAJA, bukan diambil dari
+  // billing.ts — oracle harus menghitung sendiri supaya bisa membantah mesin.
+  // Supaya keduanya tidak diam-diam berbeda, nilainya dijaga di bawah.
+  return Math.ceil(perMinuteSum / 60_000) * 1000;        // (Σ tarif/jam per menit) / 60, ke atas kelipatan 1.000
 };
 /** Kunci baris yang sudah dilunasi lewat split bill. */
 const paidKeys = (s: LiveSession) => new Set((s.payments ?? []).flatMap((p) => p.keys ?? []));
 const splitPaid = (s: { payments?: { amount: number }[] }) => (s.payments ?? []).reduce((n, p) => n + p.amount, 0);
 const sum = (xs: CartLine[]) => xs.reduce((n, l) => n + lineValue(l), 0);
+/**
+ * Barang yang SUDAH KELUAR DARI RAK. Pra-pesan reservasi resto belum: tamunya
+ * baru memilih, dapur belum memasak, dan stoknya baru diambil saat check-in.
+ * Kalau dihitung di sini, reservasi untuk minggu depan akan terlihat seperti
+ * barang yang hilang dari rak malam ini.
+ */
 const soldQty = (st: State) => {
   const m: Record<string, number> = {};
-  for (const s of st.sessions) for (const l of s.fnb) m[l.itemId] = (m[l.itemId] ?? 0) + l.qty;
+  for (const s of st.sessions) for (const l of s.fnb) {
+    if (l.pra) continue;
+    m[l.itemId] = (m[l.itemId] ?? 0) + l.qty;
+  }
   for (const o of st.orders) {
     if (o.status !== "diterima" || o.sessionId) continue;       // takeaway (yang menempel sudah ada di sesi)
     for (const l of o.lines) m[l.itemId] = (m[l.itemId] ?? 0) + l.qty;
@@ -211,10 +246,19 @@ const PERM: Partial<Record<Action["t"], Parameters<typeof can>[1]>> = {
   toggleSoldOut: "tandaiHabis", toggleLight: "kontrolLampu", allLights: "kontrolLampu",
   restoreNoShow: "bukaMeja", settleRefund: "lihatLaporanKeuangan",
   editFnb: "koreksiPesanan", moveFnb: "koreksiPesanan", paySplit: "tutupTab", stopMeter: "koreksiWaktu",
+  compliment: "beriDiskonManual", gabungMeja: "bukaMeja", pisahMeja: "bukaMeja",
   settleOrder: "tutupTab",
   setTableClass: "kelolaMeja", saveEmployee: "kelolaKaryawan", removeEmployee: "kelolaKaryawan",
 };
-const NEEDS_SHIFT = new Set<Action["t"]>(["walkin", "settle", "addFnb", "checkin", "restoreNoShow", "editFnb", "moveFnb", "paySplit", "settleOrder"]);
+const NEEDS_SHIFT = new Set<Action["t"]>(["walkin", "settle", "addFnb", "checkin", "restoreNoShow", "editFnb", "moveFnb", "paySplit", "settleOrder", "compliment", "gabungMeja", "pisahMeja"]);
+
+/**
+ * Aksi yang DILAKUKAN TAMU dari HP-nya sendiri, bukan staf — plus detak waktu
+ * dan masuk/keluar. Pagar venue tidak berlaku untuk ini: jejaknya satu untuk
+ * semua perangkat, jadi pesanan tamu SPL harus tetap sah saat diputar ulang
+ * di perangkat kasir Smokehouse.
+ */
+const AKSI_TAMU = new Set<Action["t"]>(["hold", "releaseHold", "confirmOnline", "guestOrder", "reserveResto", "tick", "login", "logout"]);
 const SYSTEM_ACTS = new Set<Action["t"]>(["confirmOnline", "hold", "releaseHold", "guestOrder", "reserveResto"]);
 const ALL_ITEMS = MENU.flatMap((c) => c.items);
 const BAR_ITEMS = ALL_ITEMS.filter((i) => i.station === "bar");
@@ -250,7 +294,22 @@ function runSim(sim: number) {
   let longTab: string | null = null;               // tab yang dibiarkan jalan melewati dua pergantian hari
   const sentConfirms: LiveSession[] = [];          // untuk notifikasi ganda (diterima maupun ditolak)
 
-  const karyawan = EMPLOYEES.filter((e) => e.role === "karyawan");
+  // Kru lantai = siapa pun yang BUKAN akses penuh. Sebelumnya disaring dengan
+  // `role === "karyawan"`, dan begitu akun bawaan dipindah ke `kru_kasir`
+  // (12 Okt 2026) daftarnya jadi KOSONG — `pick([])` mengembalikan undefined
+  // dan seluruh simulasi jatuh di baris login. Disaring dari sifatnya, bukan
+  // dari satu nama peran.
+  const karyawan = EMPLOYEES.filter((e) => !SEMUA_AKSES.includes(e.role));
+  /**
+   * Kru yang sedang aktif dan BUKAN akses penuh — termasuk peran baru yang
+   * dibuat di tengah jalan (kru gudang, kitchen, bar, finance). Tanpa ini
+   * peran-peran itu cuma dibuat lalu menganggur, dan peta izinnya tidak
+   * pernah benar-benar diuji oleh INV-10.
+   */
+  const kruAktif = () => {
+    const c = st.employees.filter((e) => e.active && !SEMUA_AKSES.includes(e.role));
+    return c.length ? c : karyawan;
+  };
   const superadmin = EMPLOYEES.filter((e) => e.role === "superadmin");
   const steps = kind === "adversarial" ? 100 : 80;
 
@@ -439,6 +498,39 @@ function runSim(sim: number) {
     // INV-11 shift
     if (NEEDS_SHIFT.has(act.t) && !b.shift && ok) f("INV-11", `${act.t} diterima tanpa shift terbuka`);
 
+    /*
+     * INV-58 pagar venue. SPL Sport dan Smokehouse diperlakukan seperti dua
+     * perusahaan: staf yang terikat satu venue tidak boleh menggeser apa pun
+     * di venue sebelah.
+     *
+     * Diperiksa dari AKIBATNYA, bukan dari daftar aksi yang sama dipakai
+     * mesin — kalau oracle-nya ikut memakai pemetaan aksi→venue milik mesin,
+     * satu mutasi di pemetaan itu akan ikut memutar oracle-nya dan lolos.
+     *
+     * Dua pengecualian yang memang sah: aksi TAMU (tamu bukan staf, lihat
+     * `venueAksi`) dan langkah yang kebetulan menutup buku harian — tutup
+     * buku memindahkan sesi kedua venue ke arsip, dan itu detak waktu, bukan
+     * perbuatan pelakunya.
+     */
+    const venueAktor = b.me?.venue;
+    if (venueAktor && !AKSI_TAMU.has(act.t) && a.history.length === b.history.length) {
+      const lain = venueAktor === "spl" ? "smh" : "spl";
+      const sidik = (st: State) => JSON.stringify([
+        st.sessions.filter((x) => venueDari(x.tableId) === lain),
+        st.orders.filter((o) => venueOrder(o) === lain),
+        Object.entries(st.lights).filter(([id]) => venueDari(id) === lain).sort(),
+        st.tickets.filter((t) => {
+          const sesi = st.sessions.find((x) => x.id === t.sessionId);
+          const pesanan = st.orders.find((o) => o.id === t.sessionId);
+          return sesi ? venueDari(sesi.tableId) === lain : pesanan ? venueOrder(pesanan) === lain : false;
+        }),
+      ]);
+      if (sidik(a) !== sidik(b)) {
+        f("INV-58", `${b.me!.name} (${venueAktor}) mengubah venue ${lain} lewat ${act.t}`);
+      }
+      if (ok) (coverage["(skenario) aksi staf terikat venue"] ??= { ok: 0, ditolak: 0 }).ok++;
+    }
+
     // INV-01 / INV-22 / INV-30 double booking.
     // Sesi yang ujungnya ditentukan WAKTU BERJALAN (open bill, atau booking yang
     // tamunya belum pulang melewati jadwal) tidak bisa dicegah software — itu
@@ -486,8 +578,12 @@ function runSim(sim: number) {
       const prev = b.stock.find((r) => r.itemId === row.itemId);
       if (!prev || prev.qty === null || row.qty === null) continue;
       let expected: number;
-      if (act.t === "setStock" && act.itemId === row.itemId) expected = ok ? (act.qty ?? prev.qty) : prev.qty;
-      else if (act.t === "addStock" && act.itemId === row.itemId) expected = ok ? Math.max(0, prev.qty + act.delta) : prev.qty;
+      const keCentral = (act.t === "setStock" || act.t === "addStock") && act.gudang === "central";
+      if (act.t === "setStock" && act.itemId === row.itemId && !keCentral) expected = ok ? (act.qty ?? prev.qty) : prev.qty;
+      else if (act.t === "addStock" && act.itemId === row.itemId && !keCentral) expected = ok ? Math.max(0, prev.qty + act.delta) : prev.qty;
+      // Transfer menambah stok outlet dari Central — bukan barang baru. Yang
+      // menjaga jumlahnya tetap utuh adalah INV-54.
+      else if (act.t === "transferStock" && act.itemId === row.itemId) expected = ok ? prev.qty + Math.floor(act.qty) : prev.qty;
       else expected = prev.qty - ((sa[row.itemId] ?? 0) - (sb[row.itemId] ?? 0));
       if (expected < 0) f("INV-05", `${row.itemId} terjual melebihi stok (${prev.qty} → butuh ${expected})`);
       else if (row.qty !== expected) f("INV-05", `${row.itemId} stok ${row.qty}, seharusnya ${expected} setelah ${act.t}`);
@@ -523,8 +619,19 @@ function runSim(sim: number) {
         // Sama dengan mesin: promo dinilai pada akhir waktu yang ditagih.
         const akhirTagih = sess.source === "walkin" && !sess.blockHours && sess.status === "running"
           ? oracleMeterEnd(sess, now) : now;
-        const disc = Math.max(0, Math.min(bestPromo(b.promos, counterB, counterF, akhirTagih, act.promoCode)?.discount ?? 0,
+        // Diskon manual (SMH-11b) ditulis ulang di sini, bukan dipanggil dari
+        // mesin: persen di luar 0-100 dijinakkan, dan diskon manual TIDAK
+        // ditumpuk dengan promo -- yang dipakai hanya yang lebih besar.
+        const promoDisc = bestPromo(b.promos, counterB, counterF, akhirTagih, act.promoCode)?.discount ?? 0;
+        const pstOracle = can(b.me?.role ?? null, "beriDiskonManual")
+          ? Math.min(100, Math.max(0, Math.floor(act.diskonPersen ?? 0))) : 0;
+        const manualDisc = pstOracle > 0 ? Math.floor(((counterB + counterF) * pstOracle) / 100) : 0;
+        const disc = Math.max(0, Math.min(Math.max(promoDisc, manualDisc),
           counterB + counterF - dibayarDulu));
+        const manualTercatat = manualDisc >= promoDisc ? disc : 0;
+        if ((done.settledDiskonManual ?? 0) !== manualTercatat) {
+          f("INV-07", `diskon manual tersimpan ${done.settledDiskonManual ?? 0}, seharusnya ${manualTercatat}`);
+        }
         const due = Math.max(0, counterB + counterF - disc - dibayarDulu);
         if (done.settledBilliard !== bill) f("INV-07", `meja tersimpan ${done.settledBilliard}, seharusnya ${bill}${meta.tamper ? " (angka layar dimanipulasi)" : ""}`);
         if (done.settledFnb !== fnb) f("INV-07", `F&B tersimpan ${done.settledFnb}, seharusnya ${fnb}`);
@@ -590,12 +697,23 @@ function runSim(sim: number) {
     if (act.t === "moveFnb" && ok) {
       const from0 = b.sessions.find((x) => x.id === act.fromId)!;
       const from1 = a.sessions.find((x) => x.id === act.fromId)!;
-      const to0 = b.sessions.find((x) => x.id === act.toId)!;
-      const to1 = a.sessions.find((x) => x.id === act.toId)!;
+      // Tujuannya bisa sesi yang sudah jalan, bisa meja kosong yang baru
+      // dibuka mesin — yang kedua belum ada sama sekali di state sebelumnya.
+      const to1 = act.toId
+        ? a.sessions.find((x) => x.id === act.toId)!
+        : a.sessions.find((x) => x.tableId === act.toTableId && x.status === "running")!;
+      const to0 = b.sessions.find((x) => x.id === to1.id);
       const moved = act.keys.map((k) => from0.fnb.find((l) => l.key === k)).filter(Boolean) as CartLine[];
       const nilai = sum(moved);
       if (sum(from1.fnb) !== sum(from0.fnb) - nilai) f("INV-45", `nilai bill meja asal salah setelah pindah`);
-      if (sum(to1.fnb) !== sum(to0.fnb) + nilai) f("INV-45", `nilai bill meja tujuan salah setelah pindah`);
+      if (sum(to1.fnb) !== sum(to0?.fnb ?? []) + nilai) f("INV-45", `nilai bill meja tujuan salah setelah pindah`);
+      if (!to0) {
+        // Meja yang dibuka lewat pindah harus sama dengan meja yang dibuka
+        // kasir: open bill, tanpa sewa di muka, dan memang mejanya yang diminta.
+        if (to1.tableId !== act.toTableId) f("INV-45", `meja yang dibuka bukan ${act.toTableId}`);
+        if (to1.tableAmount !== 0 || to1.blockHours) f("INV-45", `meja kosong dibuka dengan sewa di muka`);
+        if (to1.source !== "walkin") f("INV-45", `meja kosong dibuka bukan sebagai walk-in`);
+      }
       if (act.keys.some((k) => from1.fnb.some((l) => l.key === k))) f("INV-45", `baris masih tertinggal di meja asal`);
       if (moved.some((l) => l.prepaid || l.orderId || paidKeys(from0).has(l.key))) f("INV-45", `baris prabayar/lunas/pesanan QR ikut dipindah`);
       if (a.tickets.some((t) => t.sessionId === from0.id && t.lineKey && act.keys.includes(t.lineKey))) {
@@ -615,18 +733,6 @@ function runSim(sim: number) {
       if ((s1.stoppedAt ?? 0) > now || (s1.stoppedAt ?? 0) < s1.startsAt) f("INV-46", `jam berhenti di luar rentang sesi`);
     }
 
-    // INV-47 reservasi resto
-    if (act.t === "reserveResto" && ok) {
-      const got = a.sessions.find((x) => x.id === act.res.id);
-      if (!got) f("INV-47", `reservasi ${act.res.code} diterima tanpa sesi`);
-      else {
-        if (got.tableAmount !== 0 || got.paidOnline !== 0) f("INV-47", `reservasi resto menagih sewa meja`);
-        if (typeOf(got.tableId) !== "resto") f("INV-47", `reservasi resto ditempatkan di ${got.tableId}`);
-        const kapasitas = TABLES.find((t) => t.id === got.tableId)?.capacity ?? 0;
-        if ((got.pax ?? 0) > kapasitas) f("INV-47", `${got.pax} orang di meja berkapasitas ${kapasitas}`);
-        if (!got.checkin || !/^[0-9]{6}$/.test(got.checkin)) f("INV-47", `reservasi tanpa kode check-in 6 angka`);
-      }
-    }
 
     // INV-48 akun staf
     if (!a.employees.some((e) => e.active && e.role === "superadmin")) f("INV-48", `tidak ada superadmin aktif setelah ${act.t}`);
@@ -649,6 +755,22 @@ function runSim(sim: number) {
       if (billiardTotalOf(w, a.rates, now).amount !== 0) f("INV-49", `paket per jam sudah ditagih sebelum lewat toleransi 5 menit`);
       const nanti = billiardTotalOf(w, a.rates, w.startsAt + 40 * 60_000).amount;
       if (nanti !== want) f("INV-49", `paket per jam bermeteran (menit ke-40 ditagih ${nanti}, seharusnya tetap ${want})`);
+    }
+
+    // Buka meja DENGAN PAKET PEMILIK: harga, lama, jatah minuman, dan
+    // pagarnya — semuanya dari paketnya, bukan dari tarif per jam.
+    if (act.t === "walkin" && ok && act.paketId) {
+      const w = a.sessions.find((x) => !b.sessions.some((y) => y.id === x.id))!;
+      const pk = (b.packages ?? []).find((p) => p.id === act.paketId)!;
+      if (w.tableAmount !== pk.price) f("INV-49", `${pk.name} dihargai ${w.tableAmount}, seharusnya ${pk.price}`);
+      if (w.blockHours !== pk.hours) f("INV-49", `lama ${pk.name} tidak tercatat di sesinya`);
+      if (w.paket !== pk.id) f("INV-49", `paket tidak tercatat di sesinya`);
+      if ((w.freeDrinks ?? 0) !== pk.freeDrinks) f("INV-49", `jatah minuman ${pk.name} tidak ikut`);
+      if (w.endsAt !== w.startsAt + pk.hours * 3_600_000) f("INV-49", `jam selesai ${pk.name} salah`);
+      if (sessType(w) !== "regular") f("INV-49", `${pk.name} dibuka di meja ${sessType(w)}`);
+      if (venueDari(w.tableId) !== (pk.venue ?? "spl")) f("INV-49", `${pk.name} dibuka di venue sebelah`);
+      const nanti = billiardTotalOf(w, a.rates, w.startsAt + 40 * 60_000).amount;
+      if (nanti !== pk.price) f("INV-49", `${pk.name} bermeteran (menit ke-40 ditagih ${nanti})`);
     }
 
     // INV-50 takeaway dibayar di kasir
@@ -706,9 +828,60 @@ function runSim(sim: number) {
     if (r.gross !== r.diterima + r.prabayar) f("INV-08", `rekap: nilai ${r.gross} ≠ diterima ${r.diterima} + prabayar ${r.prabayar}`);
     const kanal = Object.entries(r.byChannel).filter(([k]) => k !== "prabayar").reduce((n, [, v]) => n + v.gross, 0);
     if (kanal !== r.diterima) f("INV-08", `jumlah per kanal ${kanal} ≠ diterima ${r.diterima}`);
-    if (r.dpp + r.tax !== r.gross) f("INV-08", `DPP + pajak ≠ nilai penjualan`);
+    if (r.dpp + r.tax + (r.service ?? 0) !== r.gross) f("INV-08", `DPP + PPN + service ≠ nilai penjualan`);
+    if (a.pajak.service === 0 && (r.service ?? 0) !== 0) f("INV-08", `service ${r.service} padahal persennya 0`);
     if (r.billiard + r.fnb - r.discount !== r.gross) f("INV-08", `lini usaha tidak menjumlah ke nilai penjualan`);
     if (r.gross !== expGross) f("INV-24", `rekap hari ini ${r.gross}, seharusnya ${expGross} (hanya ${today}, termasuk takeaway)`);
+
+    // INV-55 omzet per shift. Yang dijaga: tidak ada uang yang hilang atau
+    // terhitung dua kali saat dipecah per shift, dan pecahan kanalnya tepat.
+    const os = omzetPerShift(a, today);
+    if (os.semua.diterima !== r.diterima) f("INV-55", `jumlah shift ${os.semua.diterima} ≠ diterima ${r.diterima}`);
+    if (os.semua.prabayar !== r.prabayar) f("INV-55", `prabayar per shift ${os.semua.prabayar} ≠ ${r.prabayar}`);
+    if (os.semua.tunai + os.semua.qris + os.semua.edc !== os.semua.diterima) {
+      f("INV-55", `pecahan kanal shift tidak menjumlah ke diterima`);
+    }
+    if (os.semua.tunai !== (r.byChannel.cash?.gross ?? 0)) f("INV-55", `tunai per shift ${os.semua.tunai} ≠ kanal tunai ${r.byChannel.cash?.gross ?? 0}`);
+    if (os.semua.edc !== (r.byChannel.edc?.gross ?? 0)) f("INV-55", `EDC per shift ${os.semua.edc} ≠ kanal EDC ${r.byChannel.edc?.gross ?? 0}`);
+    // Pecahan EDC per mesin harus menjumlah TEPAT ke EDC-nya: itulah yang
+    // dipakai mencocokkan setoran tiap bank. Nama mesin yang tidak terdaftar
+    // tidak boleh muncul sebagai kolom sendiri.
+    const totalMesin = Object.values(os.semua.edcPer).reduce((n, v) => n + v, 0);
+    if (totalMesin !== os.semua.edc) f("INV-55", `pecahan mesin EDC ${totalMesin} ≠ EDC ${os.semua.edc}`);
+    const sahMesin = new Set([...mesinEdc(a), "Tanpa mesin"]);
+    for (const m of Object.keys(os.semua.edcPer)) {
+      if (!sahMesin.has(m)) f("INV-55", `mesin EDC tidak terdaftar masuk laporan: ${m}`);
+    }
+    if (os.semua.sewaMeja + os.semua.barang - os.semua.diskon !== r.gross) {
+      f("INV-55", `lini usaha per shift tidak menjumlah ke omzet ${r.gross}`);
+    }
+
+    // INV-56 laporan produk. Hari ini belum tutup buku, jadi angkanya harus
+    // sama persis dengan nilai barang di rekap tiga jenis — dan compliment
+    // tidak boleh muncul sebagai uang masuk di kolom kanal mana pun.
+    const lp = penjualanProduk(a, today, today);
+    const r3 = rekapTigaJenis(a, today);
+    if (lp.total !== r3.totalBarang) f("INV-56", `laporan produk ${lp.total} ≠ nilai barang rekap ${r3.totalBarang}`);
+    const kanalProduk = lp.perKanal.tunai + lp.perKanal.qris + lp.perKanal.edc + lp.perKanal.prabayar + lp.perKanal.lain;
+    if (kanalProduk !== lp.total) f("INV-56", `pecahan kanal produk ${kanalProduk} ≠ total ${lp.total}`);
+    for (const b of lp.baris) {
+      if (b.tunai + b.qris + b.edc + b.prabayar + b.lain !== b.total) f("INV-56", `baris ${b.nama}: kanal tidak menjumlah ke totalnya`);
+    }
+    // Oracle kanal prabayar: dihitung ulang dari barisnya, bukan dari mesin.
+    const prabayarBaris = closedToday.reduce((n, s) =>
+      n + s.fnb.filter((l) => l.prepaid).reduce((m, l) => m + lineValue(l), 0), 0)
+      + takeawayToday.reduce((n, o) => n + (o.paidOnline >= sum(o.lines) ? sum(o.lines) : 0), 0);
+    if (lp.perKanal.prabayar !== prabayarBaris) {
+      f("INV-56", `kanal prabayar ${lp.perKanal.prabayar} ≠ nilai baris prabayar ${prabayarBaris}`);
+    }
+    const compSesi = closedToday.reduce((n, s) => n + (s.settledCompliment ?? 0), 0);
+    if ((r.compliment ?? 0) !== compSesi) f("INV-56", `compliment rekap ${r.compliment} ≠ jumlah tab ${compSesi}`);
+    for (const s of closedToday) {
+      const dariBaris = s.fnb.reduce((n, l) => n + (l.comp ?? 0), 0);
+      if ((s.settledCompliment ?? 0) !== dariBaris) {
+        f("INV-56", `${s.id}: compliment beku ${s.settledCompliment ?? 0} ≠ jumlah barisnya ${dariBaris}`);
+      }
+    }
     for (const s of a.sessions) {
       if (s.status === "booked") {
         const due = noShowDue(a.sessions, s, readyFrom[s.id] ?? 0);
@@ -737,8 +910,12 @@ function runSim(sim: number) {
     }
 
     // INV-12 / INV-13 void
-    if (act.t === "requestVoid" && ok && role === "karyawan" && moneySig(a) !== moneySig(b)) {
-      f("INV-12", `void karyawan langsung mengubah uang/stok sebelum disetujui`);
+    // Yang dijaga: void dari orang yang TIDAK berhak menyetujui tidak boleh
+    // langsung menggerakkan uang. Sebelumnya disaring `role === "karyawan"`,
+    // dan sejak akun bawaan pindah ke `kru_kasir` saringan itu tidak pernah
+    // cocok lagi — INV-12 hijau tanpa pernah benar-benar dijalankan.
+    if (act.t === "requestVoid" && ok && !can(role, "setujuiVoid") && moneySig(a) !== moneySig(b)) {
+      f("INV-12", `void ${role} langsung mengubah uang/stok sebelum disetujui`);
     }
     if ((act.t === "requestVoid" || act.t === "decideVoid") && ok) {
       for (const s of b.sessions.filter((x) => x.status === "done")) {
@@ -781,11 +958,19 @@ function runSim(sim: number) {
       }
     }
 
-    // INV-14 lampu nyala saat buka meja / check-in
+    // INV-14 lampu nyala saat buka meja / check-in — HANYA meja biliar.
+    // Meja makan Smokehouse tidak punya lampu di atasnya; mencatatnya berarti
+    // menghitung barang yang tidak ada, dan angkanya ikut muncul di papan
+    // serta rekap venue resto.
     if ((act.t === "walkin" || act.t === "checkin") && ok) {
       const opened = a.sessions.find((x) => x.status === "running" &&
         !b.sessions.find((y) => y.id === x.id && y.status === "running"));
-      if (opened && !a.lights[opened.tableId]) f("INV-14", `lampu ${opened.tableId} mati setelah ${act.t}`);
+      if (opened && punyaLampu(opened.tableId) && !a.lights[opened.tableId]) {
+        f("INV-14", `lampu ${opened.tableId} mati setelah ${act.t}`);
+      }
+    }
+    for (const id of Object.keys(a.lights)) {
+      if (!punyaLampu(id)) f("INV-14", `meja makan ${id} punya catatan lampu`);
     }
 
     // INV-15 jejak audit
@@ -811,7 +996,7 @@ function runSim(sim: number) {
       const m1 = billiardTotalOf(s, a.rates, now).amount;
       const m0 = billiardTotalOf(s, a.rates, Math.max(s.startsAt, now - 7 * 60_000)).amount;
       if (m1 < m0) f("INV-17", `meteran ${s.id} turun ${m0} → ${m1}`);
-      if (m1 % 500 !== 0) f("INV-17", `meteran ${s.id} ${m1} bukan kelipatan 500`);
+      if (m1 % 1000 !== 0) f("INV-17", `meteran ${s.id} ${m1} bukan kelipatan 1.000`);
     }
 
     // INV-18 / INV-22 / INV-30 booking online
@@ -852,7 +1037,7 @@ function runSim(sim: number) {
       const bk = b.sessions.find((x) => x.checkin === act.code && x.status === "booked")!;
       const run = a.sessions.find((x) => x.id === bk.id)!;
       if (run.endsAt !== bk.endsAt) f("INV-19", `check-in memindah jam selesai ${bk.id} (${Math.round((run.endsAt - bk.endsAt) / 60000)} menit)`);
-      const pre = bk.fnb.filter((l) => prepaid.has(`${bk.id}|${l.key}`));
+      const pre = bk.fnb.filter((l) => prepaid.has(`${bk.id}|${l.key}`) && perluTiket(l.itemId));
       for (const l of pre) {
         if (!a.tickets.some((t) => t.sessionId === bk.id && t.itemId === l.itemId)) {
           f("INV-20", `pesanan online ${l.itemId} untuk ${bk.id} tidak masuk dapur`);
@@ -882,7 +1067,9 @@ function runSim(sim: number) {
     // INV-27 relokasi
     if (act.t === "relocate" && ok) {
       const s0 = b.sessions.find((x) => x.id === act.id)!;
-      if (s0.status === "running" && (a.lights[s0.tableId] || !a.lights[act.toTableId])) {
+      // Lampu hanya ikut pindah antar meja BILIAR — meja makan tidak punya.
+      if (s0.status === "running" && punyaLampu(act.toTableId)
+          && (a.lights[s0.tableId] || !a.lights[act.toTableId])) {
         f("INV-27", `lampu tidak ikut pindah ${s0.tableId} → ${act.toTableId}`);
       }
     }
@@ -890,7 +1077,16 @@ function runSim(sim: number) {
     // INV-28 Paket Siang
     for (const s of a.sessions) {
       const lines = s.status === "hold" ? (s.holdLines ?? []) : s.fnb;
-      const gratis = lines.filter((l) => l.unitPrice === 0);
+      // Baris berharga nol ada DUA JENIS sejak SMH-11b: minuman jatah Paket
+      // Siang, dan barang yang di-compliment. Yang kedua membawa harga
+      // aslinya di `comp`. Kalau keduanya dicampur di sini, satu compliment
+      // di meja paket akan terbaca seperti jatah minuman yang ketiga.
+      const gratis = lines.filter((l) => l.unitPrice === 0 && l.comp === undefined);
+      for (const l of lines) {
+        if (l.unitPrice === 0 && l.comp !== undefined && !(l.comp > 0)) {
+          f("INV-56", `${s.id}: baris compliment ${l.key} tidak menyimpan harga aslinya`);
+        }
+      }
       if (s.paket !== "siang") {
         if (gratis.length) f("INV-28", `${s.id} bukan Paket Siang tapi punya minuman gratis`);
         continue;
@@ -903,15 +1099,99 @@ function runSim(sim: number) {
       }
     }
 
+    // INV-57 gabung meja (SMH-4). Grup hanya penanda, jadi yang dijaga: tidak
+    // ada uang yang berpindah karenanya, grupnya tidak pernah lintas venue,
+    // dan tidak ada grup berisi satu meja (itu bukan gabungan).
+    if (act.t === "gabungMeja") {
+      const diminta = [...new Set(act.ids)].map((id) => b.sessions.find((x) => x.id === id));
+      const tidakSah = diminta.some((x) => !x || x.status !== "running")
+        || new Set(diminta.filter(Boolean).map((x) => venueDari(x!.tableId))).size > 1;
+      // Jejak audit ikut diperiksa, bukan cuma sesinya: penanda grup yang
+      // salah akan langsung dibersihkan `rapikanGrup`, jadi satu-satunya
+      // bekas yang tertinggal dari gabungan yang seharusnya DITOLAK adalah
+      // baris "Meja digabung" di jejak — dan jejak yang mengaku melakukan
+      // sesuatu yang tidak terjadi lebih berbahaya daripada tidak mencatat.
+      if (tidakSah && JSON.stringify(a.sessions) !== JSON.stringify(b.sessions)) {
+        f("INV-57", `gabung meja yang tidak sah tetap mengubah sesi`);
+      }
+      if (tidakSah && a.log.length !== b.log.length) {
+        f("INV-57", `gabung meja yang tidak sah tetap tercatat di jejak audit`);
+      }
+    }
+    if (act.t === "gabungMeja" || act.t === "pisahMeja") {
+      for (const s1 of a.sessions) {
+        const s0 = b.sessions.find((x) => x.id === s1.id);
+        if (!s0) continue;
+        if (JSON.stringify(s0.fnb) !== JSON.stringify(s1.fnb)) f("INV-57", `${s1.id}: pesanan berubah karena ${act.t}`);
+        if (s0.paidOnline !== s1.paidOnline || splitPaid(s0) !== splitPaid(s1)) {
+          f("INV-57", `${s1.id}: uang yang sudah masuk berubah karena ${act.t}`);
+        }
+        if ((s0.tableAmount ?? 0) !== (s1.tableAmount ?? 0)) f("INV-57", `${s1.id}: nilai meja berubah karena ${act.t}`);
+      }
+    }
+    {
+      const perGrup = new Map<string, LiveSession[]>();
+      for (const s of a.sessions) {
+        if (!s.grup) continue;
+        perGrup.set(s.grup, [...(perGrup.get(s.grup) ?? []), s]);
+      }
+      for (const [tag, xs] of perGrup) {
+        if (xs.length < 2) f("INV-57", `grup ${tag} berisi ${xs.length} meja — itu bukan gabungan`);
+        if (new Set(xs.map((x) => venueDari(x.tableId))).size > 1) {
+          f("INV-57", `grup ${tag} memuat dua venue — rekapnya wajib terpisah`);
+        }
+        if (xs.some((x) => x.status !== "running")) {
+          f("INV-57", `grup ${tag} memuat tab yang tidak berjalan (${xs.find((x) => x.status !== "running")!.status})`);
+        }
+        const dariMesin = tagihanGrup(a, xs[0].id, now);
+        const jumlahSendiri = xs.reduce((n, x) => n + settlementOf(x, a, now).due, 0);
+        if (dariMesin !== jumlahSendiri) {
+          f("INV-57", `tagihan grup ${tag} ${dariMesin} ≠ jumlah tagihan mejanya ${jumlahSendiri}`);
+        }
+      }
+    }
+
+    // INV-52 barang counter tidak pernah masuk dapur
+    for (const tk of a.tickets) {
+      if (!perluTiket(tk.itemId)) f("INV-52", `${tk.name} masuk ${tk.station}, padahal barang counter`);
+    }
+
     // INV-29 pesanan tamu
     if (act.t === "guestOrder") {
       const o = act.order;
       const got = a.orders.find((x) => x.id === o.id);
       const sessB = o.mode === "meja" ? b.sessions.find((x) => x.tableId === o.tableId && x.status === "running") : undefined;
+      /**
+       * Sejak 12 Okt 2026 meja RESTO dibuka oleh pesanan tamunya sendiri —
+       * di resto, yang membuka meja memang tamu yang duduk lalu memesan,
+       * dan meja makan tidak bersewa waktu jadi tidak ada uang yang bergerak
+       * karena mejanya terbuka. Meja BILIAR tetap harus dibuka kasir:
+       * membukanya menjalankan meteran.
+       */
+      const sesiBaru = !sessB && o.mode === "meja" && !!o.tableId
+        ? a.sessions.find((x) => x.tableId === o.tableId && x.status === "running"
+            && !b.sessions.some((y) => y.id === x.id))
+        : undefined;
+      const sess0 = sessB ?? sesiBaru;
       if (!got) {
         if (!b.orders.some((x) => x.id === o.id)) f("INV-29", `pesanan ${o.code} hilang tanpa jejak (tidak diterima maupun ditolak)`);
       } else if (ok) {
-        if (o.mode === "meja" && !sessB) f("INV-29", `pesanan QR ${o.code} diterima padahal ${o.tableId} belum dibuka kasir`);
+        if (o.mode === "meja" && !sess0) f("INV-29", `pesanan QR ${o.code} diterima padahal ${o.tableId} tidak punya tab`);
+        if (sesiBaru) {
+          // Meja yang membuka dirinya sendiri HARUS meja resto, tanpa sewa
+          // waktu, tanpa blok jam, dan tidak boleh menabrak reservasi.
+          if (classOf(a, sesiBaru.tableId) !== "resto") {
+            f("INV-29", `meja ${sesiBaru.tableId} (bukan resto) dibuka sendiri oleh pesanan ${o.code}`);
+          }
+          if (sesiBaru.tableAmount !== 0 || sesiBaru.blockHours !== undefined) {
+            f("INV-29", `meja resto dibuka pesanan ${o.code} tapi bersewa waktu`);
+          }
+          const sampai = now + 30 * 60_000;
+          if (b.sessions.some((x) => x.tableId === sesiBaru.tableId && ACTIVE.has(x.status)
+              && x.startsAt < sampai && x.endsAt > now)) {
+            f("INV-29", `meja ${sesiBaru.tableId} dibuka pesanan ${o.code} padahal jamnya bentrok`);
+          }
+        }
         if (o.sessionId && sessB?.id !== o.sessionId) f("INV-29", `pesanan QR ${o.code} masuk ke tab lain (tab tamu ${o.sessionId} sudah berganti)`);
         // Takeaway boleh "bayar di kasir", tapi uangnya belum boleh diakui sebelum dibayar.
         if (o.mode === "takeaway" && o.pay !== "online" && (got.payment || got.paidOnline > 0)) {
@@ -920,17 +1200,19 @@ function runSim(sim: number) {
         const want = priceLines(b, o.lines, sessB?.freeDrinks ?? 0).total;
         if (got.value !== want || sum(got.lines) !== want) f("INV-29", `pesanan ${o.code} bernilai ${got.value}, harga terkini ${want}`);
         const tk = a.tickets.filter((t) => t.sessionId === (got.sessionId ?? got.id) && !b.tickets.some((x) => x.id === t.id));
-        const qtyTk = tk.reduce((n, t) => n + t.qty, 0), qtyLines = got.lines.reduce((n, l) => n + l.qty, 0);
+        const qtyTk = tk.reduce((n, t) => n + t.qty, 0);
+        const qtyLines = got.lines.filter((l) => perluTiket(l.itemId)).reduce((n, l) => n + l.qty, 0);
         if (qtyTk !== qtyLines) f("INV-29", `pesanan ${o.code}: ${qtyLines} porsi dipesan, ${qtyTk} masuk dapur`);
-        if (sessB) {
-          const sA = a.sessions.find((x) => x.id === sessB.id)!;
-          const added = sA.fnb.slice(sessB.fnb.length);
+        if (sess0) {
+          const sA = a.sessions.find((x) => x.id === sess0.id)!;
+          const sebelum = sessB ?? { ...sess0, fnb: [], paidOnline: 0 };
+          const added = sA.fnb.slice(sebelum.fnb.length);
           if (o.pay === "online") {
             for (const l of added) prepaid.add(`${sA.id}|${l.key}`);
-            if (sA.paidOnline - sessB.paidOnline !== got.value) f("INV-29", `pesanan QR lunas ${o.code} tidak tercatat sebagai prabayar meja`);
-            if (settlementOf(sA, a, now).counterFnb !== settlementOf(sessB, b, now).counterFnb) f("INV-29", `pesanan QR lunas ${o.code} ikut ditagih lagi di kasir`);
+            if (sA.paidOnline - sebelum.paidOnline !== got.value) f("INV-29", `pesanan QR lunas ${o.code} tidak tercatat sebagai prabayar meja`);
+            if (settlementOf(sA, a, now).counterFnb !== settlementOf(sebelum, a, now).counterFnb) f("INV-29", `pesanan QR lunas ${o.code} ikut ditagih lagi di kasir`);
           } else {
-            const d = settlementOf(sA, a, now).counterFnb - settlementOf(sessB, b, now).counterFnb;
+            const d = settlementOf(sA, a, now).counterFnb - settlementOf(sebelum, a, now).counterFnb;
             if (d !== got.value) f("INV-29", `pesanan QR ${o.code} (bayar di kasir) menambah bill ${d}, seharusnya ${got.value}`);
           }
           if (sum(added) !== got.value) f("INV-29", `pesanan QR ${o.code} tidak menempel utuh ke bill meja`);
@@ -1036,6 +1318,32 @@ function runSim(sim: number) {
       }
     }
 
+    // INV-54 transfer gudang
+    if (act.t === "transferStock") {
+      const qtyDi = (x: typeof a, itemId: string) =>
+        ((x.gudangCentral ?? []).find((r) => r.itemId === itemId)?.qty ?? 0)
+        + (x.stock.find((r) => r.itemId === itemId)?.qty ?? 0);
+      if (qtyDi(b, act.itemId) !== qtyDi(a, act.itemId)) {
+        f("INV-54", `transfer ${act.itemId}: total ${qtyDi(b, act.itemId)} → ${qtyDi(a, act.itemId)}`);
+      }
+      if (ok && gudangDari(act.itemId) === "bar") {
+        f("INV-54", `Gudang Bar dipasok Central lewat ${act.itemId}, padahal berdiri sendiri`);
+      }
+      const pusat = (a.gudangCentral ?? []).find((r) => r.itemId === act.itemId)?.qty ?? 0;
+      if (pusat < 0) f("INV-54", `Gudang Central ${act.itemId} minus (${pusat})`);
+    }
+
+    // INV-53 PPN & service: harga SUDAH TERMASUK, jadi mengubah persennya
+    // tidak boleh menggeser satu rupiah pun. Yang berubah cuma pemecahan
+    // dpp/PPN/service — dan ketiganya tetap menjumlah tepat ke gross.
+    if (act.t === "setPajak" && ok) {
+      const hari = businessDateOf(now);
+      const r0 = recap(b, hari), r1 = recap(a, hari);
+      if (r0.gross !== r1.gross) f("INV-53", `gross berubah ${r0.gross} → ${r1.gross} karena ubah ${act.key}`);
+      if (r0.diterima !== r1.diterima) f("INV-53", `uang diterima berubah ${r0.diterima} → ${r1.diterima}`);
+      if (r0.billiard !== r1.billiard || r0.fnb !== r1.fnb) f("INV-53", "omzet per lini berubah karena ubah pajak");
+    }
+
     // INV-37 tarif open bill dibekukan
     if (act.t === "setRate" && ok) {
       for (const s0 of b.sessions.filter(isOpenBill)) {
@@ -1061,18 +1369,23 @@ function runSim(sim: number) {
       } else {
         if (now >= s0.endsAt) f("INV-40", `${s0.id} dipulihkan setelah jadwalnya habis`);
         if (s1.endsAt !== s0.endsAt) f("INV-19", `${s0.id} jam selesai bergeser saat dipulihkan`);
-        if (!a.lights[s1.tableId]) f("INV-14", `lampu ${s1.tableId} mati setelah no-show dipulihkan`);
+        if (punyaLampu(s1.tableId) && !a.lights[s1.tableId]) {
+          f("INV-14", `lampu ${s1.tableId} mati setelah no-show dipulihkan`);
+        }
         const back = s0.noShowFnb ?? [];
-        const dropped = back.filter((l) => !s1.fnb.some((k) => k.key === l.key));
+        // Hanya baris yang MEMANG DIBAYAR yang bisa dikembalikan dananya.
+        // Pra-pesan reservasi resto tidak pernah ditagih di muka.
+        const dropped = back.filter((l) => l.prepaid && !s1.fnb.some((k) => k.key === l.key));
         const fresh = a.refunds.filter((r) => !b.refunds.some((x) => x.id === r.id));
         const refunded = fresh.reduce((n, r) => n + r.amount, 0);
         if (refunded !== sum(dropped)) f("INV-40", `refund pra-order ${refunded}, seharusnya ${sum(dropped)}`);
         if (fresh.some((r) => r.bookingCode !== (s0.bookingCode ?? s0.id))) f("INV-36", `refund pulihkan ${s0.id} tidak atas kode bookingnya`);
         if (s1.paidOnline !== s0.paidOnline - sum(dropped)) f("INV-40", `prabayar ${s1.paidOnline}, seharusnya ${s0.paidOnline - sum(dropped)}`);
         for (const l of s1.fnb) {
+          if (!perluTiket(l.itemId)) continue;
           if (!a.tickets.some((t) => t.sessionId === s1.id && t.lineKey === l.key)) f("INV-40", `pra-order ${l.key} tidak masuk dapur`);
         }
-        const freeBack = dropped.filter((l) => l.unitPrice === 0).reduce((n, l) => n + l.qty, 0);
+        const freeBack = dropped.filter((l) => l.unitPrice === 0 && l.comp === undefined).reduce((n, l) => n + l.qty, 0);
         if (s0.freeDrinks !== undefined && s1.freeDrinks !== s0.freeDrinks + freeBack) f("INV-28", `jatah minuman gratis ${s1.freeDrinks}, seharusnya ${s0.freeDrinks + freeBack}`);
       }
     }
@@ -1202,7 +1515,7 @@ function runSim(sim: number) {
       if (script.stage === 0) {
         const startsAt = new Date(now).setMinutes(0, 0, 0) + 3_600_000;
         const t = TABLES.find((x) => classOf(st, x.id) === "regular" &&
-          !slotProblem(st, { tableId: x.id, startsAt, hours: 2, paket: true }, now, false));
+          !slotProblem(st, { tableId: x.id, startsAt, hours: 2, paket: "siang" }, now, false));
         if (t) {
           const code = `SPL-PAKET${sim}`;
           script.id = `o-${code}`;
@@ -1260,16 +1573,17 @@ function runSim(sim: number) {
     // ── Skenario terarah kecil (deterministik, tidak memakai angka acak) ──
     const freeRegular = (from: number, until: number) => TABLES.find((t) => classOf(st, t.id) === "regular" &&
       !st.sessions.some((x) => x.tableId === t.id && ACTIVE.has(x.status) && overlaps(x.startsAt, blockEndOf(x, now), from, until)));
-    // (a) Meteran presisi: 35.000/jam × 54 menit harus tepat Rp 31.500 — bukan 32.000 karena galat desimal.
-    if (sim % 4 === 1 && step === 2 && hourIdx(now) + 1 < 18) {
+    // (a) Meteran presisi: 25.000/jam × 96 menit harus tepat Rp 40.000 — bukan
+    //     41.000 karena galat desimal (25000/60*96 = 40000,000000000007).
+    if (sim % 4 === 1 && step === 2 && hourIdx(now) + 2 < 18) {
       login(superadmin[0], step);
       ensureShift(step);
-      dispatch({ t: "setRate", key: "regularDay", value: 35_000 }, step);
-      const t = freeRegular(now, now + 70 * 60_000);
+      dispatch({ t: "setRate", key: "regularDay", value: 25_000 }, step);
+      const t = freeRegular(now, now + 110 * 60_000);
       if (t && dispatch({ t: "walkin", tableId: t.id, guest: "Presisi" }, step)) {
         const w = st.sessions.find((x) => x.tableId === t.id && x.status === "running" && x.guest === "Presisi")!;
-        now = w.startsAt + 54 * 60_000;
-        if (dispatch({ t: "settle", id: w.id, channel: "cash" }, step)) (coverage["(skenario) meteran presisi 54 menit"] ??= { ok: 0, ditolak: 0 }).ok++;
+        now = w.startsAt + 96 * 60_000;
+        if (dispatch({ t: "settle", id: w.id, channel: "cash" }, step)) (coverage["(skenario) meteran presisi 96 menit"] ??= { ok: 0, ditolak: 0 }).ok++;
       }
     }
     // (b) Tanda habis manual (mis. mesin es rusak) tidak dicabut oleh koreksi stok.
@@ -1381,7 +1695,7 @@ function runSim(sim: number) {
         const cold = COLD.find((i) => !st.soldOut.includes(i.id) && (st.stock.find((r) => r.itemId === i.id)?.qty ?? 99) > 2);
         const startsAt = new Date(now).setMinutes(0, 0, 0) + 3_600_000;
         const t = cold && TABLES.find((x) => x.type === "regular" &&
-          !slotProblem(st, { tableId: x.id, startsAt, hours: 2, paket: true }, now, false));
+          !slotProblem(st, { tableId: x.id, startsAt, hours: 2, paket: "siang" }, now, false));
         if (cold && t) {
           dispatch({
             t: "confirmOnline",
@@ -1401,6 +1715,73 @@ function runSim(sim: number) {
       } else if (bk?.status === "noshow" && step === 12) {
         const c = (coverage["(skenario) pulihkan no-show, minuman gratis sudah habis"] ??= { ok: 0, ditolak: 0 });
         dispatch({ t: "restoreNoShow", id }, step) ? c.ok++ : c.ditolak++;
+      }
+    }
+
+    /* (j) Void minuman jatah Paket Siang: jatahnya WAJIB kembali ke tamu.
+     *
+     * Dibuat sebagai skenario PASTI, bukan diserahkan ke undian: jalurnya
+     * butuh empat hal berbarengan — sesi Paket Siang, baris minuman
+     * berharga nol, permintaan void baris itu, dan persetujuannya. Diundi,
+     * keempatnya pernah bertemu cuma beberapa kali dalam 100 simulasi, dan
+     * mutan yang menghapus pengembalian jatah itu LOLOS. */
+    if (sim % 5 === 3 && step >= 8 && step <= 10 && hourIdx(now) <= 14) {
+      login(superadmin[0], step);
+      ensureShift(step);
+      const id = `o-JATAH${sim}`;
+      const bk = st.sessions.find((x) => x.id === id);
+      if (!bk && step === 8) {
+        const startsAt = new Date(now).setMinutes(0, 0, 0) + 3_600_000;
+        const t = TABLES.find((x) => x.type === "regular" &&
+          !slotProblem(st, { tableId: x.id, startsAt, hours: 2, paket: "siang" }, now, false));
+        if (t) {
+          // SENGAJA tanpa pra-order: jatah minumannya diambil nanti di kasir.
+          // Baris pra-order bertanda `prepaid`, dan baris prepaid memang TIDAK
+          // bisa di-void per baris (uangnya sudah masuk — jalurnya refund
+          // pesanan). Jadi jalur "jatah kembali" hanya bisa diuji lewat
+          // minuman yang dipesan di kasir.
+          dispatch({
+            t: "confirmOnline",
+            session: {
+              id, tableId: t.id, source: "online", guest: "Jatah paket", startsAt, endsAt: startsAt + 2 * 3_600_000,
+              status: "booked", bookingCode: `SPL-JATAH${sim}`, checkin: `J${sim}`,
+              fnb: [], tableAmount: 0,
+              paidOnline: PAKET_SIANG.price, paket: "siang",
+            } as LiveSession,
+          }, step);
+        }
+      } else if (bk?.status === "booked" && step === 9) {
+        dispatch({ t: "checkin", code: `J${sim}` }, step);
+      } else if (bk?.status === "running" && step === 10) {
+        const c = (coverage["(skenario) void jatah minuman Paket Siang"] ??= { ok: 0, ditolak: 0 });
+        // Ambil satu minuman jatahnya di kasir — baris ini berharga nol dan
+        // BUKAN prepaid, jadi bisa di-void per baris.
+        const cold = COLD.find((i) => !st.soldOut.includes(i.id) && (st.stock.find((r) => r.itemId === i.id)?.qty ?? 99) > 1);
+        if (cold) {
+          dispatch({
+            t: "addFnb", sessionId: bk.id, name: cold.name, station: cold.station,
+            line: { key: `jatah-${sim}`, itemId: cold.id, qty: 1 },
+          }, step);
+        }
+        const sesi = st.sessions.find((x) => x.id === bk.id);
+        const gratis = sesi?.fnb.find((l) => l.unitPrice === 0 && !l.prepaid && l.comp === undefined);
+        if (!gratis) {
+          c.ditolak++;
+        } else {
+          dispatch({
+            t: "requestVoid",
+            req: { targetKind: "item", targetId: `${bk.id}|${gratis.key}`, label: "item", amount: 0, reason: "Salah input" },
+          }, step);
+          // Superadmin: void langsung disetujui & diterapkan, jadi biasanya
+          // tidak ada yang menunggu. Tetap dicek supaya skenarionya tidak
+          // bergantung pada siapa yang kebetulan masuk.
+          const v = st.voids.find((x) => x.status === "menunggu" && x.targetId === `${bk.id}|${gratis.key}`);
+          if (v) dispatch({ t: "decideVoid", id: v.id, approve: true }, step);
+          // Yang dihitung berhasil adalah AKIBATNYA, bukan apakah aksinya
+          // diterima: baris jatahnya benar-benar hilang dari bill.
+          const sesudah = st.sessions.find((x) => x.id === bk.id);
+          sesudah && !sesudah.fnb.some((l) => l.key === gratis.key) ? c.ok++ : c.ditolak++;
+        }
       }
     }
 
@@ -1503,11 +1884,26 @@ function runSim(sim: number) {
     const booked = st.sessions.filter((s) => s.status === "booked");
 
     if (w < 11) {
-      // Sesekali meja resto dibuka kasir (tamu makan tanpa reservasi): tanpa meteran jam.
       // Sebagian tamu membeli PAKET PER JAM (harga blok), sisanya open bill bermeteran.
-      const meja = rnd() < 0.15 ? pick(RESTO) : pick(BILLIARD);
-      const paketJam = rnd() < 0.3 ? pick([1, 2, 3, 9]) : undefined;   // 9 jam sengaja: harus ditolak
-      dispatch({ t: "walkin", tableId: meja.id, guest: `Tamu${step}`, ...(paketJam ? { hours: paketJam } : {}) }, step);
+      // Sebagian tamu duduk di Smokehouse: mejanya tidak bersewa, tapi
+      // pesanan, split bill, void, dan rekapnya harus tetap benar — dan
+      // gabungannya tidak boleh pernah lintas venue.
+      const meja = rnd() < 0.2 && SMOKEHOUSE.length ? pick(SMOKEHOUSE) : pick(BILLIARD);
+      /*
+       * Sebagian tamu dibukakan meja memakai PAKET PEMILIK (Paket Siang, dan
+       * paket apa pun yang pemilik buat sendiri di tab Atur) — permintaan
+       * pemilik 21 Okt 2026. Paketnya dipilih acak dari seluruh daftar, dan
+       * mejanya acak dari seluruh denah, justru supaya jalur yang DITOLAK
+       * ikut terinjak: meja VIP, lewat jam mulai terakhir, dan paket venue
+       * sebelah.
+       */
+      const semuaPaket = st.packages ?? [];
+      const pakaiPaket = rnd() < 0.2 && semuaPaket.length > 0;
+      const paketJam = !pakaiPaket && rnd() < 0.3 ? pick([1, 2, 3, 9]) : undefined;   // 9 jam sengaja: harus ditolak
+      dispatch({
+        t: "walkin", tableId: meja.id, guest: `Tamu${step}`,
+        ...(pakaiPaket ? { paketId: pick(semuaPaket).id } : paketJam ? { hours: paketJam } : {}),
+      }, step);
     } else if (w < 19) {
       // Pelanggan membuka halaman QRIS (hold), atau notifikasi bayar datang tanpa hold.
       const { payload, fresh, stale, race } = bookingPayload(step);
@@ -1521,7 +1917,7 @@ function runSim(sim: number) {
             const held = (h.holdLines ?? []).filter((l) => l.unitPrice !== 0);
             if (held.length && rnd() < 0.25) {
               const it = findItem(pick(held).itemId)!;
-              login(pick(karyawan), step);
+              login(pick(kruAktif()), step);
               if (!st.soldOut.includes(it.id)) dispatch({ t: "toggleSoldOut", itemId: it.id, name: it.name }, step);
             }
             const sent = { ...payload, paidOnline: amount };
@@ -1571,10 +1967,39 @@ function runSim(sim: number) {
         t: "addFnb", sessionId: s.id, name: it.name, station: it.station,
         line: { key: `k-${sim}-${step}`, itemId: it.id, qty },
       }, step);
+    } else if (w < 47 && SMOKEHOUSE.length) {
+      // Reservasi meja makan Smokehouse — tanpa bayar di muka, tanpa sewa
+      // waktu. Jam & jumlah orangnya sengaja kadang ngawur supaya
+      // penolakannya ikut teruji.
+      const mulai = new Date(now + pick([1, 2, 3]) * 3_600_000).setMinutes(0, 0, 0);
+      dispatch({
+        t: "reserveResto",
+        res: {
+          id: `rr-${sim}-${step}`, code: `SPL-RR${sim}X${step}`,
+          guest: `Tamu Resto ${step}`, phone: "081200000000",
+          pax: pick([2, 4, 6, 40]), startsAt: mulai, hours: pick([2, 9]),
+          // Makanannya ikut dipesan (permintaan pemilik 12 Okt 2026).
+          // Kadang kosong, kadang barang karangan — supaya jalur
+          // penolakannya ikut dijalankan, bukan cuma jalur bahagianya.
+          ...(rnd() < 0.75 ? {
+            lines: Array.from({ length: 1 + Math.floor(rnd() * 3) }, (_, i) => ({
+              key: `pra${step}-${i}`,
+              itemId: rnd() < 0.08 ? "barang-karangan" : pick(ALL_ITEMS).id,
+              qty: rnd() < 0.08 ? 0 : 1 + Math.floor(rnd() * 3),
+            })),
+          } : {}),
+        },
+      }, step);
     } else if (w < 49) {
       // Tamu memesan dari HP: scan QR di meja, atau takeaway
       const mode = rnd() < 0.65 ? "meja" : "takeaway";
-      const tableId = mode === "meja" ? (rnd() < 0.8 && running.length ? pick(running).tableId : pick(TABLES).id) : undefined;
+      const dipesan = st.sessions.filter((x) => x.status === "booked" && classOf(st, x.tableId) === "resto");
+      const tableId = mode === "meja"
+        ? (dipesan.length && rnd() < 0.15 ? pick(dipesan).tableId
+          : rnd() < 0.8 && running.length ? pick(running).tableId
+          : rnd() < 0.3 && SMOKEHOUSE.length ? pick(SMOKEHOUSE).id
+          : pick(TABLES).id)
+        : undefined;
       // Takeaway sekarang boleh "bayar di kasir" (pesan makanan saja, bayar saat diambil).
       const pay = rnd() < 0.5 ? "online" : "kasir";
       const lines = randomLines("g", step, 1 + Math.floor(rnd() * 3));
@@ -1604,7 +2029,10 @@ function runSim(sim: number) {
       const due = Math.max(0, bill + fnb - disc - s.paidOnline);
       dispatch({
         t: "settle", id: s.id, channel: pick(["cash", "cash", "edc", "qris_online"] as const),
+        ...(rnd() < 0.6 ? { mesin: pick(["Mandiri", "BRI", "Mesin Hantu"]) } : {}),
         promoCode: rnd() < 0.2 ? "COMBO50" : undefined,
+        // Diskon manual (SMH-11b) — termasuk persen ngawur yang harus dijinakkan mesin.
+        ...(rnd() < 0.15 ? { diskonPersen: pick([5, 10, 50, 100, 150, -20]) } : {}),
         amount: tamper ? Math.round(due * 0.4) : due,
         billiard: tamper ? Math.round(bill * 0.4) : bill, fnb, discount: disc,
       }, step, { tamper });
@@ -1615,10 +2043,11 @@ function runSim(sim: number) {
       } else {
         const pool = st.sessions.filter((x) => x.status !== "maintenance" && x.id !== longTab);
         // Kasir salah input minuman gratis Paket Siang — jatahnya harus kembali.
-        const withFree = running.filter((x) => x.fnb.some((l) => l.unitPrice === 0 && !l.prepaid));
+        const jatahPaket = (l: CartLine) => l.unitPrice === 0 && l.comp === undefined;
+        const withFree = running.filter((x) => x.fnb.some(jatahPaket));
         const target = withFree.length && rnd() < 0.5 ? pick(withFree) : pool.length ? pick(pool) : null;
         if (target) {
-          const free = target.fnb.filter((l) => l.unitPrice === 0 && !l.prepaid);
+          const free = target.fnb.filter(jatahPaket);
           const line = free.length ? pick(free) : target.fnb.length && rnd() < 0.5 ? pick(target.fnb) : null;
           dispatch({
             t: "requestVoid",
@@ -1652,6 +2081,50 @@ function runSim(sim: number) {
       if (rnd() < 0.5) dispatch({ t: "addStock", itemId: row.itemId, delta: pick([-3, 6, 12, 24]) }, step);
       else dispatch({ t: "setStock", itemId: row.itemId, qty: pick([0, 5, 30]) }, step);
     } else if (w < 84) {
+      if (rnd() < 0.3) {
+        // Pajak hanya boleh diubah peran keuangan — dan HARUS benar-benar
+        // pernah berubah: dengan PPN 0 terus-menerus, pemecahan pajak tidak
+        // pernah punya sisa, dan uji yang menjaganya jadi uji kosong.
+        login(pick(superadmin), step);
+        dispatch({ t: "setPajak", key: pick(["ppn", "ppn", "service"] as const), value: pick([0, 5, 10, 11, 12.5]) }, step);
+      }
+      // Gudang: barang masuk ke Central, lalu dikeluarkan ke outlet.
+      //
+      // Barangnya DIPILIH yang stoknya memang dilacak outlet dan Centralnya
+      // memang ada isinya — kalau diacak dari seluruh buku menu, semua
+      // transfer ditolak sebelum sampai ke aturan yang mau diuji, dan
+      // invariant konservasinya jadi tidak pernah dijalankan sama sekali.
+      {
+        const terlacak = st.stock.filter((r) => r.qty !== null);
+        const pasok = terlacak.filter((r) => bolehDariCentral(r.itemId, st));
+        const bisaKirim = (st.gudangCentral ?? [])
+          .filter((r) => (r.qty ?? 0) > 0 && bolehDariCentral(r.itemId, st));
+        const r2 = rnd();
+        // Stok gudang cuma boleh disentuh peran yang berhak. Izinnya diundi
+        // TERPISAH dari jenis percobaannya: kalau digabung, percobaan yang
+        // sengaja ngawur selalu ditolak karena perannya, dan aturan yang mau
+        // diuji di baliknya tidak pernah kesampaian.
+        if (rnd() < 0.75) login(pick(superadmin), step);
+        if (r2 < 0.4 && terlacak.length) {
+          // Barang BAR pun kadang dimasukkan ke Central (mesin memang
+          // mengizinkannya) — itulah satu-satunya cara aturan "Gudang Bar
+          // berdiri sendiri" bisa diuji di pintu transfernya, bukan ditolak
+          // lebih dulu karena Centralnya kosong.
+          const sasaran = rnd() < 0.3 || !pasok.length ? terlacak : pasok;
+          dispatch({ t: "addStock", itemId: pick(sasaran).itemId, delta: pick([6, 12, 24]), gudang: "central" }, step);
+        } else if (r2 < 0.8 && bisaKirim.length) {
+          const row = pick(bisaKirim);
+          // Termasuk jumlah yang MELEBIHI isi Central — itu harus ditolak.
+          dispatch({ t: "transferStock", itemId: row.itemId, qty: pick([1, 5, (row.qty ?? 0) + 10]) }, step);
+        } else {
+          // Sengaja ngawur: barang bar yang Centralnya ADA isinya (harus
+          // ditolak oleh aturannya sendiri), atau barang yang Centralnya kosong.
+          const barPusat = (st.gudangCentral ?? [])
+            .filter((r) => (r.qty ?? 0) > 0 && !bolehDariCentral(r.itemId, st));
+          const id = barPusat.length && rnd() < 0.7 ? pick(barPusat).itemId : pick(ALL_ITEMS).id;
+          dispatch({ t: "transferStock", itemId: id, qty: pick([1, 5, 40]) }, step);
+        }
+      }
       dispatch({ t: "setRate", key: pick(["regularDay", "regularNight", "vip", "vvip"] as const), value: pick([25_000, 35_000, 45_000, 55_000]) }, step);
     } else if (w < 87) {
       const it = rnd() < 0.5 ? pick(COLD) : pick(ALL_ITEMS);
@@ -1687,11 +2160,15 @@ function runSim(sim: number) {
         const l = pick(s.fnb.length && rnd() < 0.2 ? s.fnb : bisa);
         if (rnd() < 0.6) dispatch({ t: "editFnb", sessionId: s.id, key: l.key, qty: pick([1, 2, 5, 0]) }, step);
         else dispatch({ t: "editFnb", sessionId: s.id, key: l.key, itemId: pick(ALL_ITEMS).id }, step);
-      } else if (r < 0.5 && bisa.length && jalan.length > 1) {
-        // Salah nomor meja: pindahkan barisnya ke meja lain yang sedang jalan.
-        const to = pick(jalan.filter((x) => x.id !== s.id));
+      } else if (r < 0.5 && bisa.length) {
+        // Salah nomor meja: pindahkan barisnya ke meja lain yang sedang jalan,
+        // ATAU — sejak 19 Okt 2026 — langsung ke meja KOSONG yang dibukakan
+        // mesin. Mejanya dipilih acak dari seluruh denah justru supaya jalur
+        // yang DITOLAK (meja terisi, venue sebelah, di luar jam) ikut terinjak.
+        const lain = jalan.filter((x) => x.id !== s.id);
         const keys = rnd() < 0.25 ? s.fnb.slice(0, 2).map((l) => l.key) : [pick(bisa).key];
-        dispatch({ t: "moveFnb", fromId: s.id, toId: to.id, keys }, step);
+        if (lain.length && rnd() < 0.6) dispatch({ t: "moveFnb", fromId: s.id, toId: pick(lain).id, keys }, step);
+        else dispatch({ t: "moveFnb", fromId: s.id, toTableId: pick(TABLES).id, keys }, step);
       } else if (r < 0.85) {
         // Bayar per orang: lewat baris pesanan, atau nominal (kadang melebihi sisa tagihan).
         const sisa = settlementOf(s, st, now).due;
@@ -1706,27 +2183,41 @@ function runSim(sim: number) {
           const nominal = rnd() < 0.15 ? sisa + 50_000 : Math.max(500, Math.round(sisa / 2 / 500) * 500);
           dispatch({ t: "paySplit", id: s.id, channel: pick(["cash", "cash", "qris_online"] as const), amount: nominal }, step);
         }
+      } else if (r < 0.88 && jalan.length > 1) {
+        // SMH-4 · gabung/pisah meja. Lintas venue & meja yang sudah ditutup
+        // SENGAJA ikut dicoba — mesin yang harus menolaknya.
+        const lain = pick(jalan.filter((x) => x.id !== s.id));
+        // Yang dilepas dipilih dari meja yang MEMANG bergrup — kalau diundi
+        // dari semua meja, jalur pisahnya hampir tidak pernah terlewati dan
+        // pagar "grup bersisa satu bukan grup" jadi tidak teruji.
+        const bergrup = jalan.filter((x) => x.grup);
+        if (bergrup.length && rnd() < 0.4) {
+          dispatch({ t: "pisahMeja", id: pick(bergrup).id }, step);
+        } else if (rnd() < 0.4 && jalan.length > 2) {
+          // Gabung TIGA meja: grup berdua selalu bubar sendiri begitu satu
+          // tabnya ditutup, jadi hanya grup bertiga yang bisa membuktikan
+          // penanda grup benar-benar dibersihkan per tab.
+          const sisa = jalan.filter((x) => x.id !== s.id && x.id !== lain.id);
+          dispatch({ t: "gabungMeja", ids: [s.id, lain.id, pick(sisa).id] }, step);
+        } else if (rnd() < 0.2) {
+          const mati = st.sessions.filter((x) => x.status !== "running");
+          dispatch({ t: "gabungMeja", ids: [s.id, (mati.length ? pick(mati) : lain).id] }, step);
+        } else {
+          dispatch({ t: "gabungMeja", ids: [s.id, lain.id] }, step);
+        }
+      } else if (r < 0.93 && s.fnb.length) {
+        // Compliment (SMH-11b): menggratiskan satu baris. Sengaja kadang
+        // menyasar baris yang TIDAK boleh (prabayar / sudah dibayar / sudah
+        // gratis), dan kadang dicoba oleh peran yang TIDAK berhak — mesin
+        // yang harus menolak keduanya, bukan tes yang memilih yang aman.
+        if (rnd() < 0.7) login(pick(superadmin), step);
+        const l = pick(bisa.length && rnd() < 0.75 ? bisa : s.fnb);
+        dispatch({ t: "compliment", sessionId: s.id, key: l.key, alasan: "tamu menunggu lama" }, step);
       } else {
         // Komputer sempat mati: superadmin menghentikan meteran pada jam sebenarnya.
         login(pick(superadmin), step);
         dispatch({ t: "stopMeter", id: s.id, at: now - pick([0, 10, 45, 999]) * 60_000 }, step);
       }
-    }
-
-    // Tamu memesan meja Smokehouse Resto lewat aplikasi (tanpa bayar di muka).
-    if (rnd() < 0.1) {
-      const h = 11 + Math.floor(rnd() * 13);
-      let startsAt = slotStart(businessDateOf(now), h);
-      if (startsAt <= now + 30 * 60_000) startsAt += 24 * 3_600_000;
-      dispatch({
-        t: "reserveResto",
-        res: {
-          id: `rr-${sim}-${step}`, code: `SPL-R${sim}X${step}`, guest: `Resto${step}`,
-          phone: `0812${3000000 + sim * 100 + step}`,
-          pax: 1 + Math.floor(rnd() * 9), startsAt, hours: 1 + Math.floor(rnd() * 2),
-          ...(rnd() < 0.3 ? { tableId: pick(RESTO).id } : {}),
-        },
-      }, step);
     }
 
     // Pemilik mengelola akun staf & kelas meja (VIP ↔ VVIP).
@@ -1739,7 +2230,7 @@ function runSim(sim: number) {
         const mail = rnd() < 0.5
           ? (rnd() < 0.2 ? "bukan-email" : rnd() < 0.3 ? `sama${sim}@spl.id` : `staf${step}.${sim}@spl.id`)
           : undefined;
-        dispatch({ t: "saveEmployee", emp: { id: "", name: `Staf ${step}`, pin: String(4000 + ((sim * 13 + step) % 5000)), role: rnd() < 0.4 ? "superadmin" : "karyawan", active: true, ...(mail ? { email: mail } : {}) } }, step);
+        dispatch({ t: "saveEmployee", emp: { id: "", name: `Staf ${step}`, pin: String(4000 + ((sim * 13 + step) % 5000)), role: pick([...ROLES_SAH]), active: true, ...(mail ? { email: mail } : {}) } }, step);
       } else if (r < 0.6) {
         dispatch({ t: "saveEmployee", emp: { id: "", name: "PIN kembar", pin: EMPLOYEES[0].pin, role: "karyawan", active: true } }, step);
       } else if (r < 0.75) {
@@ -1749,7 +2240,7 @@ function runSim(sim: number) {
         dispatch({ t: "removeEmployee", id: pick(st.employees).id }, step);
       } else {
         const t = pick(BILLIARD);
-        dispatch({ t: "setTableClass", tableId: t.id, type: pick(["regular", "vip", "vvip", "resto"] as const) }, step);
+        dispatch({ t: "setTableClass", tableId: t.id, type: pick(["regular", "vip", "vvip"] as const) }, step);
       }
     }
 

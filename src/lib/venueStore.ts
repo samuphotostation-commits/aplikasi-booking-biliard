@@ -25,7 +25,7 @@ import {
   applyAction, applyEntry, entryOrder, replay, replayFrom, tickState,
   type Action, type Entry, type Genesis, type State,
 } from "./engine";
-import { offlineBlock, type Proposal, type Remote, type ServerEntry } from "./remote";
+import { isMoneyAction, offlineBlock, type Proposal, type Remote, type ServerEntry } from "./remote";
 import { publicVenue } from "./publicView";
 import { businessDateOf } from "./occupancy";
 import { rapikanHp } from "./profilTamu";
@@ -59,6 +59,17 @@ export type SyncInfo = {
   head: number;
   /** Aksi terakhir yang ditahan atau ditolak — untuk ditampilkan ke staf. */
   problem: string | null;
+  /**
+   * SESI STAF DI SERVER SUDAH MATI, walau jaringannya sehat.
+   *
+   * Token venue berlaku 12 jam. Begitu habis, server menjawab
+   * `42501 · "sesi tidak sah"` untuk setiap kiriman — dan perangkat dulu
+   * melaporkannya sebagai "tidak tersambung ke server". Itu pesan jaringan
+   * untuk masalah yang sama sekali bukan jaringan: kasir menekan "coba
+   * sambungkan" berkali-kali, antreannya menumpuk, dan satu-satunya yang
+   * perlu dilakukan — masuk lagi dengan PIN — tidak pernah disebutkan.
+   */
+  sesiHabis: boolean;
   /** Seluruh kejadian sejak genesis (termasuk yang sudah dilipat ke titik simpan). */
   entries: number;
   /** Kejadian sesudah titik simpan — yang diputar saat aplikasi dibuka. */
@@ -109,6 +120,9 @@ export type VenueStoreOptions = {
     kirimKodeEmail?: (email: string) => Promise<string | null>;
     loginEmail?: (email: string, kode: string) => Promise<{ ok: true; staffId: string; nama: string; peran: "superadmin" | "karyawan" } | { ok: false; alasan: string }>;
     setStaffEmail?: (staffId: string, email: string) => Promise<string | null>;
+    loginSandi?: (email: string, password: string) => Promise<{ ok: true; staffId: string; nama: string; peran: "superadmin" | "karyawan" } | { ok: false; alasan: string }>;
+    setStaffPassword?: (staffId: string, password: string) => Promise<string | null>;
+    stafPunyaSandi?: () => Promise<Record<string, boolean>>;
   };
   /** Jeda sebelum mencoba menyambung lagi setelah gagal (dilipatduakan sampai 30 dtk). */
   retryMs?: number;
@@ -383,6 +397,14 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
 
   /* ── Server penentu urutan (mode server) ────────────────────────── */
 
+  /**
+   * Sesi staf di server sudah mati walau jaringannya sehat.
+   *
+   * Token venue berlaku 12 jam. Begitu habis, server menolak setiap kiriman
+   * dengan `42501 · "sesi tidak sah"` dan remote membuang tokennya sendiri.
+   */
+  const sesiMati = () => !!remote && !!me && remote.bersesi?.() === false;
+
   function markOnline() {
     retryMs = RETRY_MS;
     if (online) return;
@@ -577,11 +599,38 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
     if (action.t === "tick") { notify(); return null; }
 
     if (remote) {
-      // Aksi uang ditahan saat terputus: tanpa penentu urutan, dua perangkat bisa
-      // mencatat uang yang sama dua kali. Aksi pelayanan tetap boleh jalan.
-      const block = offlineBlock(action, online);
+      /*
+       * Aksi uang ditahan saat terputus: tanpa penentu urutan, dua perangkat
+       * bisa mencatat uang yang sama dua kali. Aksi pelayanan tetap jalan.
+       *
+       * SESI MATI DIHITUNG SAMA DENGAN TERPUTUS. Kalau tidak: selama
+       * antrean masih kosong perangkat mengira dirinya tersambung (menarik
+       * jejak memang tidak butuh sesi), kasir menutup tab, layarnya
+       * menampilkan tab tertutup — lalu kirimannya ditolak server dan
+       * uangnya tidak pernah tercatat. Persis kerusakan yang ditahan pagar
+       * ini sejak awal.
+       */
+      const mati = sesiMati();
+      const block = mati
+        ? (isMoneyAction(action)
+            ? "Sesi staf habis — masuk lagi dengan PIN supaya pembayaran bisa tercatat." : null)
+        : offlineBlock(action, online);
       if (block) { problem = block; notify(); return block; }
-      const p: Proposal = { id: `${origin}:${String(++n).padStart(6, "0")}`, act: action, by: me?.id ?? null };
+      /*
+       * JAM PERANGKAT DITITIPKAN DI DALAM AKSINYA.
+       *
+       * Server menetapkan jam kejadian saat kiriman tiba. Selama tersambung
+       * itu benar; begitu terputus, seluruh antrean dicap jam yang sama saat
+       * akhirnya terkirim — dan meja yang dibuka tiga jam lalu tercatat baru
+       * dibuka sekarang. `at0` ikut di dalam `act` (server menyimpannya apa
+       * adanya sebagai JSONB), lalu dipakai mesin lewat `jamKejadian`, yang
+       * tidak pernah mempercayainya melebihi jam server.
+       */
+      const p: Proposal = {
+        id: `${origin}:${String(++n).padStart(6, "0")}`,
+        act: { ...action, at0: Date.now() } as unknown as Action,
+        by: me?.id ?? null,
+      };
       outbox.push(p);
       write(K_OUTBOX, outbox);
       notify();                                     // terlihat seketika, status "menunggu konfirmasi"
@@ -665,6 +714,16 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
   attempt(() => document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") scheduleResync();
   }));
+  /*
+   * JARINGAN KEMBALI → SAMBUNG SEKETIKA.
+   *
+   * Tanpa ini perangkat menunggu jadwal coba-lagi berikutnya (mundur
+   * berlipat sampai 30 detik). Setengah menit tidak lama di layar, tapi di
+   * kasir itu setengah menit kasir menatap spanduk merah sambil tamu
+   * menunggu strukna — padahal internetnya sudah hidup. Peristiwa `online`
+   * dari peramban menyala tepat saat perangkat mendapat jaringan lagi.
+   */
+  attempt(() => window.addEventListener("online", () => { retryMs = RETRY_MS; void sync(); }));
 
   /* ── Mulai ──────────────────────────────────────────────────────── */
   const meId = attempt(() => session?.getItem(K_ME));
@@ -739,6 +798,28 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
         return { ok: false as const, alasan: e instanceof Error ? e.message : "Tidak tersambung ke server." };
       }
     },
+    /**
+     * Masuk dengan email + password — layar pertama aplikasi. Hasilnya sama
+     * dengan masuk lewat PIN: sesi venue 12 jam, lalu jejak ditarik server.
+     */
+    async signInSandi(email: string, password: string) {
+      if (!remote?.loginSandi) return { ok: false as const, alasan: "Mode lokal: masuk cukup dengan PIN." };
+      try {
+        const hasil = await remote.loginSandi(email, password);
+        if (!hasil.ok) { problem = hasil.alasan; notify(); return hasil; }
+        problem = null;
+        await sync();
+        notify();
+        return hasil;
+      } catch (e) {
+        markOffline();
+        return { ok: false as const, alasan: e instanceof Error ? e.message : "Tidak tersambung ke server." };
+      }
+    },
+    /** Superadmin mengatur password staf. Kosong = cabut. */
+    aturSandi: (staffId: string, password: string) =>
+      (remote?.setStaffPassword?.(staffId, password) ?? Promise.resolve("Butuh sambungan ke server venue.")),
+    daftarSandi: () => (remote?.stafPunyaSandi?.() ?? Promise.resolve({} as Record<string, boolean>)),
     /** Tautkan email ke akun staf (superadmin, mode server). */
     tautkanEmail: (staffId: string, email: string) =>
       (remote?.setStaffEmail?.(staffId, email) ?? Promise.resolve(null)),
@@ -793,6 +874,11 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
         pending: outbox.length,
         head,
         problem,
+        /* Ada yang sudah masuk di perangkat ini, tapi server tidak lagi
+           mengenali sesinya. Dibaca dari remote-nya sendiri — dialah yang
+           membuang tokennya saat server menolak — supaya tidak ada dua
+           sumber kebenaran yang bisa berbeda. */
+        sesiHabis: sesiMati(),
         entries: (snap?.count ?? 0) + entries.length,
         tail: entries.length,
         snapshotAt: snap?.upto.at ?? null,

@@ -64,7 +64,7 @@ export default function QrisPanel() {
 
       <div className="space-y-3 rounded-xl border border-line bg-ink-2 p-3.5">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[13px] text-mute">Status gateway</span>
+          <span className="text-[13px] text-mute">Pembayaran QRIS otomatis</span>
           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
             aktif ? "bg-amber/20 text-amber" : "bg-ink-3 text-dim"
           }`}>
@@ -74,17 +74,17 @@ export default function QrisPanel() {
 
         {!qrisMungkin() ? (
           <p className="text-[12px] leading-relaxed text-dim">
-            Aplikasi ini sedang berjalan tanpa server, jadi QRIS dinamis tidak bisa diuji di sini.
-            Tamu tetap bisa memesan dengan pembayaran di kasir.
+            Perangkat ini sedang belum tersambung, jadi QRIS otomatis belum bisa dicoba.
+            Tamu tetap bisa memesan dan membayar di kasir seperti biasa.
           </p>
         ) : (
           <>
             <Button full busy={sibuk} onClick={() => void uji()}>
-              Uji koneksi — tagihan {rupiah(1000)}
+              Coba sekali — tagihan {rupiah(1000)}
             </Button>
             <p className="text-[11px] leading-snug text-dim">
-              Tagihan uji nyata di gateway tapi tidak tersambung ke meja/pesanan mana pun:
-              dibayar atau tidak, rekap dan jejak venue tidak berubah.
+              Tagihannya sungguhan, tapi tidak menempel ke meja atau pesanan mana pun.
+              Dibayar atau tidak, laporan venue tidak ikut berubah.
             </p>
           </>
         )}
@@ -116,24 +116,26 @@ export default function QrisPanel() {
               <span className={`text-[13px] font-semibold ${
                 status === "lunas" ? "text-amber" : status === "gagal" || status === "kedaluwarsa" ? "text-red-300" : "text-mute"
               }`}>
-                {status === "lunas" ? "LUNAS — webhook sampai, rantainya benar"
-                  : status === "gagal" ? "gagal di gateway"
-                    : status === "kedaluwarsa" ? "kedaluwarsa"
-                      : status === "tidak-ada" ? "tagihan tidak ditemukan di server"
+                {status === "lunas" ? "LUNAS — semuanya tersambung benar"
+                  : status === "gagal" ? "gagal — pembayarannya ditolak"
+                    : status === "kedaluwarsa" ? "tagihannya sudah kedaluwarsa"
+                      : status === "tidak-ada" ? "tagihannya tidak ditemukan"
                         : "menunggu pembayaran…"}
               </span>
             </div>
             {status === "menunggu" && (
               <p className="text-[11px] leading-snug text-dim">
-                Bayar tagihan ini dari HP. Kalau status tidak berubah lunas dalam 1–2 menit sesudah dibayar,
-                berarti webhook-nya belum sampai — periksa alamat notifikasi di dashboard gateway.
+                Bayar tagihan ini dari HP. Kalau dalam 1–2 menit statusnya belum berubah jadi lunas,
+                berarti kabar pembayarannya belum sampai ke aplikasi — lihat langkah pemasangan di bawah.
               </p>
             )}
           </div>
         )}
 
         <div className="rounded-lg border border-line bg-ink p-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">Cara menyalakan (sekali saja)</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
+            Untuk yang memasang · sekali saja
+          </p>
           <ol className="mt-1.5 space-y-1 text-[12px] leading-snug text-mute">
             <li>1. Supabase → Edge Functions → Secrets. Untuk DOKU isi <b>DOKU_CLIENT_ID</b> dan <b>DOKU_SECRET_KEY</b>
               (tambah <b>DOKU_PRODUKSI=1</b> kalau sudah pakai akun produksi). Untuk Midtrans cukup <b>MIDTRANS_SERVER_KEY</b>.</li>
@@ -146,8 +148,9 @@ export default function QrisPanel() {
             <li>3. Tekan "Uji koneksi" di atas dan bayar tagihan {rupiah(1000)}-nya. Status harus berubah LUNAS sendiri.</li>
           </ol>
           <p className="mt-1.5 text-[11px] leading-snug text-dim">
-            Secret key tidak pernah masuk ke aplikasi ini maupun ke HP tamu — hanya Edge Function yang memegangnya.
-            Selama gateway belum aktif, semua pembayaran otomatis kembali ke "bayar di kasir".
+            Kunci rahasianya tidak pernah masuk ke aplikasi ini maupun ke HP tamu — hanya disimpan di
+            pusat data. Selama QRIS otomatis belum menyala, semua pembayaran kembali ke "bayar di kasir"
+            dengan sendirinya.
           </p>
         </div>
       </div>

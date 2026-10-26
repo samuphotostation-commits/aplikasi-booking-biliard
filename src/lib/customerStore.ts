@@ -265,6 +265,8 @@ export function createCustomerStore(opts: { url: string; anonKey: string }) {
         live: "none",
         mode: "server",
         online,
+        // Aplikasi pelanggan tidak punya sesi staf: tidak ada yang bisa habis.
+        sesiHabis: false,
         pending,
         head: 0,
         problem,

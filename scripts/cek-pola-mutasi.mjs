@@ -16,14 +16,15 @@
 import { readFileSync } from "node:fs";
 
 const ENGINE = "src/lib/engine.ts", BILLING = "src/lib/billing.ts",
-      VENUE = "src/lib/venueStore.ts", REMOTE = "src/lib/remote.ts", PUBLIC = "src/lib/publicView.ts";
+      VENUE = "src/lib/venueStore.ts", REMOTE = "src/lib/remote.ts", PUBLIC = "src/lib/publicView.ts",
+      STAF = "src/data/staff.ts";
 
 const src = readFileSync("test/mutation.mjs", "utf8");
 const daftar = src.slice(src.indexOf("const MUTATIONS"), src.indexOf("const results"));
 const MUTATIONS = eval(`${daftar}; MUTATIONS`);   // eslint-disable-line no-eval
 
 const isi = {};
-for (const f of [ENGINE, BILLING, VENUE, REMOTE, PUBLIC]) isi[f] = readFileSync(f, "utf8");
+for (const f of [ENGINE, BILLING, VENUE, REMOTE, PUBLIC, STAF]) isi[f] = readFileSync(f, "utf8");
 
 let basi = 0;
 MUTATIONS.forEach((m, i) => {

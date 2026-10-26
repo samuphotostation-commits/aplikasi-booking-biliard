@@ -3,9 +3,10 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, PageHeader } from "../components/UI";
 import { Ball } from "../components/motion/Billiard";
+import { IkonResto } from "../components/Smoke";
 import { useStore } from "../lib/store";
 import { useAdmin, businessDateOf } from "../lib/adminStore";
-import { TABLES } from "../data/venue";
+import { SEMUA_MEJA } from "../data/venue";
 import { fmtDateLong, rupiah } from "../lib/core";
 import { TONE_CLASS, bookingMilikAkun, customerStatus, jamOf } from "../lib/customerStatus";
 import { memberSaya, type Member } from "../lib/member";
@@ -35,7 +36,7 @@ export default function Orders() {
       <div className="pb-28">
         <PageHeader kicker="Riwayat" title="Pesanan Saya" />
         <div className="mx-auto max-w-lg px-5 pt-12 text-center">
-          <Ball n={8} size={44} className="mx-auto opacity-40" />
+          <div className="mx-auto text-brick-lit opacity-60"><IkonResto size={40} /></div>
           <p className="mt-4 text-cream">Belum ada pesanan.</p>
           <p className="mt-1 text-sm text-dim">
             Booking dan pesanan makananmu akan muncul di sini lengkap dengan statusnya.
@@ -61,7 +62,7 @@ export default function Orders() {
           const s = st.session;
           const o = st.order;
           const tableId = b.kind === "booking" ? (s?.tableId ?? b.draft.tableId) : (o?.tableId ?? null);
-          const table = TABLES.find((t) => t.id === tableId);
+          const table = SEMUA_MEJA.find((t) => t.id === tableId);
           const vip = table?.type === "vip" || table?.type === "vvip";
           const heading = b.kind === "booking"
             ? table?.name ?? "Booking meja"
@@ -81,10 +82,9 @@ export default function Orders() {
                 <button onClick={() => nav("/sukses", { state: { refId: b.refId } })}
                   className="w-full text-left">
                   <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-                    <Ball
-                      n={b.kind === "pesanan" ? 3 : vip ? 9 : 1} size={30}
-                      color={b.kind === "pesanan" ? "#1F6F4A" : vip ? "#992212" : "#F0A202"}
-                    />
+                    {b.kind === "pesanan"
+                      ? <span className="text-brick-lit"><IkonResto size={26} /></span>
+                      : <Ball n={vip ? 9 : 1} size={30} color={vip ? "#992212" : "#F0A202"} />}
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-display text-lg uppercase tracking-wide text-cream">
                         {heading}
