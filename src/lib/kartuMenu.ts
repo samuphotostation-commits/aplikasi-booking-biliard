@@ -34,7 +34,10 @@ export function kartuKategori(a: State, batas = 8): KartuCoverflow[] {
         tag: `${c.items.length} pilihan`,
         teks: mulai ? `Mulai ${rupiah(mulai)}` : undefined,
         foto: FOTO_KATEGORI[c.id]!,
-        ctaLabel: "Lihat & pesan",
+        // "Lihat & pesan" terbaca seperti tombol yang langsung memesan.
+        // Yang sebenarnya terjadi: kartunya membuka daftar pilihan kategori
+        // itu, dan memesannya masih beberapa langkah lagi.
+        ctaLabel: "Lihat pilihan",
       };
     });
 }

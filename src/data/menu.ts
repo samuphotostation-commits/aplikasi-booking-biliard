@@ -70,7 +70,7 @@ export const MENU: MenuCategory[] = [
   {
     id: "light-bites",
     name: "Light Bites",
-    kicker: "Cemilan",
+    kicker: "Camilan",  // ejaan KBBI; "cemilan" bentuk tidak baku
     items: [
       { id: "lb-01", name: "Tempe Mendoan", price: K(18), station: "kitchen" },
       { id: "lb-02", name: "Singkong Goreng Tongkang", price: K(18), station: "kitchen" },

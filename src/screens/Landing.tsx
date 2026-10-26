@@ -184,13 +184,14 @@ const TANYA = (t: {
   },
   {
     t: "Bedanya VIP dan VVIP?",
-    j: `Dua-duanya ruang tertutup. VIP ${t.vip} dan tidak boleh merokok di dalam; VVIP
-        ${t.vvip} dan boleh.`,
+    j: `Dua-duanya ruang tertutup. VIP ${t.vip}, bebas asap rokok — tidak boleh merokok di
+        dalam. VVIP ${t.vvip}, merokok diperbolehkan.`,
   },
   {
-    t: "Reservasi meja resto bayar juga?",
-    j: `Tidak. ${t.mejaResto} meja makan Smokehouse direservasi gratis dan tidak dihitung
-        per jam — yang dibayar cuma makanannya.`,
+    t: "Reservasi meja restoran bayar juga?",
+    j: `Mejanya gratis dan tidak dihitung per jam — ${t.mejaResto} meja makan Smokehouse
+        semuanya begitu. Makanan dan minumannya dipilih saat mengisi reservasi, dan cuma
+        itu yang kamu bayar.`,
   },
   {
     t: "Bisa pesan makanan sambil main?",
@@ -395,18 +396,28 @@ export default function Landing() {
     .filter((p) => (p.venue ?? "spl") === "spl" && p.hours > 0)
     .slice(0, 1);
 
+  /* Jam buka pindah ke baris pendukung di bawah judul, dan "kategori menu"
+     dibuang: jumlah KATEGORI tidak pernah membantu siapa pun memutuskan —
+     yang berguna adalah berapa meja dan mulai berapa harganya. */
   const FAKTA: [string, string][] = [
-    [String(mejaReguler), "meja reguler"],
+    [String(mejaReguler), "meja biliar reguler"],
     [String(ruangVip), "ruang VIP & VVIP"],
-    [`${fmtHour(OPEN_HOUR)}–${fmtHour(CLOSE_HOUR)}`, "buka tiap hari"],
-    [String(kategori.length), "kategori menu"],
+    [String(mejaResto), "meja makan"],
+    [rupiah(R.regularDay), "mulai per jam"],
   ];
 
   const TARIF = [
     { nama: "Reguler siang", ket: `${fmtHour(OPEN_HOUR)} sampai 18.00`, harga: R.regularDay, satuan: "/jam" },
     { nama: "Reguler malam", ket: `18.00 sampai ${fmtHour(CLOSE_HOUR)}`, harga: R.regularNight, satuan: "/jam" },
-    { nama: "VIP Room", ket: "ruang tertutup, no smoking", harga: R.vip, satuan: "/jam" },
-    { nama: "VVIP Room", ket: "ruang tertutup, bebas rokok", harga: R.vvip, satuan: "/jam" },
+    /* "no smoking" dan "bebas rokok" berdampingan adalah pasangan yang paling
+       mudah disalahpahami di halaman ini: "bebas rokok" dalam bahasa Indonesia
+       bisa dibaca BEBAS DARI rokok maupun BEBAS MEROKOK, dan dua ruangan yang
+       tarifnya beda cuma Rp 10.000 jadi tidak bisa dibedakan. Sekarang
+       keduanya dikatakan tanpa celah tafsir.
+       BUTUH KONFIRMASI PEMILIK: ini membaca maksud data lama (VIP dilarang,
+       VVIP boleh), bukan kebijakan yang pernah ditulis di mana pun. */
+    { nama: "VIP Room", ket: "ruang tertutup, bebas asap rokok", harga: R.vip, satuan: "/jam" },
+    { nama: "VVIP Room", ket: "ruang tertutup, boleh merokok", harga: R.vvip, satuan: "/jam" },
   ];
 
   return (
@@ -419,12 +430,15 @@ export default function Landing() {
           <span className="text-amber"><Mark size={26} /></span>
           <span className="font-serif text-[15px] font-bold tracking-[0.1em] text-cream">SPL</span>
           <nav className="ml-auto hidden items-center gap-6 md:flex">
+            {/* Nama wilayah ("SPL Sport", "Buku menu") diganti isinya.
+                Pengunjung yang belum kenal mereknya tidak bisa menebak bahwa
+                "SPL Sport" berarti biliar. */}
             <button type="button" onClick={() => nav("/sport")}
-              className="text-[13px] text-mute transition hover:text-amber">SPL Sport</button>
+              className="text-[13px] text-mute transition hover:text-amber">Biliar &amp; tarif</button>
             <button type="button" onClick={() => nav("/smokehouse")}
               className="text-[13px] text-mute transition hover:text-amber">Smokehouse</button>
             <button type="button" onClick={() => nav("/smokehouse/buku-menu")}
-              className="text-[13px] text-mute transition hover:text-amber">Buku menu</button>
+              className="text-[13px] text-mute transition hover:text-amber">Menu &amp; harga</button>
           </nav>
           {/* Disembunyikan di HP. Di sana aksinya pindah ke bilah bawah yang
               terjangkau ibu jari; dua tombol booking di satu layar cuma
@@ -432,7 +446,7 @@ export default function Landing() {
           <button type="button" onClick={() => nav("/sport")}
             className="ml-auto hidden min-h-[38px] rounded-lg bg-amber px-4 text-[12px] font-bold uppercase
               tracking-[0.1em] text-ink transition hover:bg-amber-deep md:ml-0 md:block">
-            Booking meja
+            Cek meja & jadwal
           </button>
         </div>
       </div>
@@ -484,8 +498,13 @@ export default function Landing() {
           <Masuk jeda={0.05}>
             <div className="flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${buka ? "bg-felt" : "bg-dim"}`} aria-hidden />
+              {/* "Buka lagi 11.00" tidak menyebutkan bahwa SEKARANG tutup —
+                  pembaca harus menyimpulkannya sendiri dari kata "lagi".
+                  Statusnya sekarang dikatakan lebih dulu, baru jamnya. */}
               <span className="font-display text-[11px] uppercase tracking-[0.18em] text-amber">
-                {buka ? `Buka sampai ${fmtHour(CLOSE_HOUR)}` : `Buka lagi ${fmtHour(OPEN_HOUR)}`}
+                {buka
+                  ? `Buka sampai ${fmtHour(CLOSE_HOUR)} WIB`
+                  : `Sedang tutup · buka ${fmtHour(OPEN_HOUR)} WIB`}
               </span>
             </div>
           </Masuk>
@@ -499,22 +518,71 @@ export default function Landing() {
 
           <h1 className="mt-2 font-serif text-[2.6rem] font-bold leading-[1]
             tracking-[-0.022em] text-cream sm:text-[4rem] lg:text-[4.75rem]">
-            <Masuk jeda={0.21}>Main sampai {TUTUP_BICARA}.</Masuk>
-            <Masuk jeda={0.29} className="text-amber">Makan sampai kenyang.</Masuk>
+            {/* "Main sampai jam 2 pagi" benar, tapi kata "main" sendirian
+                belum mengatakan BILIAR — dan pembaca yang datang dari tautan
+                Instagram belum tentu tahu SPL itu apa. Jam tutupnya turun jadi
+                keterangan pendukung di bawah; yang naik ke judul adalah
+                jawaban atas "ini tempat apa, di mana". */}
+            <Masuk jeda={0.21}>Main biliar, makan bareng.</Masuk>
+            <Masuk jeda={0.29} className="text-amber">Satu tempat di Padang.</Masuk>
           </h1>
 
+          {/* PARAGRAF INI TIDAK MENGULANG PITA ANGKA DI BAWAHNYA.
+              Versi sebelumnya menyebut jumlah meja, ruang VIP dan VVIP, lalu
+              harga mulai — padahal keempatnya sudah berdiri sendiri sebagai
+              angka besar beberapa piksel di bawah, dan harganya terbaca tiga
+              kali di satu layar. Isi yang mengulang membuat layar pertama
+              terasa penuh tanpa menambah satu pun alasan untuk menekan
+              tombolnya.
+
+              Yang ditulis di sini justru yang TIDAK BISA dikatakan sederet
+              angka: apa yang terjadi sesudah tombolnya ditekan. */}
           <Masuk jeda={0.39}>
-            <p className="mt-5 max-w-[46ch] text-[15px] leading-relaxed text-cream/90 sm:text-base">
-              {mejaBiliar} meja biliar, ruang VIP, dan dapur asap Smokehouse di satu tempat
-              di Jalan Batang Anai. Pilih jamnya dari HP, bayar QRIS, mejanya terkunci
-              atas namamu.
+            <p className="mt-5 max-w-[42ch] text-[15px] leading-relaxed text-cream/90 sm:text-base">
+              Pilih jam dan mejanya dari HP, bayar QRIS, langsung dikonfirmasi. Tanpa chat,
+              tanpa nunggu dibalas.
             </p>
           </Masuk>
 
+          {/* Pil, bukan satu kalimat abu-abu memanjang. Tiga keterangan yang
+              berdiri sendiri lebih cepat dipungut sekali lirik daripada satu
+              baris yang harus dibaca sampai habis — dan bentuknya mengikuti
+              lockup Smokehouse yang sudah dipakai di halaman ini, jadi bukan
+              bentuk baru yang berdiri sendirian.
+
+              Ketiganya sengaja TIDAK ADA di pita angka: jam buka, letaknya,
+              dan satu hal yang cuma bisa terjadi kalau dua venuenya memang
+              satu tempat. */}
+          <Masuk jeda={0.43}>
+            <ul className="mt-5 flex flex-wrap gap-2">
+              {[
+                `Buka ${fmtHour(OPEN_HOUR)} sampai ${TUTUP_BICARA}`,
+                "Jl. Batang Anai, Padang",
+                "Makanan diantar ke meja biliar",
+              ].map((k) => (
+                <li key={k} className="inline-flex items-center gap-2 rounded-full border border-line-2
+                  bg-ink/45 px-3.5 py-1.5 text-[12.5px] text-cream/85 backdrop-blur-sm">
+                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
+                  {k}
+                </li>
+              ))}
+            </ul>
+          </Masuk>
+
+          {/* TOMBOL MENYEBUT APA YANG AKAN TERJADI, dan pergi ke tempat yang
+              benar-benar melakukannya. "Booking meja" dulu mendarat di
+              halaman promosi biliar, dan orangnya harus menekan tombol
+              booking SEKALI LAGI di sana. Sekarang langsung ke pemilih
+              tanggal dan jam.
+
+              Tombol kedua jadi menu, bukan reservasi resto: orang yang baru
+              pertama datang ingin melihat pilihan dan harganya dulu sebelum
+              memesan apa pun. Reservasi restonya tetap ada di bagian
+              Smokehouse, tempat orang yang memang sudah mau makan. */}
           <Masuk jeda={0.47}>
             <div className="mt-8 flex flex-col gap-2.5 sm:flex-row">
-              <Aksi onClick={() => nav("/sport")} anak="Booking meja" />
-              <Aksi2 onClick={() => nav("/smokehouse/reservasi")} anak="Reservasi meja resto" />
+              <Aksi onClick={() => nav("/booking")} anak="Cek meja & jadwal" />
+              <Aksi2 onClick={() => nav("/smokehouse/buku-menu")} anak="Lihat menu & harga" />
             </div>
           </Masuk>
         </div>
@@ -548,16 +616,26 @@ export default function Landing() {
             <>
               <div className="flex items-center gap-2 text-amber">
                 <Mark size={24} />
-                <span className="font-display text-[11px] uppercase tracking-[0.22em]">SPL Sport</span>
+                <span className="font-display text-[11px] uppercase tracking-[0.22em]">
+                  SPL Sport &middot; Biliar
+                </span>
               </div>
               <h2 className="mt-4 text-balance font-serif text-[2.1rem] font-bold leading-[1.02]
                 tracking-[-0.015em] text-cream sm:text-[2.7rem]">
-                Mejanya siap.<br />Tinggal pilih jamnya.
+                Pilih waktu main dan<br />meja yang kamu mau.
               </h2>
               <p className="mt-4 max-w-[46ch] text-[15px] leading-relaxed text-mute">
-                Pilih meja dan jam dari HP, bayar QRIS, slotnya langsung terkunci atas namamu.
-                Tanpa chat, tanpa menunggu dibalas. Begitu kamu duduk, lampu mejanya dinyalakan
-                kasir, dan hitungan waktunya baru jalan dari situ.
+                Pilih meja dan jam dari HP, bayar QRIS, dan reservasinya dikonfirmasi begitu
+                pembayaranmu berhasil. Tanpa chat, tanpa menunggu dibalas. Setibanya di SPL,
+                check-in dulu ke petugas sebelum mulai main.
+              </p>
+              {/* Aturan mulainya hitungan waktu dipisah dari instruksi
+                  datangnya. Digabung dalam satu kalimat, pembacanya harus
+                  mengurai dua hal sekaligus: apa yang harus ia lakukan, dan
+                  sejak kapan ia dihitung membayar. */}
+              <p className="mt-3 max-w-[46ch] text-[13px] leading-relaxed text-mute">
+                Hitungan waktunya baru jalan saat petugas menyalakan lampu mejamu, bukan sejak
+                jam yang kamu pilih.
               </p>
 
               <ul className="mt-7 divide-y divide-line border-y border-line">
@@ -576,8 +654,8 @@ export default function Landing() {
               </ul>
 
               <p className="mt-3 text-[12px] leading-relaxed text-mute">
-                Sesi yang melewati pukul 18.00 dihitung per jam dengan dua tarif. Rinciannya
-                muncul sebelum kamu bayar.
+                Main melewati pukul 18.00? Jam sebelum 18.00 ikut tarif siang, sesudahnya ikut tarif
+                malam. Rincian biayanya ditampilkan sebelum kamu membayar.
               </p>
 
               {/* ── PAKET, KELUAR DARI DAFTAR TARIF ────────────────────
@@ -603,7 +681,7 @@ export default function Landing() {
                       <span className="rounded bg-amber px-1.5 py-px font-display text-[10px]
                         uppercase tracking-[0.1em] text-ink">Promo</span>
                       <span className="font-display text-[11px] uppercase tracking-[0.18em] text-amber">
-                        Mulai sampai {fmtHour(p.lastStartHour)}
+                        Sesi dimulai paling lambat {fmtHour(p.lastStartHour)} WIB
                       </span>
                     </div>
 
@@ -617,7 +695,8 @@ export default function Landing() {
                     </div>
 
                     <p className="mt-1.5 text-[13.5px] leading-relaxed text-mute">
-                      {p.hours} jam main{p.freeDrinks ? ` dan ${p.freeDrinks} minuman` : ""}.
+                      Termasuk {p.hours} jam main biliar
+                      {p.freeDrinks ? ` dan ${p.freeDrinks} minuman` : ""}.
                       {hemat > 0 && (
                         <> Kalau diambil lepasan {rupiah(lepasan)}, jadi hemat{" "}
                           <span className="font-semibold text-cream">{rupiah(hemat)}</span>
@@ -630,7 +709,7 @@ export default function Landing() {
               })}
 
               <div className="mt-7">
-                <Aksi onClick={() => nav("/sport")} anak="Booking meja" />
+                <Aksi onClick={() => nav("/booking")} anak="Cek meja & jadwal" />
               </div>
             </>
           } />
@@ -642,7 +721,7 @@ export default function Landing() {
                   alt="Pemain membidik di salah satu meja SPL Sport"
                   className="aspect-[4/3] w-full object-cover sm:aspect-[4/5]" />
                 <figcaption className="border-t border-line bg-ink-2 px-4 py-3 text-[12px] text-dim">
-                  {mejaReguler} meja reguler dan {ruangVip} ruang VIP, semuanya satu lokasi
+                  {mejaReguler} meja biliar reguler dan {ruangVip} ruang VIP & VVIP, semuanya satu lokasi
                 </figcaption>
               </figure>
             } />
@@ -659,7 +738,7 @@ export default function Landing() {
           <Muncul className="lg:col-span-6" anak={
             <Coverflow
               kartu={kartuMenu}
-              label="Dari dapur Smokehouse"
+              label="Mau makan apa hari ini?"
               onPilih={(k) => nav(`/menu?kategori=${k.id}`)}
             />
           } />
@@ -678,12 +757,11 @@ export default function Landing() {
               </div>
               <h2 className="mt-4 text-balance font-serif text-[2.1rem] font-bold leading-[1.02]
                 tracking-[-0.015em] text-cream sm:text-[2.7rem]">
-                Iga asap yang<br />bikin balik lagi.
+                Iga asap, enaknya<br />dimakan rame-rame.
               </h2>
               <p className="mt-4 max-w-[46ch] text-[15px] leading-relaxed text-mute">
                 Dibakar pelan dan diasap dengan rempah, disajikan dengan pilihan saus Western
-                atau sambal Nusantara. Ada juga nasi goreng, cemilan buat nemenin main, kopi,
-                dan mocktail sampai tengah malam.
+                atau sambal Nusantara. Ada juga nasi goreng, camilan buat nemenin main, kopi, dan mocktail.
               </p>
 
               <ul className="mt-6 space-y-2.5 border-t border-line pt-5">
@@ -693,17 +771,18 @@ export default function Landing() {
                 </li>
                 <li className="flex gap-3 text-[13.5px] text-mute">
                   <span className="font-display text-[13px] tabular-nums text-amber">{kategori.length}</span>
-                  kategori menu, bisa dipesan dari HP dan diantar ke mejamu
+                  pilihan menu — makanan, camilan, kopi, dan minuman segar — dipesan dari HP
+                  dan diantar ke mejamu
                 </li>
                 <li className="flex gap-3 text-[13.5px] text-mute">
                   <span className="font-display text-[13px] tabular-nums text-amber">3&ndash;4</span>
-                  orang kenyang dari satu Family Package iga bakar
+                  orang per Family Package iga bakar, porsinya memang dibuat untuk berbagi
                 </li>
               </ul>
 
               <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
-                <Aksi onClick={() => nav("/smokehouse/buku-menu")} anak="Lihat buku menu" />
-                <Aksi2 onClick={() => nav("/smokehouse/reservasi")} anak="Reservasi meja resto" />
+                <Aksi onClick={() => nav("/smokehouse/buku-menu")} anak="Lihat menu & harga" />
+                <Aksi2 onClick={() => nav("/smokehouse/reservasi")} anak="Reservasi meja restoran" />
               </div>
             </>
           } />
@@ -723,7 +802,7 @@ export default function Landing() {
             // kecurigaan yang tadinya tidak ada, lalu membantahnya sendiri.
             <h2 className="text-balance font-serif text-[1.9rem] font-bold leading-tight
               tracking-[-0.015em] text-cream sm:text-[2.4rem]">
-              Malam biasa di SPL.
+              Lihat suasana SPL.
             </h2>
           } />
         </div>
@@ -818,7 +897,7 @@ export default function Landing() {
               </h2>
               <p className="mt-4 max-w-[42ch] text-[15px] leading-relaxed text-mute">{ALAMAT}</p>
               <div className="mt-6 flex flex-col gap-2.5 sm:flex-row">
-                <Aksi href={PETA} anak="Buka di peta" />
+                <Aksi href={PETA} anak="Petunjuk arah ke SPL" />
                 <Aksi2 href={wa("Halo SPL, saya mau tanya.")} anak={`WhatsApp ${WA_VENUE_TAMPIL}`} />
               </div>
             </>
@@ -918,13 +997,13 @@ export default function Landing() {
               tracking-[-0.015em] text-cream sm:text-[3rem]">
               Malam ini mau main atau makan?
             </h2>
-            <p className="mt-3 text-[14.5px] text-mute">Dua-duanya bisa. Pilih pintunya.</p>
+            <p className="mt-3 text-[14.5px] text-mute">Cek jadwal biliar, atau lihat menunya buat makan bareng.</p>
             <div className="mx-auto mt-8 flex max-w-md flex-col gap-2.5 sm:flex-row">
               {/* Nama wilayah ("SPL Sport" / "Smokehouse") diganti kata kerja.
                   Nama brand di atas tombol memberi tahu pembaca ke mana ia
                   pergi, bukan apa yang akan terjadi di sana. */}
-              <Aksi lebar onClick={() => nav("/sport")} anak="Booking meja" />
-              <Aksi2 lebar onClick={() => nav("/smokehouse")} anak="Lihat Smokehouse" />
+              <Aksi lebar onClick={() => nav("/booking")} anak="Cek meja & jadwal" />
+              <Aksi2 lebar onClick={() => nav("/smokehouse/buku-menu")} anak="Lihat menu & harga" />
             </div>
           </div>
         </div>
@@ -945,23 +1024,23 @@ export default function Landing() {
 
           <nav className="flex flex-col items-start gap-2.5">
             <h3 className="font-display text-[11px] uppercase tracking-[0.2em] text-amber">SPL Sport</h3>
-            <TautanKaki ke="/sport" anak="Booking meja" />
+            <TautanKaki ke="/booking" anak="Cek meja & jadwal" />
             <TautanKaki ke="/sport" anak="Tarif &amp; jam main" />
             <TautanKaki ke="/pesanan" anak="Booking saya" />
           </nav>
 
           <nav className="flex flex-col items-start gap-2.5">
             <h3 className="font-display text-[11px] uppercase tracking-[0.2em] text-amber">Smokehouse</h3>
-            <TautanKaki ke="/smokehouse/buku-menu" anak="Buku menu" />
-            <TautanKaki ke="/smokehouse/reservasi" anak="Reservasi meja" />
-            <TautanKaki ke="/menu" anak="Pesan sekarang" />
+            <TautanKaki ke="/smokehouse/buku-menu" anak="Menu &amp; harga" />
+            <TautanKaki ke="/smokehouse/reservasi" anak="Reservasi meja restoran" />
+            <TautanKaki ke="/menu" anak="Pesan makanan &amp; minuman" />
           </nav>
 
           <nav className="flex flex-col items-start gap-2.5">
             <h3 className="font-display text-[11px] uppercase tracking-[0.2em] text-amber">Hubungi</h3>
             <TautanKaki href={wa("Halo SPL, saya mau tanya.")} anak={`WhatsApp ${WA_VENUE_TAMPIL}`} />
             <TautanKaki href={VENUE.ig} anak="Instagram" />
-            <TautanKaki href={PETA} anak="Lihat di peta" />
+            <TautanKaki href={PETA} anak="Petunjuk arah" />
             {/* Lamaran kerja dan tawaran kerja sama turun ke sini dari badan
                 halaman. Keduanya tetap satu ketukan bagi orang yang memang
                 mencarinya, dan tidak lagi memotong perhatian tamu yang cuma
@@ -1002,8 +1081,8 @@ export default function Landing() {
       <div className="safe-b fixed inset-x-0 bottom-0 z-40 border-t border-line
         bg-ink/95 backdrop-blur-md md:hidden">
         <div className="flex gap-2.5 px-4 py-2.5">
-          <Aksi rapat lebar onClick={() => nav("/sport")} anak="Booking meja" />
-          <Aksi2 rapat lebar onClick={() => nav("/smokehouse/buku-menu")} anak="Buku menu" />
+          <Aksi rapat lebar onClick={() => nav("/booking")} anak="Cek jadwal" />
+          <Aksi2 rapat lebar onClick={() => nav("/smokehouse/buku-menu")} anak="Menu & harga" />
         </div>
       </div>
     </div>
