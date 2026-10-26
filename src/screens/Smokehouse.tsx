@@ -151,7 +151,7 @@ export default function Smokehouse() {
             <div className="min-w-0">
               <h2 className="font-serif text-xl leading-tight text-cream">Pesan meja &amp; makanannya</h2>
               <p className="mt-1 text-[12.5px] leading-relaxed text-mute">
-                Pilih jam datang, lalu pilih hidangannya sekalian. Dapur menyiapkan saat Anda
+                Pilih jam datang, lalu pilih hidangannya sekalian. Dapur menyiapkan saat kamu
                 tiba — bayarnya di kasir waktu pulang.
               </p>
             </div>

@@ -54,6 +54,19 @@ const PAX = [2, 3, 4, 5, 6, 8, 10];
 /** Berapa hidangan minimal yang harus ikut dipesan (permintaan pemilik). */
 const MINIMAL_PESAN = 1;
 
+/**
+ * TANGGAL KALENDER KEDATANGAN, bukan tanggal yang dipilih tamu.
+ *
+ * Jam operasional venue menyeberangi tengah malam, jadi jam ke-24 dan
+ * seterusnya jatuh di tanggal BERIKUTNYA. Tombolnya cuma berbunyi "00.00",
+ * dan tamu yang memilihnya mengira memesan untuk malam ini — padahal yang
+ * tercatat dini hari besok. Salahnya baru ketahuan saat ia datang.
+ *
+ * Mesinnya sudah benar (`slotStart` menghitungnya); yang perlu diperbaiki
+ * cuma apa yang DITULIS ke tamu.
+ */
+const tanggalDatang = (iso: string, jam: number) => (jam >= 24 ? addDaysISO(iso, 1) : iso);
+
 export default function ReservasiResto() {
   const { a: venue, dispatchA, peek, tick } = useAdmin();
   void tick;
@@ -101,6 +114,8 @@ export default function ReservasiResto() {
   };
 
   const startsAt = jam !== null ? slotStart(tanggal, jam) : 0;
+  /** Tanggal untuk slot dini hari — sehari sesudah tanggal yang dipilih. */
+  const besok = fmtDateShort(addDaysISO(tanggal, 1));
   const masalah = jam === null ? null : restoProblem(venue, { pax, startsAt, hours: TAHAN_JAM });
   const nomorOk = rapikanHp(hp).length >= 10;
 
@@ -169,15 +184,19 @@ export default function ReservasiResto() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-dim">Kode check-in</div>
             <div className="font-display text-4xl tracking-[0.3em] text-amber">{hasil.checkin}</div>
             <div className="mt-3 text-sm text-cream">{hasil.meja} · {pax} orang</div>
+            {/* Tanggal KEDATANGAN, bukan tanggal yang dipilih — untuk slot
+                dini hari keduanya berbeda satu hari, dan ini layar yang akan
+                ditunjukkan tamu ke kasir. */}
             <div className="text-[13px] text-mute">
-              {fmtDateShort(tanggal).dow} {fmtDateShort(tanggal).day} {fmtDateShort(tanggal).mon} · datang {fmtHour(hasil.jam)}
+              {(() => { const d = fmtDateShort(tanggalDatang(tanggal, hasil.jam)); return `${d.dow} ${d.day} ${d.mon}`; })()}
+              {" · datang "}{fmtHour(hasil.jam)}
             </div>
             <div className="mt-3 text-[11px] text-dim">No. reservasi {hasil.kode}</div>
           </motion.div>
 
           <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-ink-2">
             <div className="border-b border-line px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
-              Pesanan Anda · disiapkan saat datang
+              Pesanan kamu · disiapkan saat datang
             </div>
             <ul className="divide-y divide-line">
               {hasil.baris.map(([id, q]) => (
@@ -256,6 +275,10 @@ export default function ReservasiResto() {
               const bisa = sisa > 0;
               return (
                 <button key={h} disabled={!bisa} onClick={() => setJam(h)} aria-pressed={jam === h}
+                  // Tanggalnya ikut diucapkan ke pembaca layar: tombolnya
+                  // sendiri cuma muat empat angka, dan "00.00" tanpa tanggal
+                  // adalah bagian yang paling mudah salah dibaca.
+                  aria-label={`${fmtHour(h)} ${(() => { const d = fmtDateShort(tanggalDatang(tanggal, h)); return `${d.dow} ${d.day} ${d.mon}`; })()}, ${bisa ? `${sisa} meja kosong` : alasan}`}
                   className={`min-h-[52px] rounded-xl border text-center ${
                     jam === h ? "border-amber bg-amber text-ink"
                       : bisa ? "border-line bg-ink-2 text-cream" : "border-line bg-ink-3 text-dim opacity-40"
@@ -269,11 +292,32 @@ export default function ReservasiResto() {
             })}
           </div>
           {masalah && <p className="mt-2 text-[12px] text-red-400">{masalah}</p>}
+          {/* Tiga aturan yang berbeda, dikatakan terpisah.
+              Versi sebelumnya menggabung "tidak ada hitungan jam" dengan
+              "ditahan 2 jam" dalam satu tarikan napas, dan keduanya terbaca
+              saling membantah: kalau tidak dihitung per jam, kenapa ada
+              angka 2 jam? Yang satu soal BIAYA, yang satu soal berapa lama
+              meja itu disimpan untuk kamu — dan alasannya ikut ditulis,
+              karena aturan tanpa alasan terbaca seperti jebakan.
+
+              "Paling cepat 30 menit sebelum datang" juga dibalik: mesinnya
+              menolak reservasi yang jam datangnya KURANG dari 30 menit lagi,
+              jadi yang benar "paling lambat". Kalimat lamanya mengatakan
+              kebalikan dari yang dikerjakan mesin. */}
           <p className="mt-2 text-[11px] leading-relaxed text-dim">
-            Tidak ada hitungan jam seperti meja biliar — Anda boleh duduk selama makan.
-            Mejanya kami tahan {TAHAN_JAM} jam dari jam datang. Reservasi paling cepat
-            {" "}{RESTO_LEAD_MIN} menit sebelum datang; untuk sekarang juga, langsung datang saja.
+            Mejanya tidak dihitung per jam — yang dibayar cuma makanannya, di kasir, dan kamu
+            boleh duduk selama makan. Supaya meja yang sama tidak dijanjikan ke dua rombongan,
+            kami tahan {TAHAN_JAM} jam dari jam datang. Reservasi dibuat paling lambat
+            {" "}{RESTO_LEAD_MIN} menit sebelum jam datang; kalau mau sekarang juga, langsung
+            datang saja.
           </p>
+
+          {HOURS.some((h) => h >= 24 && h + TAHAN_JAM <= 26) && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-amber/90">
+              Jam 00.00 itu dini hari — kalau kamu memilihnya, yang tercatat{" "}
+              {besok.dow} {besok.day} {besok.mon}.
+            </p>
+          )}
         </section>
 
         {/* ── 2 · Pilih hidangannya ────────────────────────────── */}
@@ -372,10 +416,11 @@ export default function ReservasiResto() {
         <div className="rounded-xl border border-line bg-ink-2 px-3.5 py-3">
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">Ketentuan</div>
           <ul className="mt-1 space-y-1 text-[12px] leading-snug text-mute">
-            <li>• Reservasi mejanya <span className="text-cream">gratis</span> — yang dibayar hanya makanan &amp; minuman, di kasir.</li>
-            <li>• Tidak ada sewa waktu; mejanya ditahan {TAHAN_JAM} jam dari jam datang.</li>
+            <li>• Reservasi mejanya <span className="text-cream">gratis</span>. Makanan &amp; minumannya dipilih di sini, dibayar di kasir waktu pulang.</li>
+            <li>• Mejanya tidak dihitung per jam. Kami tahan {TAHAN_JAM} jam dari jam datang supaya tidak dijanjikan ke dua rombongan.</li>
             <li>• Datang paling lambat 20 menit setelah jam reservasi; lewat itu meja dilepas untuk tamu lain.</li>
-            <li>• Hidangan disiapkan saat Anda datang, bukan sekarang — masih bisa ditambah di tempat.</li>
+            <li>• Reservasi dibuat paling lambat {RESTO_LEAD_MIN} menit sebelum jam datang.</li>
+            <li>• Hidangan disiapkan saat kamu datang, bukan sekarang — masih bisa ditambah di tempat.</li>
           </ul>
         </div>
 

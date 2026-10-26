@@ -55,8 +55,9 @@ export const OPEN_IDX = 11;
 export const CLOSE_IDX = 26;                  // 02.00
 export const NO_SHOW_RELEASE_MIN = 20;        // PRD §5
 export const EARLY_CHECKIN_MIN = 30;
-/** PRD §5 min_lead_time_minutes — booking online paling cepat 30 menit sebelum main:
- *  tamu yang sudah di jalan jam 16.30 masih bisa mengambil slot jam 17.00. */
+/** PRD §5 min_lead_time_minutes — booking online dibuat paling lambat 30 menit
+ *  sebelum jam main: tamu yang sudah di jalan jam 16.30 masih bisa mengambil
+ *  slot jam 17.00, tapi tidak slot jam 16.45. */
 export const MIN_LEAD_MIN = 30;
 /** PRD KK-04: QR berlaku 15 menit, hold di database 17 menit, dilepas pada T+19. */
 export const GATEWAY_EXPIRY_MIN = 15;
@@ -79,7 +80,7 @@ export const paketAktif = (st: Pick<State, "packages">): Paket[] =>
   (st.packages ?? [PAKET_SIANG]).filter((p) => p.aktif !== false);
 /** Toleransi batal open bill: 5 menit pertama tidak ditagih (lihat billing.ts). */
 export const GRACE_MIN = GRACE_MINUTES;
-/** Reservasi meja resto paling cepat 30 menit sebelum datang. */
+/** Reservasi meja resto dibuat paling lambat 30 menit sebelum jam datang. */
 /**
  * KAPAN "UBAH BARIS PESANAN" DITUTUP — 19 Okt 2026, 05.00 WIB.
  *
@@ -1161,7 +1162,9 @@ export function slotProblem(
   const startH = hourIdx(r.startsAt);
   if (!dalamJamBuka(s, startH) || startH + r.hours > batasJamTutup(s)) return "di luar jam operasional";
   if (r.startsAt <= now) return "slot sudah lewat";
-  if (lead && r.startsAt - now < MIN_LEAD_MIN * 60_000) return `booking online paling cepat ${MIN_LEAD_MIN} menit sebelum main`;
+  // Terbalik sampai 26 Okt 2026 ("paling cepat"), sama seperti pesan reservasi
+  // resto: yang ditolak adalah jam main yang KURANG dari 30 menit lagi.
+  if (lead && r.startsAt - now < MIN_LEAD_MIN * 60_000) return `booking online dibuat paling lambat ${MIN_LEAD_MIN} menit sebelum jam main`;
   if (r.paket) {
     const pp = paketProblem(s, r.paket, { kelas, hours: r.hours, startH });
     if (pp) return pp;
@@ -3600,7 +3603,10 @@ export function restoProblem(
   const startH = hourIdx(r.startsAt);
   if (!dalamJamBuka(s, startH) || startH + r.hours > batasJamTutup(s)) return "di luar jam buka resto";
   if (r.startsAt <= now) return "jam itu sudah lewat";
-  if (r.startsAt - now < RESTO_LEAD_MIN * 60_000) return `reservasi paling cepat ${RESTO_LEAD_MIN} menit sebelum datang`;
+  // "paling CEPAT" mengatakan kebalikan dari yang dikerjakan baris ini: yang
+  // ditolak adalah jam datang yang kurang dari 30 menit lagi, jadi reservasinya
+  // harus dibuat paling LAMBAT 30 menit sebelumnya.
+  if (r.startsAt - now < RESTO_LEAD_MIN * 60_000) return `reservasi dibuat paling lambat ${RESTO_LEAD_MIN} menit sebelum jam datang`;
   if (restoTableFor(s, r, now) === null) return "meja resto untuk jam itu sudah penuh";
   return null;
 }
