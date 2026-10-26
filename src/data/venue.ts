@@ -221,12 +221,12 @@ export const lantaiVenue = (v: Venue) =>
   [...new Set(mejaVenue(v).map((t) => t.lantai).filter((x): x is number => !!x))].sort();
 
 /* ── Tarif (PRICELIST BILLIARD.pdf) ────────────────────────────────
-   Reguler  11.00–18.00  Rp 29.000 / jam
-   Reguler  18.00–tutup  Rp 39.000 / jam
+   Reguler  11.00–18.00         Rp 29.000 / jam
+   Reguler  18.00–tutup         Rp 39.000 / jam
    VIP Room (bebas asap rokok)  Rp 50.000 / jam
-   VVIP (boleh merokok)         Rp 60.000 / jam   [HARGA PERLU KONFIRMASI — ubah di tab Atur]
-   Meja resto            tanpa sewa waktu (Rp 0), hanya bill makanan
-   Paket Siang           Rp 50.000  (2 jam + 2 minuman, sampai 16.00) */
+   VVIP (boleh merokok)         Rp 60.000 / jam   (dikonfirmasi pemilik 26 Okt 2026)
+   Meja resto                   tanpa sewa waktu (Rp 0), hanya bill makanan
+   Paket Siang                  Rp 50.000  (2 jam + 2 minuman, sampai 16.00) */
 
 export const OPEN_HOUR = 11;
 export const CLOSE_HOUR = 26; // 02:00 dini hari = jam ke-26 hari operasional (PRD KK-19)
