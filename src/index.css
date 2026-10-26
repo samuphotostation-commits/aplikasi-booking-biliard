@@ -1,27 +1,38 @@
 @import "tailwindcss";
 
 /* ── Brand fonts (berkas lokal dari folder VISUAL IDENTITY) ─────────
-   Catatan optimasi (PRD §9.4): Emoland belum punya .woff2 dan Lido STF
-   belum punya format web sama sekali. Untuk produksi, konversi ke woff2
-   + subset Latin → target < 25 KB per berkas. */
+   Semuanya WOFF2. Catatan lama PRD §9.4 — "Emoland belum punya .woff2 dan
+   Lido STF belum punya format web sama sekali" — sudah dikerjakan:
+   `scripts/buat-woff2.mjs` memadatkan keempatnya, 484,7 KB jadi 164,1 KB.
+   Lido STF yang paling jauh turunnya: 190,5 KB jadi 44,1 KB, karena TTF
+   mentah tidak dipadatkan sama sekali sementara WOFF2 memakai Brotli.
+
+   Tidak ada baris `src` cadangan ke TTF/WOFF. WOFF2 didukung setiap
+   peramban sejak 2016, dan menuliskan cadangan berarti peramban lama
+   mengunduh berkas yang empat kali lebih besar — sementara berkasnya ikut
+   menggelembungkan repo untuk pemakai yang sudah tidak ada.
+
+   Belum di-subset. Target < 25 KB di catatan lama masih bisa dikejar dengan
+   membuang glif non-Latin, tapi itu memotong karakter dan harus dicek per
+   huruf — pekerjaan tersendiri, bukan lanjutan yang aman dari sini. */
 @font-face {
   font-family: "Lido STF";
-  src: url("./assets/fonts/LidoSTF.ttf") format("truetype");
+  src: url("./assets/fonts/LidoSTF.woff2") format("woff2");
   font-weight: 400; font-style: normal; font-display: swap;
 }
 @font-face {
   font-family: "Lido STF";
-  src: url("./assets/fonts/LidoSTFBold.ttf") format("truetype");
+  src: url("./assets/fonts/LidoSTFBold.woff2") format("woff2");
   font-weight: 700; font-style: normal; font-display: swap;
 }
 @font-face {
   font-family: "Emoland";
-  src: url("./assets/fonts/Emoland-Bold.woff") format("woff");
+  src: url("./assets/fonts/Emoland-Bold.woff2") format("woff2");
   font-weight: 700; font-style: normal; font-display: swap;
 }
 @font-face {
   font-family: "Emoland";
-  src: url("./assets/fonts/Emoland-Black.woff") format("woff");
+  src: url("./assets/fonts/Emoland-Black.woff2") format("woff2");
   font-weight: 900; font-style: normal; font-display: swap;
 }
 @font-face {

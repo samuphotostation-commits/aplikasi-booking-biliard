@@ -21,5 +21,20 @@ export default defineConfig(({ mode: _mode }) => ({
      * dimuat saat discroll.
      */
     assetsInlineLimit: process.env.VITE_SATU_BERKAS ? 100_000_000 : 4096,
+
+    /**
+     * Mode satu-berkas mematikan pemecahan potongan.
+     *
+     * `src/App.tsx` memuat layar lewat `lazy(() => import(...))`, dan tiap
+     * `import()` itu jadi berkas .js tersendiri. Berkas yang berdiri sendiri
+     * — dibuka langsung dari disk oleh Electron, atau ditanam utuh ke dalam
+     * satu index.html — tidak punya tempat untuk meminta potongan tambahan,
+     * jadi semuanya harus dilebur kembali jadi satu.
+     *
+     * Build biasa TIDAK melakukan ini: di sanalah justru untungnya.
+     */
+    ...(process.env.VITE_SATU_BERKAS
+      ? { rolldownOptions: { output: { inlineDynamicImports: true } } }
+      : {}),
   },
 }))

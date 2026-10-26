@@ -187,10 +187,26 @@ function PanggungFoto() {
   const { scrollY } = useScroll();
   const geser = useTransform(scrollY, [0, 760], [0, 90]);
 
+  /**
+   * Foto kedua dan ketiga diminta SESUDAH halaman selesai memuat, bukan 1,4
+   * detik sesudah layar pertama dilukis.
+   *
+   * Penghitung waktu tidak tahu apa pun tentang jaringan: ia tetap berdering
+   * walau huruf dan kode untuk layar pertama masih mengantre. Di jaringan
+   * venue itu berarti dua foto besar ikut berebut jalur dengan berkas yang
+   * justru sedang ditunggu mata. Peristiwa `load` menunggu antrean itu
+   * kosong dulu.
+   */
   useEffect(() => {
     if (PANGGUNG.length < 2) return;
-    const t = setTimeout(() => setSiap(PANGGUNG), 1400);
-    return () => clearTimeout(t);
+    let t: ReturnType<typeof setTimeout>;
+    const mulai = () => { t = setTimeout(() => setSiap(PANGGUNG), 600); };
+    if (document.readyState === "complete") mulai();
+    else window.addEventListener("load", mulai, { once: true });
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("load", mulai);
+    };
   }, []);
 
   useEffect(() => {
@@ -203,7 +219,10 @@ function PanggungFoto() {
     <motion.div aria-hidden style={{ y: diam ? 0 : geser }}
       className="absolute -inset-y-[14%] left-0 right-0 -z-10 overflow-hidden bg-ink">
       {siap.map((src, n) => (
-        <img key={src} src={src} alt=""
+        <img key={src} src={src} alt="" decoding="async"
+          // Foto pertama ADALAH layar pertama: ia pantas mendahului antrean.
+          // Dua sisanya diminta belakangan dan tidak boleh menyerobot.
+          fetchPriority={n === 0 ? "high" : "low"}
           className={`absolute inset-0 h-full w-full object-cover transition-opacity
             duration-[1200ms] ease-out ${n === kini ? "opacity-100" : "opacity-0"}
             ${diam ? "scale-[1.05]" : "zoom-pelan"}`} />

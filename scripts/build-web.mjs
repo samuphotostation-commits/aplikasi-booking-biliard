@@ -21,9 +21,29 @@ const OUT = process.env.WEB_OUT ?? "web";
 mkdirSync(OUT, { recursive: true });
 
 const assets = readdirSync(join(DIST, "assets"));
-const cssFile = assets.find((f) => f.endsWith(".css"));
-const jsFile = assets.find((f) => f.endsWith(".js"));
-if (!cssFile || !jsFile) throw new Error("Aset hasil build tidak ditemukan — jalankan vite build dulu");
+
+/**
+ * BERKAS MASUK DIBACA DARI index.html HASIL VITE, bukan ditebak dari isi folder.
+ *
+ * Sejak layar-layar dipecah jadi potongan yang baru diminta saat alamatnya
+ * dibuka (`lazy()` di `src/App.tsx`), folder assets berisi PULUHAN berkas .js
+ * dan hanya satu di antaranya yang berkas masuk. Cara lama memungut yang
+ * pertama dikembalikan `readdirSync` — itu urutan folder, bukan urutan muat.
+ * Begitu pemecahan dinyalakan, cara itu akan memasang sebuah potongan acak
+ * sebagai berkas masuk, dan hasilnya halaman kosong tanpa satu pun pesan
+ * galat yang menjelaskan sebabnya.
+ *
+ * Vite sudah menuliskan jawabannya sendiri di `dist/index.html`. Itu yang
+ * dibaca, jadi berapa pun potongannya, yang dipasang selalu yang benar.
+ */
+const indexVite = readFileSync(join(DIST, "index.html"), "utf8");
+const ambilAset = (pola, apa) => {
+  const temu = indexVite.match(pola);
+  if (!temu) throw new Error(`${apa} tidak ada di dist/index.html — jalankan vite build dulu`);
+  return temu[1].replace(/^\.?\/?assets\//, "");
+};
+const jsFile = ambilAset(/<script[^>]+src="([^"]+\.js)"/, "berkas masuk JS");
+const cssFile = ambilAset(/<link[^>]+href="([^"]+\.css)"/, "berkas CSS");
 
 /**
  * SATU BERKAS vs BERKAS TERPISAH.
@@ -34,7 +54,9 @@ if (!cssFile || !jsFile) throw new Error("Aset hasil build tidak ditemukan — j
  * huruf & foto menyusul sendiri tanpa menahan tampilan.
  *
  * `VITE_SATU_BERKAS=1` mengembalikan mode lama, untuk keperluan yang memang
- * butuh satu berkas berdiri sendiri.
+ * butuh satu berkas berdiri sendiri. Di mode itu `vite.config.ts` ikut
+ * mematikan pemecahan potongan — satu berkas berdiri sendiri tidak bisa
+ * meminta potongan tambahan dari mana pun.
  */
 const satuBerkas = !!process.env.VITE_SATU_BERKAS;
 const css = readFileSync(join(DIST, "assets", cssFile), "utf8");

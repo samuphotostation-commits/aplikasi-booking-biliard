@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Route, Routes, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { BottomNav } from "./components/UI";
 import { BreakIntro, useIntroSeen } from "./components/motion/Billiard";
 import { StoreProvider } from "./lib/store";
@@ -8,35 +8,68 @@ import { AdminProvider } from "./lib/adminStore";
 
 /** Build khusus HP pelanggan: panel staf tidak ikut dibangun. */
 const MODE_TAMU = !!import.meta.env.VITE_MODE_TAMU;
-import Home from "./screens/Home";
+/**
+ * SATU-SATUNYA LAYAR YANG IKUT MUATAN PERTAMA.
+ *
+ * Sisanya diminta saat alamatnya dibuka. Dulu semuanya `import` biasa, dan
+ * hasilnya satu berkas 891 KB: orang yang membuka halaman depan dari tautan
+ * Instagram ikut mengunduh papan kasir, laporan stok, jejak transaksi, dan
+ * panel pengaturan — seluruh aplikasi kasir — sebelum satu huruf pun muncul
+ * di layarnya.
+ *
+ * PENJAGA `{!MODE_TAMU && <Route …>}` DI BAWAH TIDAK MENOLONG SOAL INI, dan
+ * itu yang paling mudah disalahpahami di berkas ini. Penjaga itu memutuskan
+ * apa yang DIRENDER, bukan apa yang DIBUNDEL; selama berkasnya di-`import`
+ * di puncak, pemaket tetap menyalin seluruh panel staf ke dalam bundel build
+ * tamu. Yang benar-benar memotongnya adalah `import()` di bawah ini.
+ *
+ * Landing sengaja tetap statis: ia rute `/`, jadi me-lazy-kannya cuma
+ * menambah satu perjalanan bolak-balik sebelum layar pertama.
+ */
 import Landing from "./screens/Landing";
-import Smokehouse from "./screens/Smokehouse";
-import ReservasiResto from "./screens/ReservasiResto";
-import BukuMenu from "./screens/BukuMenu";
-import TampilTamu from "./screens/TampilTamu";
-import Booking from "./screens/Booking";
-import MenuScreen from "./screens/MenuScreen";
-import Checkout from "./screens/Checkout";
-import Payment from "./screens/Payment";
-import Success from "./screens/Success";
-import Orders from "./screens/Orders";
-import Akun from "./screens/Akun";
-import AdminShell from "./screens/admin/AdminShell";
-import Board from "./screens/admin/Board";
-import Kasir from "./screens/admin/Kasir";
-import Kitchen from "./screens/admin/Kitchen";
-import Gudang from "./screens/admin/Gudang";
-import MenuAdmin from "./screens/admin/MenuAdmin";
-import VoidScreen from "./screens/admin/Void";
-import ShiftScreen from "./screens/admin/Shift";
-import PromoScreen from "./screens/admin/Promo";
-import Rekap from "./screens/admin/Rekap";
-import Jejak from "./screens/admin/Jejak";
-import Antar from "./screens/admin/Antar";
-import Pengaturan from "./screens/admin/Pengaturan";
-import PelangganScreen from "./screens/admin/Pelanggan";
-import PesanScreen from "./screens/admin/Pesan";
-import AbsenScreen from "./screens/admin/Absen";
+
+const Home = lazy(() => import("./screens/Home"));
+const Smokehouse = lazy(() => import("./screens/Smokehouse"));
+const ReservasiResto = lazy(() => import("./screens/ReservasiResto"));
+const BukuMenu = lazy(() => import("./screens/BukuMenu"));
+const TampilTamu = lazy(() => import("./screens/TampilTamu"));
+const Booking = lazy(() => import("./screens/Booking"));
+const MenuScreen = lazy(() => import("./screens/MenuScreen"));
+const Checkout = lazy(() => import("./screens/Checkout"));
+const Payment = lazy(() => import("./screens/Payment"));
+const Success = lazy(() => import("./screens/Success"));
+const Orders = lazy(() => import("./screens/Orders"));
+const Akun = lazy(() => import("./screens/Akun"));
+const AdminShell = lazy(() => import("./screens/admin/AdminShell"));
+const Board = lazy(() => import("./screens/admin/Board"));
+const Kasir = lazy(() => import("./screens/admin/Kasir"));
+const Kitchen = lazy(() => import("./screens/admin/Kitchen"));
+const Gudang = lazy(() => import("./screens/admin/Gudang"));
+const MenuAdmin = lazy(() => import("./screens/admin/MenuAdmin"));
+const VoidScreen = lazy(() => import("./screens/admin/Void"));
+const ShiftScreen = lazy(() => import("./screens/admin/Shift"));
+const PromoScreen = lazy(() => import("./screens/admin/Promo"));
+const Rekap = lazy(() => import("./screens/admin/Rekap"));
+const Jejak = lazy(() => import("./screens/admin/Jejak"));
+const Antar = lazy(() => import("./screens/admin/Antar"));
+const Pengaturan = lazy(() => import("./screens/admin/Pengaturan"));
+const PelangganScreen = lazy(() => import("./screens/admin/Pelanggan"));
+const PesanScreen = lazy(() => import("./screens/admin/Pesan"));
+const AbsenScreen = lazy(() => import("./screens/admin/Absen"));
+
+/**
+ * Jeda antar-layar. Latarnya `bg-ink` supaya perpindahan tidak pernah
+ * berkedip putih — di ruangan gelap, satu bingkai putih jauh lebih terasa
+ * daripada layar yang diam sesaat.
+ */
+function Memuat() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-ink" aria-busy="true">
+      <span className="h-2 w-2 animate-ping rounded-full bg-amber" />
+      <span className="sr-only">Memuat layar</span>
+    </div>
+  );
+}
 
 /**
  * PERPINDAHAN HALAMAN — sengaja dibikin hampir tak terasa.
@@ -72,6 +105,7 @@ function Shell() {
       {/* Tanpa AnimatePresence: halaman lama tidak perlu ditunggu selesai
           menghilang dulu sebelum yang baru boleh tampil. */}
       <motion.main key={isAdmin ? "admin" : loc.pathname} {...page}>
+          <Suspense fallback={<Memuat />}>
           <Routes location={loc}>
             {/* Landing utama = master. Tiap venue punya alamatnya sendiri
                 supaya tautannya bisa dibagikan langsung ke pelanggan. */}
@@ -113,6 +147,7 @@ function Shell() {
               <Route path="atur" element={<Pengaturan />} />
             </Route>}
           </Routes>
+          </Suspense>
       </motion.main>
       {!isAdmin && <BottomNav />}
     </>

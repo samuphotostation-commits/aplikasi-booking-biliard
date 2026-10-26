@@ -59,7 +59,8 @@
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "wawoff2": "^2.0.1"
   },
   "build": {
     "appId": "id.spl.kasir",
