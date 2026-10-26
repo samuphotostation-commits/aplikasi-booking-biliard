@@ -383,11 +383,7 @@ export default function Landing() {
           Semuanya `transform` dan `opacity` saja, jadi tidak ada satu pun
           perhitungan tata letak yang diulang tiap frame. Dan semuanya
           berhenti kalau perangkatnya minta gerakan dikurangi. */}
-      {/* Di HP tingginya ikut dikurangi setinggi bilah aksi bawah. Tanpa itu
-          layar sambutan pas 100svh, dan baris kedua pita angka berakhir tepat
-          di belakang bilah yang menempel di kaki layar. */}
-      <header className="relative isolate flex min-h-[calc(100svh-3.4rem-4.6rem)]
-        flex-col overflow-hidden md:min-h-[calc(100svh-3.4rem)]">
+      <header className="relative isolate flex min-h-[calc(100svh-3.4rem)] flex-col overflow-hidden">
         <PanggungFoto />
 
         {/* Kegelapan DITARUH DI TEMPAT TEKSNYA, bukan selembar di atas
@@ -399,7 +395,15 @@ export default function Landing() {
         <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r
           from-ink/90 via-ink/55 via-46% to-transparent" />
 
-        <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-end px-5 pb-11 pt-24 sm:pb-14">
+        {/* Isian tegaknya dirampingkan di HP. Judul hero kini dua baris lebih
+            panjang ("Main sampai jam 2 pagi"), dan dengan isian lama layar
+            pertama tumbuh melewati tinggi layar — pita angkanya mendarat
+            tepat di belakang bilah aksi bawah. Yang dipangkas isian hero,
+            bukan ukuran hurufnya: judul adalah kalimat terpenting di situs
+            ini, dan mengecilkannya untuk memenangkan 30 piksel adalah
+            pertukaran yang salah arah. */}
+        <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-end px-5 pb-6 pt-20
+          sm:pb-14 sm:pt-24">
           <Masuk jeda={0.05}>
             <div className="flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${buka ? "bg-felt" : "bg-dim"}`} aria-hidden />
