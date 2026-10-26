@@ -112,8 +112,34 @@ export const RESTO_LEAD_MIN = 30;
 export const STOCK_DAY_HOUR = 5;
 /** Riwayat pergerakan stok yang disimpan (cukup untuk laporan beberapa hari). */
 export const MAX_STOCK_MOVES = 2000;
-/** [PERLU KONFIRMASI] minuman yang termasuk Paket Siang. */
+/**
+ * Kategori menu yang boleh memakai jatah minuman paket.
+ *
+ * DIKONFIRMASI PEMILIK 26 Okt 2026: Cold Drink saja. Tujuh kategori minuman
+ * lain — Coffee Based, Kopi & Susu Sachet, Ice Blend, Mocktail, Fresh Juice,
+ * Es Segar, Tradisional Drink — tidak termasuk.
+ *
+ * Batasnya KATEGORI, bukan nilai: di dalam Cold Drink sendiri, Ice Tea dan
+ * Ice Honey Milk Tea sama-sama gratis walau harganya beda empat kali lipat.
+ * Kalau suatu saat yang dimaksud pemilik ternyata batas HARGA, yang berubah
+ * bukan daftar ini melainkan cara `priceLines` memilih barisnya.
+ *
+ * Layar yang menjanjikan "2 minuman" ke tamu WAJIB menyebut batas ini lewat
+ * `namaMinumanPaket` di bawah, bukan menuliskannya sendiri — janji tanpa
+ * syarat di layar berakhir jadi perdebatan di meja kasir.
+ */
 export const PAKET_FREE_CATEGORIES = ["cold-drink"];
+
+/**
+ * Nama kategori jatah minuman paket, untuk ditulis ke tamu.
+ *
+ * Dibaca dari menu yang berlaku, jadi melebarkan `PAKET_FREE_CATEGORIES`
+ * cukup sekali dan setiap layar ikut menyebutnya.
+ */
+export const namaMinumanPaket = (st: Pick<State, "customItems">): string[] =>
+  kategoriJual(st, { staf: false })
+    .filter((c) => PAKET_FREE_CATEGORIES.includes(c.id))
+    .map((c) => c.name);
 
 export type Refund = {
   id: string; at: number;

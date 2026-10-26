@@ -49,6 +49,7 @@ import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion
 import { useNavigate } from "react-router-dom";
 import {
   useAdmin, hourIdx, OPEN_IDX, CLOSE_IDX, mejaDijual, kategoriJual, paketAktif,
+  namaMinumanPaket,
 } from "../lib/adminStore";
 import { rupiah } from "../lib/core";
 import { SmokeMark } from "../components/Smoke";
@@ -388,6 +389,8 @@ export default function Landing() {
   const mejaResto = mejaJual.filter((t) => t.venue === "smh").length;
   const kategori = useMemo(() => kategoriJual(venue, { staf: false }), [venue]);
   const kartuMenu = useMemo(() => kartuKategori(venue, 6), [venue]);
+  /** Kategori yang jatah minuman paketnya berlaku — dipakai menyebut syaratnya. */
+  const minumanPaket = useMemo(() => namaMinumanPaket(venue), [venue]);
 
   /* Paket biliar yang benar-benar aktif di panel admin. Kalau pemilik
      mematikannya, barisnya hilang dari daftar tarif — bukan jadi janji
@@ -701,8 +704,16 @@ export default function Landing() {
                     </div>
 
                     <p className="mt-1.5 text-[13.5px] leading-relaxed text-mute">
+                      {/* Kategori minumannya DISEBUT, dan namanya dibaca dari menu
+                          yang berlaku. "2 minuman" tanpa syarat berakhir jadi
+                          perdebatan di meja kasir: tamu memesan dua Mocktail,
+                          merasa sudah termasuk, dan yang menjelaskan bukan
+                          halaman ini melainkan kasirnya. */}
                       Termasuk {p.hours} jam main biliar
-                      {p.freeDrinks ? ` dan ${p.freeDrinks} minuman` : ""}.
+                      {p.freeDrinks ? ` dan ${p.freeDrinks} minuman` : ""}
+                      {p.freeDrinks && minumanPaket.length
+                        ? ` dari kategori ${minumanPaket.join(" atau ")}`
+                        : ""}.
                       {hemat > 0 && (
                         <> Kalau diambil lepasan {rupiah(lepasan)}, jadi hemat{" "}
                           <span className="font-semibold text-cream">{rupiah(hemat)}</span>

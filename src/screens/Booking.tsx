@@ -6,6 +6,7 @@ import { Ball, PocketPulse } from "../components/motion/Billiard";
 import { useStore } from "../lib/store";
 import {
   useAdmin, priceWith, rateWith, slotProblem, classOf, MIN_LEAD_MIN, paketAktif, mejaDijual, cariMeja,
+  namaMinumanPaket,
   type Paket,
 } from "../lib/adminStore";
 import { HOUR_MS, blockEndOf, businessDateOf, hourBookable, isActive, openBillOn, overlaps, slotStart } from "../lib/occupancy";
@@ -28,6 +29,8 @@ export default function Booking() {
   const nav = useNavigate();
   const { state, dispatch, totals } = useStore();
   const { a: venue, tick } = useAdmin();
+  /** Kategori yang jatah minuman paketnya berlaku — disebut di kartu paket. */
+  const minumanPaket = useMemo(() => namaMinumanPaket(venue), [venue]);
   const { draft } = state;
   const [params] = useSearchParams();
   const tipe = params.get("tipe");
@@ -271,6 +274,16 @@ export default function Booking() {
                   <div className="text-[11px] text-dim">
                     {pk.perks.length ? pk.perks.join(" · ") : `${pk.hours} jam`}
                   </div>
+                  {/* Syarat jatah minumannya DITURUNKAN dari data, bukan
+                      dibaca dari `perks` yang diketik pemilik. Perks boleh
+                      berbunyi "Gratis 2 minuman" tanpa syarat apa pun, dan
+                      tamu yang memesan Mocktail baru tahu batasannya di meja
+                      kasir — padahal di layar inilah ia memutuskan. */}
+                  {pk.freeDrinks > 0 && minumanPaket.length > 0 && (
+                    <div className="mt-0.5 text-[11px] text-mute">
+                      Minumannya dari kategori {minumanPaket.join(" atau ")}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="font-serif text-lg font-bold text-cream">{rupiah(pk.price)}</div>

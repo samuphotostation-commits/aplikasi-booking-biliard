@@ -297,7 +297,11 @@ export const PAKET_SIANG: Paket = {
   price: 50_000,
   hours: 2,
   freeDrinks: 2,
-  perks: ["Gratis 2 jam main", "Gratis 2 minuman"],
+  // "Gratis" keliru: paketnya DIBAYAR Rp 50.000 — dua jam dan dua minumannya
+  // termasuk di dalamnya, bukan hadiah di atasnya. Syarat kategori minumannya
+  // tidak ditulis di sini; layar menurunkannya sendiri lewat
+  // `namaMinumanPaket`, supaya tetap benar walau teks ini diubah pemilik.
+  perks: ["Termasuk 2 jam main biliar", "Termasuk 2 minuman"],
   lastStartHour: 16, // hanya bisa dipesan untuk mulai sampai jam 16.00
 };
 
