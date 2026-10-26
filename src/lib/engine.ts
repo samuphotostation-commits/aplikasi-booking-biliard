@@ -366,6 +366,66 @@ export function liniSesi(s: Pick<LiveSession, "fnb">, sewaMeja: number): Record<
 export const persenLini = (s: Pick<State, "pajak" | "pajakLini">, lini: Lini) =>
   s.pajakLini?.[lini] ?? s.pajak;
 
+/**
+ * MEMECAH SATU NILAI JADI DPP / PPN / SERVICE — satu-satunya tempat rumus ini
+ * ditulis.
+ *
+ * Harga sudah termasuk pajak, jadi yang dikerjakan di sini cuma membagi angka
+ * yang SAMA; `dpp + tax + service` selalu tepat sama dengan nilai yang masuk,
+ * tanpa sisa rupiah di pembulatan. Itu yang dijaga INV-53.
+ *
+ * Sisanya DIBAGI, bukan dihitung ulang dari persen: kalau service dihitung
+ * sendiri dengan `Math.round`, dua pembulatan bisa menyisakan satu rupiah yang
+ * tidak dimiliki siapa pun.
+ */
+export function pecahPajak(nilai: number, p: { ppn: number; service: number }) {
+  const totalPersen = p.ppn + p.service;
+  const dpp = Math.round(nilai / (1 + totalPersen / 100));
+  const sisa = nilai - dpp;
+  const service = p.service > 0 && totalPersen > 0
+    ? Math.round(sisa * (p.service / totalPersen))
+    : 0;
+  return { dpp, tax: sisa - service, service };
+}
+
+/**
+ * Pecahan pajak untuk SATU keranjang, lini per lini.
+ *
+ * Dipakai layar bayar supaya angkanya lahir dari rumus dan pengaturan yang
+ * sama dengan rekap. Sebelum ini layar bayar memakai persen yang ditanam di
+ * `store.tsx`, jadi begitu pemilik mengubah persennya di panel Atur — atau
+ * memberi lini berbeda persen masing-masing, yang memang didukung sejak
+ * 18 Okt 2026 — tamu membaca satu angka di layar bayar sementara laporan
+ * memakai angka lain. Tidak ada galat, tidak ada peringatan; dua angka yang
+ * diam-diam berbeda.
+ */
+export function pecahPajakLini(
+  dasar: Record<Lini, number>,
+  pjk: Pick<State, "pajak" | "pajakLini">,
+) {
+  let dpp = 0, tax = 0, service = 0;
+  for (const k of LINI) {
+    const r = pecahPajak(dasar[k], persenLini(pjk, k));
+    dpp += r.dpp; tax += r.tax; service += r.service;
+  }
+  return { dpp, tax, service };
+}
+
+/**
+ * Persen PPN untuk DITULIS di layar bayar.
+ *
+ * `null` kalau lini yang dibeli tidak seragam persennya — layar bayar lalu
+ * menyebut "Pajak & service" tanpa angka, bukan memilih salah satu dan
+ * menuliskannya seolah berlaku untuk seluruh tagihan.
+ */
+export function persenPpnSeragam(
+  dasar: Record<Lini, number>,
+  pjk: Pick<State, "pajak" | "pajakLini">,
+): number | null {
+  const dipakai = [...new Set(LINI.filter((k) => dasar[k] > 0).map((k) => persenLini(pjk, k).ppn))];
+  return dipakai.length === 1 ? dipakai[0] : null;
+}
+
 /** Nilai barang dipecah per lini, dari `station` tiap barisnya. */
 export function liniDariLines(lines: CartLine[]): Record<Lini, number> {
   const out: Record<Lini, number> = { biliar: 0, bar: 0, resto: 0 };
@@ -4211,15 +4271,8 @@ function dayMoney(
   for (const k of [...LINI, "lama"] as (Lini | "lama")[]) {
     const g = dasar[k];
     const p = k === "lama" ? pajak : persenLini(pjk, k);
-    const bagi = 1 + (p.ppn + p.service) / 100;
-    const dppK = Math.round(g / bagi);
-    // Sisanya dibagi, bukan dihitung ulang: tidak ada rupiah hilang di
-    // pembulatan, dan kalau service 0% angkanya benar-benar 0.
-    const sisaK = g - dppK;
-    const totalPersen = p.ppn + p.service;
-    const serviceK = p.service > 0 && totalPersen > 0
-      ? Math.round(sisaK * (p.service / totalPersen)) : 0;
-    const taxK = sisaK - serviceK;
+    // Rumusnya di `pecahPajak` — satu tempat, dipakai rekap DAN layar bayar.
+    const { dpp: dppK, tax: taxK, service: serviceK } = pecahPajak(g, p);
     dpp += dppK; tax += taxK; service += serviceK;
     if (k !== "lama") perLini[k] = { gross: g, dpp: dppK, tax: taxK, service: serviceK };
     else if (g > 0) {

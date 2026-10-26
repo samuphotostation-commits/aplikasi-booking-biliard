@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, PageHeader } from "../components/UI";
 import { Ball } from "../components/motion/Billiard";
-import { useStore, PBJT_RATE, type CartLine } from "../lib/store";
+import { useStore, type CartLine } from "../lib/store";
 import {
   useAdmin, cartProblem, guestOrderProblem, lineValue, runningOn, slotProblem, classOf, paketOf,
   mejaDijual, cariMeja,
@@ -353,7 +353,17 @@ export default function Checkout() {
         <Card className="overflow-hidden">
           <div className="divide-y divide-line">
             <Row k="Subtotal (sebelum pajak)" v={rupiah(totals.dpp)} muted />
-            <Row k={`PBJT ${Math.round(PBJT_RATE * 100)}%`} v={rupiah(totals.tax)} muted />
+            {/* Persennya dibaca dari panel Atur, bukan ditanam di layar ini.
+                Kalau lini yang dibeli tidak seragam persennya, angkanya tidak
+                ditulis sama sekali: satu tagihan yang mencampur meja biliar
+                dan makanan bisa punya dua persen di dalamnya, dan menuliskan
+                salah satunya seolah berlaku untuk seluruh tagihan lebih
+                menyesatkan daripada tidak menuliskannya. */}
+            <Row
+              k={totals.persenPpn !== null ? `PBJT ${totals.persenPpn}%` : "PBJT"}
+              v={rupiah(totals.tax)} muted
+            />
+            {totals.service > 0 && <Row k="Service" v={rupiah(totals.service)} muted />}
             <div className="flex items-center justify-between bg-amber/10 px-4 py-3.5">
               <span className="font-display text-lg uppercase tracking-wide text-cream">
                 {payKasir ? "Ditagih Nanti" : "Total Bayar"}

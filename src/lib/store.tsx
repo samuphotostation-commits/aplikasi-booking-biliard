@@ -3,7 +3,9 @@ import type { MenuItem } from "../data/menu";
 import type { TableType } from "../data/venue";
 import {
   GATEWAY_EXPIRY_MIN, HOLD_GRACE_MIN, HOLD_MIN, paketOf,
-  businessDateOf, priceLines, priceWith, runningOn, useAdmin, type State as VenueState,
+  businessDateOf, priceLines, priceWith, runningOn, useAdmin,
+  liniDariLines, pecahPajakLini, persenPpnSeragam,
+  type State as VenueState, type Lini,
 } from "./adminStore";
 import { diWib } from "./occupancy";
 import { todayISO } from "./core";
@@ -355,12 +357,23 @@ function itemKeBooking(it: RiwayatMemberItem): Booking | null {
 /* ── Perhitungan uang ────────────────────────────────────────────────
    PRD KK-03: harga tayang TAX-INCLUSIVE. Angka yang dilihat pelanggan
    adalah angka yang dibayar; pajak ditarik mundur dari total, bukan
-   ditambahkan di atasnya. PBJT 10% masih [PERLU KONFIRMASI]. */
-export const PBJT_RATE = 0.1;
+   ditambahkan di atasnya.
+
+   PERSENNYA DIBACA DARI PANEL ATUR, tidak lagi ditanam di sini.
+
+   Dulu berkas ini memegang `PBJT_RATE = 0.1` sendiri, sementara rekap
+   membacanya dari pengaturan venue — dan sejak 18 Okt 2026 pengaturan itu
+   boleh berbeda PER LINI USAHA. Selama keduanya kebetulan 10% tidak ada yang
+   terlihat salah; begitu pemilik mengubahnya, layar bayar akan tetap menulis
+   "PBJT 10%" sementara laporan memakai angka lain. Dua angka yang diam-diam
+   berbeda, tanpa galat dan tanpa peringatan.
+
+   Sekarang keduanya memanggil `pecahPajakLini` yang sama. */
 
 export function computeTotals(
   draft: Draft, cart: CartLine[],
-  venue: Pick<VenueState, "rates" | "menuPrices" | "sessions" | "customItems" | "packages">
+  venue: Pick<VenueState, "rates" | "menuPrices" | "sessions" | "customItems" | "packages"
+    | "pajak" | "pajakLini">
     & { tableTypes?: VenueState["tableTypes"] },
 ) {
   // Rumus yang SAMA dengan yang dipakai mesin saat memverifikasi pembayaran —
@@ -385,9 +398,18 @@ export function computeTotals(
 
   const fnbTotal = priced.total;
   const grand = tableTotal + fnbTotal;
-  const dpp = Math.round(grand / (1 + PBJT_RATE));
-  const tax = grand - dpp;
-  return { booking, tableTotal, fnbTotal, grand, dpp, tax, lines: priced.lines };
+
+  /* Dipecah per lini persis seperti rekap: barisnya dibagi dari `station`
+     tiap barang, lalu sewa mejanya ditambahkan ke lini biliar. Dihitung per
+     ember lalu dijumlah — bukan sekali untuk seluruh tagihan — supaya
+     `dpp + tax + service` tetap tepat sama dengan `grand`. */
+  const dasar: Record<Lini, number> = liniDariLines(priced.lines);
+  dasar.biliar += tableTotal;
+
+  const { dpp, tax, service } = pecahPajakLini(dasar, venue);
+  const persenPpn = persenPpnSeragam(dasar, venue);
+
+  return { booking, tableTotal, fnbTotal, grand, dpp, tax, service, persenPpn, lines: priced.lines };
 }
 
 const Ctx = createContext<{
