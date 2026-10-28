@@ -550,9 +550,19 @@ export default function AdminShell() {
             </button>
           </div>
         )}
+        {/* Kalimatnya menyebut yang SUDAH terjadi dulu, baru yang belum.
+            Versi lama — "{n} aksi menunggu konfirmasi urutan dari server" —
+            benar tapi terbaca seperti kegagalan, dan muncul di atas SETIAP
+            layar termasuk Dapur. Juru masak yang menekan "Orderan diterima"
+            lalu melihat kalimat itu menyimpulkan tekanannya tidak jadi dan
+            berhenti bekerja — padahal aksinya sudah tercatat di perangkat
+            ini dan tinggal dikirim (lihat `computeView` di venueStore.ts:
+            antrean ditumpuk di atas tampilan, jadi hasilnya terlihat
+            seketika). Yang menunggu server cuma urutannya, bukan datanya. */}
         {sync.mode === "server" && sync.online && sync.pending > 0 && (
           <p className="mb-3 rounded-xl border border-amber/50 bg-amber/10 px-4 py-2.5 text-[12px] leading-snug text-amber">
-            {sync.pending} aksi menunggu konfirmasi urutan dari server.
+            {sync.pending} aksi sudah tercatat di perangkat ini dan sedang dikirim ke server.
+            Boleh lanjut bekerja.
           </p>
         )}
         {/* Pesan terakhir dari server/mesin ditampilkan juga saat terputus:

@@ -34,6 +34,22 @@ export default function Kitchen() {
   void tick;
   const [station, setStation] = useState<"all" | "kitchen" | "bar">("all");
 
+  /**
+   * Alasan penolakan terakhir, kalau ada.
+   *
+   * `dispatchA` mengembalikan alasan saat sebuah aksi ditahan, dan layar ini
+   * dulu MEMBUANGNYA begitu saja. Di dapur itu kerusakan yang paling mahal:
+   * tombol ditekan, tidak ada yang berubah, tidak ada yang menjelaskan, dan
+   * juru masak menyimpulkan sendiri bahwa aplikasinya rusak.
+   *
+   * Aksi tiket sendiri tidak pernah ditahan koneksi — hanya aksi uang yang
+   * ditahan (`MONEY_ACTIONS` di remote.ts). Ini jaring pengaman supaya pagar
+   * yang ditambahkan nanti tidak diam-diam membuat tombolnya mati.
+   */
+  const [tolak, setTolak] = useState<string | null>(null);
+  const lanjut = (id: string, status: Ticket["status"]) =>
+    setTolak(dispatchA({ t: "ticket", id, status }));
+
   const diStation = (t: Ticket) => station === "all" || t.station === station;
 
   /**
@@ -84,6 +100,12 @@ export default function Kitchen() {
         <span className="ml-auto text-[11px] text-dim">{selesai.length} ready / diantar hari ini</span>
       </div>
 
+      {tolak && (
+        <p role="alert" className="mb-3 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-[13px] leading-snug text-red-300">
+          {tolak}
+        </p>
+      )}
+
       {jalan.length === 0 ? (
         <div className="rounded-2xl border border-line bg-ink-2 px-4 py-12 text-center">
           <div className="font-display text-2xl uppercase tracking-wide text-dim">Bersih</div>
@@ -92,7 +114,7 @@ export default function Kitchen() {
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           <AnimatePresence mode="popLayout">
-            {jalan.map((t) => <Kartu key={t.id} t={t} onLanjut={(s) => dispatchA({ t: "ticket", id: t.id, status: s })} />)}
+            {jalan.map((t) => <Kartu key={t.id} t={t} onLanjut={(st) => lanjut(t.id, st)} />)}
           </AnimatePresence>
         </div>
       )}
@@ -110,7 +132,7 @@ export default function Kitchen() {
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {selesai.map((t) => (
-              <Kartu key={t.id} t={t} onLanjut={(s) => dispatchA({ t: "ticket", id: t.id, status: s })} />
+              <Kartu key={t.id} t={t} onLanjut={(st) => lanjut(t.id, st)} />
             ))}
           </div>
         </section>
