@@ -4,6 +4,7 @@ import { cetakSenyapMungkin, cetakStruk } from "../../lib/cetak";
 import { motion, AnimatePresence } from "framer-motion";
 import { TABLES, CLASS_LABEL, CLASS_SHORT, VENUE_LABEL, tableLabel, venueDari } from "../../data/venue";
 import { VOID_REASONS } from "../../data/staff";
+import { STATUS_DAPUR, URUT_MENDESAK, mulaiStatus, menitSejak, lamaSingkat } from "../../lib/statusDapur";
 import {
   useAdmin, recap, canOpenWalkin, blockEndOf, TURNAROUND_MIN, canExtend, nextSessionOn, hourIdx, OPEN_IDX, CLOSE_IDX, namaMeja,
   dalamJamBuka, batasJamTutup,
@@ -245,8 +246,29 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
   const pesanan = table.venue === "smh" && s?.status === "running" ? ringkasPesanan(s) : [];
   const tiketMeja = s && table.venue === "smh"
     ? a.tickets.filter((t) => t.sessionId === s.id) : [];
-  const belumDiantar = tiketMeja.filter((t) => t.status !== "served").reduce((n, t) => n + t.qty, 0);
-  const siapAntar = tiketMeja.filter((t) => t.status === "ready").reduce((n, t) => n + t.qty, 0);
+  /**
+   * Pesanan meja ini DIKELOMPOKKAN PER KEADAAN, bukan dihitung jadi dua
+   * ember "sudah matang / belum".
+   *
+   * Dua ember tidak bisa membedakan pesanan yang DAPUR BELUM SENTUH dari
+   * yang sedang dimasak — padahal itu beda antara "ada yang harus ditegur"
+   * dan "tinggal tunggu". Kasir yang berdiri di depan Papan mengambil
+   * keputusan yang berbeda untuk keduanya.
+   *
+   * `sejak` dihitung dari kapan tiket masuk ke keadaan SEKARANG, jadi
+   * angkanya menjawab "sudah berapa lama tertahan di sini", bukan "sudah
+   * berapa lama sejak dipesan".
+   */
+  const perStatus = URUT_MENDESAK.flatMap((st) => {
+    if (st === "served") return [];
+    const isi = tiketMeja.filter((t) => t.status === st);
+    if (isi.length === 0) return [];
+    return [{
+      st,
+      porsi: isi.reduce((n, t) => n + t.qty, 0),
+      sejak: Math.min(...isi.map(mulaiStatus)),
+    }];
+  });
   return (
     <motion.button layout whileTap={{ scale: 0.95 }} onClick={onOpen}
       className={`relative flex min-h-[80px] flex-col items-start justify-between rounded-xl
@@ -316,17 +338,29 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
             )}
           </div>
         )}
-        {/* Matang lebih mendesak daripada "masih dimasak": yang satu menunggu
-            kaki pramusaji, yang satu menunggu dapur. Jadi dibedakan warnanya. */}
-        {siapAntar > 0 ? (
-          <div className="mt-1 text-[9px] font-bold uppercase tracking-wider text-blue-300">
-            {siapAntar} porsi SIAP DIANTAR
-          </div>
-        ) : belumDiantar > 0 && (
-          <div className="mt-1 text-[9px] font-bold uppercase tracking-wider text-amber">
-            {belumDiantar} porsi di dapur
-          </div>
-        )}
+        {/* Satu baris per keadaan, warnanya sama dengan layar Dapur — kuning
+            baru masuk, hijau dimasak, biru siap diantar. Yang paling mendesak
+            di atas: matang lebih mendesak daripada masih dimasak, karena yang
+            satu menunggu kaki pramusaji dan makin dingin, yang satu menunggu
+            dapur yang memang sedang bekerja.
+
+            Dipotong dua baris: kartunya kecil, dan meja yang punya tiga
+            keadaan sekaligus tetap terbaca dari dua yang paling mendesak. */}
+        {perStatus.slice(0, 2).map(({ st, porsi, sejak }) => {
+          const w = STATUS_DAPUR[st];
+          const menit = menitSejak(sejak);
+          return (
+            <div key={st}
+              className={`mt-1 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider ${w.teks}`}>
+              <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${w.titik}`} aria-hidden />
+              <span className="truncate">{porsi}&times; {w.pendek}</span>
+              {/* Lewat 15 menit jadi merah, aturan yang sama dengan layar Dapur. */}
+              <span className={`ml-auto shrink-0 tabular-nums ${menit >= 15 ? "text-red-400" : "opacity-75"}`}>
+                {lamaSingkat(menit)}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </motion.button>
   );
