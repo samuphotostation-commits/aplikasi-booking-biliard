@@ -25,17 +25,23 @@ import { setVenueTamu } from "../lib/venueAktif";
 const FELT = "linear-gradient(160deg,#0e3a29,#07140e 70%)";
 const GELAP = "#07140e";
 
+/** Sesudah hero bola turun lurus di rel kanan, satu arah sampai masuk lubang. */
+const rel = (y: number) => ({
+  bola: { x: 93, y, s: 0.14, o: 1 },
+  bolaHp: { x: 93, y, s: 0.2, o: 1 },
+});
+
 /** Urutannya sama dengan urutan `BabTeks` di bawah. */
 const BAB: Bab[] = [
   { foto: FOTO_SPORT, redup: 0.2, bola: { x: 76, y: 36, s: 0.86, o: 1 }, bolaHp: { x: 74, y: 24, s: 0.62, o: 1 } },
-  { foto: fotoVenue("bl-187"), redup: 0.78, bola: { x: 86, y: 66, s: 0.62, o: 1 }, bolaHp: { x: 94, y: 14, s: 0.34, o: 1 } },
-  { warna: FELT, redup: 0.1, bola: { x: 84, y: 24, s: 0.4, o: 1 }, bolaHp: { x: 90, y: 13, s: 0.28, o: 1 } },
-  { foto: fotoVenue("bl-167"), redup: 0.14, bola: { x: 88, y: 24, s: 0.3, o: 1 }, bolaHp: { x: 88, y: 16, s: 0.22, o: 1 } },
-  { foto: fotoVenue("bl-147"), redup: 0.14, bola: { x: 12, y: 26, s: 0.3, o: 1 }, bolaHp: { x: 12, y: 16, s: 0.22, o: 1 } },
-  { foto: fotoVenue("bl-119"), redup: 0.14, bola: { x: 86, y: 28, s: 0.3, o: 1 }, bolaHp: { x: 88, y: 16, s: 0.22, o: 1 } },
-  { foto: fotoVenue("bl-159"), redup: 0.46, bola: { x: 82, y: 40, s: 0.66, o: 1 }, bolaHp: { x: 88, y: 18, s: 0.3, o: 1 } },
-  { warna: GELAP, redup: 0, bola: { x: 8, y: 84, s: 0.46, o: 1 }, bolaHp: { x: 92, y: 12, s: 0.2, o: 1 } },
-  { warna: GELAP, redup: 0, bola: { x: 50, y: 118, s: 0.1, o: 0 }, bolaHp: { x: 50, y: 118, s: 0.1, o: 0 } },
+  { foto: fotoVenue("bl-187"), redup: 0.78, ...rel(20) },
+  { warna: FELT, redup: 0.1, ...rel(32) },
+  { foto: fotoVenue("bl-167"), fotoHp: fotoVenue("bl-036"), redup: 0.14, ...rel(44) },
+  { foto: fotoVenue("bl-147"), fotoHp: fotoVenue("bl-153"), redup: 0.14, ...rel(54) },
+  { foto: fotoVenue("bl-119"), fotoHp: fotoVenue("bl-188"), redup: 0.14, ...rel(64) },
+  { foto: fotoVenue("bl-159"), redup: 0.46, ...rel(72) },
+  { warna: GELAP, redup: 0, ...rel(80) },
+  { warna: GELAP, redup: 0, bola: { x: 93, y: 86, s: 0.01, o: 0 }, bolaHp: { x: 93, y: 86, s: 0.01, o: 0 } },
 ];
 
 const SUASANA = ["Malam di aula utama.", "Fokus di satu pukulan.", "Datang berdua atau rame-rame."];

@@ -150,6 +150,18 @@ html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 .lenis.lenis-stopped { overflow: clip; }
 
+/* Foto mendatar di layar tegak: tampil utuh selebar HP, tepinya melebur ke salinan
+   buram foto yang sama, jadi tidak terpotong dan tidak terlihat seperti kotak. */
+.foto-latar { display: none; }
+@media (max-aspect-ratio: 4/5) {
+  .foto-latar { display: block; filter: blur(26px) saturate(1.2) brightness(.6); scale: 1.2; }
+  .foto-utuh {
+    inset: 11svh 0 auto 0; height: auto; object-fit: contain;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 80%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 80%, transparent);
+  }
+}
+
 /* Grain halus supaya bidang gelap tidak terasa datar */
 .grain::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .05;

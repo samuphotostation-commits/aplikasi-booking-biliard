@@ -89,7 +89,8 @@ function program(gl: WebGLRenderingContext, fragmen: string) {
 
 /** Rotasi menggelinding: sudut `s` mengelilingi sumbu yang sedikit miring. */
 function putaran(s: number): Float32Array {
-  const [x, y, z] = [0.62, 0.74, 0.26];
+  // Sumbu mendatar: bola yang turun di rel terlihat benar-benar menggelinding turun.
+  const [x, y, z] = [0.94, 0.24, 0.24];
   const c = Math.cos(s), n = Math.sin(s), t = 1 - c;
   return new Float32Array([
     t * x * x + c, t * x * y + z * n, t * x * z - y * n,

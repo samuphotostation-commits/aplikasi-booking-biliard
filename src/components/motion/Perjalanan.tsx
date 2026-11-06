@@ -22,6 +22,8 @@ const Panggung3D = lazy(() => import("./Panggung3D"));
 export type Bab = {
   /** Foto penuh layar, atau kosong untuk latar warna `warna`. */
   foto?: string;
+  /** Foto tegak untuk layar HP. Tanpa ini, foto mendatar tampil utuh selebar layar. */
+  fotoHp?: string;
   warna?: string;
   /** Kegelapan di atas foto, 0 sampai 1, supaya teks bab terbaca. */
   redup: number;
@@ -35,7 +37,8 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
   const lapis = useRef<(HTMLDivElement | null)[]>([]);
   const gambar = useRef<(HTMLImageElement | null)[]>([]);
   const garis = useRef<HTMLDivElement>(null);
-  const kuat = useMotionValue(0);
+  const rel = useRef<HTMLDivElement>(null);
+  const kuat = useMotionValue(0.8);
   const [lemah] = useState(perangkatLemah);
   const [gagal, setGagal] = useState(false);
 
@@ -56,7 +59,10 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
     ro.observe(el);
 
     let y = window.scrollY;
+    // Halaman baru terbuka dari balik kabut, jadi tersambung dengan halaman sebelumnya.
+    let masuk = 0.8;
     const lepas = padaBingkai(() => {
+      masuk *= 0.965;
       // Di HP gulirnya tidak lewat Lenis, jadi panggung mengejarnya sendiri.
       y += (window.scrollY - y) * 0.14;
       const tengah = y + tinggiLayar * 0.5;
@@ -76,11 +82,13 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
         const g = gambar.current[i];
         if (g && l?.style.visibility === "visible") {
           const lokal = (tengah - batas + tinggiLayar) / (tinggiLayar * 3);
-          g.style.transform = `scale(${1.02 + Math.min(1, Math.max(0, lokal)) * 0.1})`;
+          // Di HP nyaris tanpa zoom: foto sudah pas selebar layar.
+          g.style.transform = `scale(${1 + Math.min(1, Math.max(0, lokal)) * (hp ? 0.025 : 0.1)})`;
         }
         if (i > 0) kabut = Math.max(kabut, 1 - Math.abs(tengah - batas) / lebarKabut);
       }
-      kuat.set(Math.max(0, kabut));
+      kuat.set(Math.max(0, kabut, masuk));
+      if (rel.current) rel.current.style.opacity = String(halus((tengah - tinggiLayar) / tinggiLayar));
 
       // Bola berjalan di antara dua titik bab, mengikuti kemajuan bab itu.
       const titik = (i: number) => (hp ? bab[i]?.bolaHp : undefined) ?? bab[i]?.bola;
@@ -106,10 +114,16 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
         {bab.map((b, i) => (
           <div key={i} ref={(n) => { lapis.current[i] = n; }}
             className="absolute inset-0 opacity-0 will-change-[opacity]" style={{ background: b.warna ?? "#0b0b0c" }}>
+            {b.foto && !b.fotoHp && (
+              <img src={b.foto} alt="" decoding="async" loading="lazy" className="foto-latar absolute inset-0 h-full w-full object-cover" />
+            )}
             {b.foto && (
-              <img ref={(n) => { gambar.current[i] = n; }} src={b.foto} alt="" decoding="async"
-                fetchPriority={i === 0 ? "high" : "low"} loading={i === 0 ? "eager" : "lazy"}
-                className="absolute inset-0 h-full w-full object-cover will-change-transform" />
+              <picture>
+                {b.fotoHp && <source media="(max-aspect-ratio: 4/5)" srcSet={b.fotoHp} />}
+                <img ref={(n) => { gambar.current[i] = n; }} src={b.foto} alt="" decoding="async"
+                  fetchPriority={i === 0 ? "high" : "low"} loading={i === 0 ? "eager" : "lazy"}
+                  className={`absolute inset-0 h-full w-full object-cover will-change-transform ${b.fotoHp ? "" : "foto-utuh"}`} />
+              </picture>
             )}
             <div className="absolute inset-0" style={{ background: `rgba(7,6,6,${b.redup})` }} />
             <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-ink/80 to-transparent" />
@@ -119,6 +133,13 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
           <Suspense fallback={null}>
             <Panggung3D jenis="asap" tema={tema} nilai={kuat} className="absolute inset-0" onGagal={() => setGagal(true)} />
           </Suspense>
+        )}
+        {/* Rel meja: jalur bola sepanjang halaman, berakhir di lubang. */}
+        {sport && (
+          <div ref={rel} className="absolute inset-0 opacity-0">
+            <div className="absolute bottom-[14svh] left-[93vw] top-[17svh] w-0 -translate-x-1/2 border-l-2 border-dotted border-amber/40" />
+            <div className="absolute left-[93vw] top-[86svh] h-11 w-11 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber/70 bg-black shadow-[inset_0_6px_14px_#000]" />
+          </div>
         )}
       </div>
 
