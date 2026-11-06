@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Suspense, lazy, useEffect } from "react";
 import { BottomNav } from "./components/UI";
 import { TiraiProvider } from "./components/motion/Tirai";
+import { BolaBersama } from "./components/motion/Perjalanan";
 import { StoreProvider } from "./lib/store";
 import { AdminProvider } from "./lib/adminStore";
 
@@ -162,6 +163,7 @@ function Shell() {
           </Routes>
           </Suspense>
       </motion.main>
+      {ADA_TAMU && <BolaBersama />}
       {!isAdmin && <BottomNav sembunyiLebar={loc.pathname === "/sport" || loc.pathname === "/smokehouse"} />}
     </>
   );

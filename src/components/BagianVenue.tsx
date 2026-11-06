@@ -9,7 +9,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mark } from "./UI";
 import { SmokeMark } from "./Smoke";
-import { Adegan, Judul, LabelSandi, Muncul, TEPI_NAIK } from "./motion/Adegan";
+import { Judul, LabelSandi, Muncul } from "./motion/Adegan";
+import { BabTeks } from "./motion/Perjalanan";
 import { useTirai, type Tema } from "./motion/Tirai";
 import { CLOSE_HOUR, OPEN_HOUR, VENUE, WA_VENUE, WA_VENUE_TAMPIL, fmtHour } from "../data/venue";
 
@@ -32,7 +33,7 @@ export function Aksi({ onClick, href, children, lebar }: {
 export function Aksi2({ onClick, href, children, lebar }: {
   onClick?: () => void; href?: string; children: ReactNode; lebar?: boolean;
 }) {
-  const kelas = `${KELAS_AKSI} border border-cream/25 bg-ink/40 px-7 font-semibold text-cream backdrop-blur-sm
+  const kelas = `${KELAS_AKSI} border border-cream/25 bg-ink/50 px-7 font-semibold text-cream
     hover:border-amber/70 hover:text-amber ${lebar ? "w-full" : ""}`;
   return href
     ? <a href={href} target="_blank" rel="noreferrer" className={kelas}>{children}</a>
@@ -59,7 +60,7 @@ export function BilahVenue({ tema, aksi, keAksi }: { tema: Tema; aksi: string; k
 
   return (
     <header className={`safe-t fixed inset-x-0 top-0 z-40 transition-colors duration-300 ${
-      padat ? "border-b border-line/70 bg-ink/85 backdrop-blur-md" : "border-b border-transparent"}`}>
+      padat ? "bg-gradient-to-b from-ink via-ink/85 to-transparent" : ""}`}>
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-5 py-2.5">
         <button type="button" aria-label="Kembali ke pilihan tempat" onClick={() => pergi("/", tema)}
           className="flex min-h-[40px] items-center gap-2.5 text-cream">
@@ -104,15 +105,14 @@ export function TanyaJawab({ daftar }: { daftar: { t: string; j: string }[] }) {
 }
 
 /** Penutup: lokasi, member, dan kaki halaman. Isinya mengikuti venue. */
-export function PenutupVenue({ tema, urut }: { tema: Tema; urut: number }) {
+export function PenutupVenue({ tema }: { tema: Tema }) {
   const nav = useNavigate();
   const pergi = useTirai();
   const sport = tema === "sport";
   const lain: Tema = sport ? "smokehouse" : "sport";
 
   return (
-    <Adegan id="lokasi" urut={urut} terakhir
-      className={`${TEPI_NAIK} ${sport ? "bg-ink-2" : "bata-redup"}`}>
+    <BabTeks id="lokasi" className="flex-col justify-end">
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-16 sm:py-24 lg:grid-cols-12 lg:gap-14">
         <div className="lg:col-span-7">
           <LabelSandi teks="Lokasi" className="text-amber" />
@@ -167,6 +167,6 @@ export function PenutupVenue({ tema, urut }: { tema: Tema; urut: number }) {
           </nav>
         </div>
       </footer>
-    </Adegan>
+    </BabTeks>
   );
 }

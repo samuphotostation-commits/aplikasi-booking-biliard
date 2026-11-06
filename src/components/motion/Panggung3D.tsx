@@ -43,7 +43,7 @@ void main(){
 }`;
 
 const ASAP = `precision mediump float;
-varying vec2 v;uniform vec2 uUkuran;uniform float uWaktu;uniform float uKuat;
+varying vec2 v;uniform vec2 uUkuran;uniform float uWaktu;uniform float uKuat;uniform vec3 uGelap;uniform vec3 uTerang;uniform vec3 uBara;
 float acak(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float bising(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
   return mix(mix(acak(i),acak(i+vec2(1.,0.)),f.x),mix(acak(i+vec2(0.,1.)),acak(i+vec2(1.,1.)),f.x),f.y);}
@@ -55,12 +55,12 @@ void main(){
   float f=awan(q+awan(q*1.2+t)*1.1);
   float dasar=mix(.16+(1.-uv.y)*.85,1.,uKuat);
   float a=smoothstep(mix(.42,.1,uKuat),mix(.86,.5,uKuat),f)*dasar;
-  vec3 warna=mix(vec3(.17,.08,.06),vec3(.5,.4,.34),f);
+  vec3 warna=mix(uGelap,uTerang,f);
   vec2 g=vec2(p.x*13.,p.y*8.-uWaktu*.42);vec2 id=floor(g);vec2 h=fract(g);
   float n=acak(id);
   vec2 titik=vec2(.3+.4*acak(id+3.),.3+.4*acak(id+7.));
   float bara=step(.87,n)*smoothstep(.09,.0,length(h-titik))*(.5+.5*sin(uWaktu*3.+n*40.));
-  vec3 api=vec3(1.,.56,.13)*bara*(1.-uv.y*.75);
+  vec3 api=uBara*bara*(1.-uv.y*.75);
   float alfa=clamp(a*.82+bara,0.,1.);
   gl_FragColor=vec4(warna*a*.82+api,alfa);
 }`;
@@ -123,13 +123,15 @@ function teksturAngka(gl: WebGLRenderingContext) {
 
 type Sifat = {
   jenis: "bola" | "asap";
+  /** Warna kabut: debu kapur hijau di Sport, asap dan bara di Smokehouse. */
+  tema?: "sport" | "smokehouse";
   /** Bola: sudut putar tambahan. Asap: kekentalan 0 sampai 1. */
   nilai?: MotionValue<number>;
   className?: string;
   onGagal?: () => void;
 };
 
-export default function Panggung3D({ jenis, nilai, className = "", onGagal }: Sifat) {
+export default function Panggung3D({ jenis, tema = "smokehouse", nilai, className = "", onGagal }: Sifat) {
   const kanvas = useRef<HTMLCanvasElement>(null);
   const skala = useRef(nilai?.get() ?? 0);
   const minta = useRef<() => void>(() => {});
@@ -149,13 +151,19 @@ export default function Panggung3D({ jenis, nilai, className = "", onGagal }: Si
     try { p = program(gl, jenis === "bola" ? BOLA : ASAP); }
     catch { onGagal?.(); return; }
     if (jenis === "bola") teksturAngka(gl);
+    else {
+      const sport = tema === "sport";
+      gl.uniform3fv(gl.getUniformLocation(p, "uGelap"), sport ? [0.03, 0.13, 0.09] : [0.17, 0.08, 0.06]);
+      gl.uniform3fv(gl.getUniformLocation(p, "uTerang"), sport ? [0.22, 0.42, 0.33] : [0.5, 0.4, 0.34]);
+      gl.uniform3fv(gl.getUniformLocation(p, "uBara"), sport ? [0.75, 0.86, 0.8] : [1, 0.56, 0.13]);
+    }
 
     const lok = (n: string) => gl.getUniformLocation(p, n);
     const uPutar = lok("uPutar"), uUkuran = lok("uUkuran"), uWaktu = lok("uWaktu"), uKuat = lok("uKuat");
 
     const ukur = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, jenis === "bola" ? 2 : 1);
-      const faktor = jenis === "bola" ? 1 : 0.6;
+      const dpr = Math.min(window.devicePixelRatio || 1, jenis === "bola" ? 1.5 : 1);
+      const faktor = jenis === "bola" ? 1 : 0.5;
       k.width = Math.max(2, Math.round(k.clientWidth * dpr * faktor));
       k.height = Math.max(2, Math.round(k.clientHeight * dpr * faktor));
       gl.viewport(0, 0, k.width, k.height);
@@ -172,6 +180,8 @@ export default function Panggung3D({ jenis, nilai, className = "", onGagal }: Si
       if (!tampak || document.hidden) return;
       // Asap cukup 30 fps: tidak terasa bedanya, dan HP tidak panas.
       if (jenis === "asap" && kini - terakhir < 32) { rAF = requestAnimationFrame(gambar); return; }
+      // Kabut yang nyaris tak terlihat tidak perlu digambar.
+      if (jenis === "asap" && skala.current < 0.01 && kini - terakhir < 90) { rAF = requestAnimationFrame(gambar); return; }
       terakhir = kini;
       const dtk = (kini - mulai) / 1000;
       if (jenis === "bola") {

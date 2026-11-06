@@ -142,25 +142,13 @@ input, select, textarea { font-size: 16px; }
 }
 .naik { animation: naik .62s cubic-bezier(.22, 1, .36, 1) both; }
 
-/* ── Gerbang: dua pintu masuk dari sisi layar, bola jatuh ke garis tengah ── */
-@keyframes pintu-atas  { from { transform: translateY(-100%); } to { transform: none; } }
-@keyframes pintu-bawah { from { transform: translateY(100%); } to { transform: none; } }
-@keyframes pintu-kiri  { from { transform: translateX(-100%); } to { transform: none; } }
-@keyframes pintu-kanan { from { transform: translateX(100%); } to { transform: none; } }
-@keyframes bola-masuk  { from { opacity: 0; scale: .2; rotate: -200deg; } to { opacity: 1; scale: 1; rotate: 0deg; } }
-.pintu-kiri  { animation: pintu-atas .9s cubic-bezier(.76, 0, .24, 1) both; }
-.pintu-kanan { animation: pintu-bawah .9s cubic-bezier(.76, 0, .24, 1) both; }
-.bola-gerbang { animation: bola-masuk .8s .55s cubic-bezier(.22, 1, .36, 1) both; }
-@media (min-width: 768px) {
-  .pintu-kiri  { animation-name: pintu-kiri; }
-  .pintu-kanan { animation-name: pintu-kanan; }
-}
+/* ── Gerbang: garis tengah membelah layar saat bola tiba ── */
+.tirai-gerbang { transition: transform 1.1s cubic-bezier(.76, 0, .24, 1); }
 
-/* Tautan bilah venue meluncur ke bagiannya, tidak melompat. */
-html { scroll-padding-top: 64px; }
-@media (prefers-reduced-motion: no-preference) {
-  html { scroll-behavior: smooth; }
-}
+/* Lenis: gulir roda dihaluskan skrip, jadi peramban tidak boleh ikut menghaluskan. */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: clip; }
 
 /* Grain halus supaya bidang gelap tidak terasa datar */
 .grain::after {

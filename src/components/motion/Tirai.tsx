@@ -12,6 +12,7 @@ import { createContext, useCallback, useContext, useRef, useState, type ReactNod
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Ball } from "./Billiard";
+import { keAtas } from "../../lib/jamPanggung";
 import { Mark } from "../UI";
 import { SmokeMark } from "../Smoke";
 
@@ -36,7 +37,7 @@ export function TiraiProvider({ children }: { children: ReactNode }) {
     setTema(t);
     setTimeout(() => {
       nav(ke);
-      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+      keAtas();
       setTimeout(() => { setTema(null); sibuk.current = false; }, 80);
     }, DURASI * 1000 + 40);
   }, [kurangi, nav]);
