@@ -17,6 +17,7 @@ type Jembatan = {
   tersedia: true;
   daftarPrinter: () => Promise<{ nama: string; keterangan: string; bawaan: boolean }[]>;
   cetak: (printer?: string) => Promise<{ ok: boolean; alasan?: string }>;
+  cetakHtml: (html: string, printer: string) => Promise<{ ok: boolean; alasan?: string }>;
 };
 
 const jembatan = (): Jembatan | null =>
@@ -47,4 +48,66 @@ export async function cetakStruk(): Promise<{ ok: boolean; alasan?: string }> {
   if (!j) { window.print(); return { ok: true }; }
   const hasil = await j.cetak(printerTersimpan());
   return hasil ?? { ok: false, alasan: "tidak ada jawaban dari printer" };
+}
+
+/* ── Printer dapur dan bar ─────────────────────────────────────────
+   Sama seperti printer struk: setelan perangkat. Komputer dapur memilih
+   printer dapur, komputer bar memilih printer bar, dan masing-masing hanya
+   mencetak bagiannya sendiri. */
+
+type Bagian = "kitchen" | "bar";
+const kunciPrinter = (b: Bagian) => `spl:v1:printer-${b}`;
+const K_OTOMATIS = "spl:v1:cetak-otomatis";
+const K_TERCETAK = "spl:v1:tercetak";
+const BATAS_CATATAN = 1000;
+
+export const printerBagian = (b: Bagian): string => {
+  try { return window.localStorage.getItem(kunciPrinter(b)) ?? ""; } catch { return ""; }
+};
+export const simpanPrinterBagian = (b: Bagian, nama: string) => {
+  try { window.localStorage.setItem(kunciPrinter(b), nama); } catch { /* mode privat */ }
+};
+
+export const cetakOtomatis = (): boolean => {
+  try { return window.localStorage.getItem(K_OTOMATIS) === "1"; } catch { return false; }
+};
+
+/** Catatan yang sudah keluar, supaya memuat ulang panel tidak mencetak ulang. */
+export const tiketTercetak = (): Set<string> => {
+  try { return new Set(JSON.parse(window.localStorage.getItem(K_TERCETAK) ?? "[]") as string[]); }
+  catch { return new Set(); }
+};
+export const tandaiTercetak = (kunci: string[]) => {
+  const semua = [...tiketTercetak(), ...kunci].slice(-BATAS_CATATAN);
+  try { window.localStorage.setItem(K_TERCETAK, JSON.stringify(semua)); } catch { /* mode privat */ }
+};
+
+/** Dinyalakan: tiket yang sudah ada dianggap tercetak supaya kertas tidak membanjir. */
+export const aturCetakOtomatis = (nyala: boolean, tiketAda: string[]) => {
+  if (nyala) tandaiTercetak(tiketAda);
+  try { window.localStorage.setItem(K_OTOMATIS, nyala ? "1" : "0"); } catch { /* mode privat */ }
+};
+
+/** Di peramban lewat dialog cetak, dari bingkai tersembunyi supaya panelnya tidak ikut tercetak. */
+function cetakLewatDialog(html: string): Promise<{ ok: boolean }> {
+  return new Promise((selesai) => {
+    const f = document.createElement("iframe");
+    f.setAttribute("sandbox", "allow-modals allow-same-origin");
+    f.style.cssText = "position:fixed;width:0;height:0;border:0;visibility:hidden";
+    f.srcdoc = html;
+    f.onload = () => {
+      f.contentWindow?.print();
+      setTimeout(() => { f.remove(); selesai({ ok: true }); }, 1000);
+    };
+    document.body.appendChild(f);
+  });
+}
+
+/** Kertas dapur: tanpa dialog di aplikasi Windows, lewat dialog di peramban. */
+export async function cetakKertas(html: string, b: Bagian): Promise<{ ok: boolean; alasan?: string }> {
+  const j = jembatan();
+  if (!j) return cetakLewatDialog(html);
+  const printer = printerBagian(b);
+  if (!printer) return { ok: false, alasan: `pilih printer ${b === "bar" ? "bar" : "dapur"} di tab Atur` };
+  return (await j.cetakHtml(html, printer)) ?? { ok: false, alasan: "tidak ada jawaban dari printer" };
 }

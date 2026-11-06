@@ -55,6 +55,27 @@ ipcMain.handle("spl:daftar-printer", async (e) => {
   }
 });
 
+/* Kertas dapur dicetak dari jendela tersembunyi, bukan dari layar panel, dan
+   ke printer yang dipilih per bagian. Skrip dimatikan karena isinya memuat
+   catatan yang diketik tamu. */
+ipcMain.handle("spl:cetak-html", async (_e, html, printer) => {
+  if (typeof html !== "string" || !html || !printer) return { ok: false, alasan: "printer belum dipilih" };
+  const jendela = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true } });
+  try {
+    await jendela.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    return await new Promise((selesai) => {
+      jendela.webContents.print(
+        { silent: true, printBackground: true, deviceName: printer, margins: { marginType: "none" } },
+        (ok, alasan) => selesai(ok ? { ok: true } : { ok: false, alasan: alasan || "dibatalkan" }),
+      );
+    });
+  } catch (err) {
+    return { ok: false, alasan: String(err && err.message ? err.message : err) };
+  } finally {
+    jendela.destroy();
+  }
+});
+
 ipcMain.handle("spl:cetak", async (e, printer) => {
   try {
     const hasil = await new Promise((selesai) => {

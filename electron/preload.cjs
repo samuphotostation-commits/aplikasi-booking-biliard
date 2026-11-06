@@ -23,4 +23,6 @@ contextBridge.exposeInMainWorld("splCetak", {
    * Mengembalikan { ok } atau { ok: false, alasan }.
    */
   cetak: (printer) => ipcRenderer.invoke("spl:cetak", printer ?? ""),
+  /** Cetak kertas dapur ke printer tertentu tanpa menyentuh layar. */
+  cetakHtml: (html, printer) => ipcRenderer.invoke("spl:cetak-html", html, printer),
 });

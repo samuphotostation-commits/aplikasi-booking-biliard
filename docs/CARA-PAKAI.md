@@ -123,6 +123,16 @@ menonaktifkan, dan menghapus. Aturan yang dijaga:
 > **Masih PR:** PIN bawaan (9999 / 8888 / 1234 / 2345 / 3456) belum diganti. Ganti lewat Atur → Akun staf,
 > lalu hapus akun demo yang tidak dipakai.
 
+## 8b. Printer dapur & bar
+
+Tiket pesanan keluar otomatis di printer termal, satu kertas per pesanan, dengan kotak centang untuk tiap hidangan.
+
+1. Pasang printer di Windows komputer dapur, lalu buka **aplikasi Windows SPL Kasir**.
+2. **Atur → Printer dapur & bar:** pilih printernya, tekan **Coba**, lalu nyalakan **Cetak otomatis**.
+3. Di komputer bar, pilih printer bar saja. Tiap komputer hanya mencetak bagian yang printernya dipilih.
+
+Tab **Dapur** punya tombol cetak di tiap kartu dan **Cetak semua** untuk cetak ulang. Di peramban tombol itu lewat dialog cetak, dan cetak otomatis tidak tersedia. Pesanan yang masuk saat komputer mati ikut tercetak begitu menyala lagi, selama belum diterima dan belum lewat 2 jam.
+
 ## 9. Laporan
 
 - **Rekap** (superadmin): pilih **Harian · Mingguan · Bulanan · Pilih tanggal** di atas layar.
@@ -181,7 +191,7 @@ mesin menolak booking itu dan mencatat dananya untuk dikembalikan.
 
 ## 10b. Akun member tamu (daftar & masuk sebelum booking)
 
-> **Sejak 6 Nov 2026 member hanya bisa dibuat lewat Google, dan nomor HP wajib diisi** (`supabase/schema-gmail.sql`). Email tidak bisa diketik atau diganti, jadi email palsu tidak bisa punya akun. Daftar/masuk dengan HP + PIN dan Reset PIN sudah ditutup; bagian lama di bawah ini hanya riwayat. Nomor HP dicek formatnya tapi belum diverifikasi lewat kode.
+> **Sejak 6 Nov 2026 member hanya bisa dibuat lewat Google, dan nomor HP wajib diisi** (`supabase/schema-gmail.sql`). Email tidak bisa diketik atau diganti, jadi email palsu tidak bisa punya akun. Daftar/masuk dengan HP + PIN dan Reset PIN sudah ditutup; bagian lama di bawah ini hanya riwayat. Nomor HP dicek formatnya tapi belum diverifikasi lewat kode. Tanggal lahir dan domisili (kecamatan, atau kota kalau di luar Padang) wajib untuk member baru (`supabase/schema-member-data.sql`); member lama mengisinya di halaman Akun.
 
 Permintaan pemilik: **booking online hanya diproses atas nama member**, supaya data tamunya menjadi
 milik venue dan bisa dipakai blast promo.

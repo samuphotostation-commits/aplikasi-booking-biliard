@@ -4,6 +4,9 @@ import { useAdmin, businessDateOf } from "../../lib/adminStore";
 import { STATUS_DAPUR, mulaiStatus, menitSejak, lamaSingkat } from "../../lib/statusDapur";
 import { jam } from "./AdminShell";
 import type { Ticket } from "../../data/live";
+import { cetakKertas, tandaiTercetak, tiketTercetak } from "../../lib/cetak";
+import { htmlKertas, kelompokkan, kunciTiket, type KertasDapur } from "../../lib/cetakDapur";
+import { galatCetakDapur } from "../../lib/pantauCetak";
 
 /* Kitchen Display sederhana (PRD KK-15).
    Empat status, tombol besar, tanpa routing per-station yang rumit —
@@ -52,6 +55,18 @@ export default function Kitchen() {
 
   const diStation = (t: Ticket) => station === "all" || t.station === station;
 
+  async function cetak(kertas: KertasDapur[]) {
+    const sudah = tiketTercetak();
+    for (const k of kertas) {
+      const r = await cetakKertas(htmlKertas(k, { ulang: k.item.some((t) => sudah.has(kunciTiket(t))) }), k.bagian);
+      if (!r.ok) { setTolak(`Gagal mencetak ${k.meja}: ${r.alasan ?? "printer tidak menjawab"}`); return; }
+      tandaiTercetak(k.item.map(kunciTiket));
+    }
+  }
+  /** Satu kartu mencetak seluruh kertasnya, bukan satu hidangan saja. */
+  const cetakSatu = (t: Ticket) => void cetak(kelompokkan(a.tickets.filter((x) =>
+    x.sessionId === t.sessionId && x.at === t.at && x.station === t.station)));
+
   /**
    * Masih dikerjakan — di atas garis, TANPA saringan hari.
    *
@@ -98,7 +113,18 @@ export default function Kitchen() {
           );
         })}
         <span className="ml-auto text-[11px] text-dim">{selesai.length} ready / diantar hari ini</span>
+        <button
+          disabled={jalan.length === 0}
+          onClick={() => void cetak(kelompokkan(jalan))}
+          className="min-h-[38px] rounded-lg border border-line px-3 text-[12px] font-semibold text-mute hover:border-amber hover:text-amber disabled:opacity-40"
+        >Cetak semua</button>
       </div>
+
+      {galatCetakDapur() && (
+        <p role="alert" className="mb-3 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-[13px] leading-snug text-red-300">
+          {galatCetakDapur()}
+        </p>
+      )}
 
       {tolak && (
         <p role="alert" className="mb-3 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-[13px] leading-snug text-red-300">
@@ -114,7 +140,7 @@ export default function Kitchen() {
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           <AnimatePresence mode="popLayout">
-            {jalan.map((t) => <Kartu key={t.id} t={t} onLanjut={(st) => lanjut(t.id, st)} />)}
+            {jalan.map((t) => <Kartu key={t.id} t={t} onLanjut={(st) => lanjut(t.id, st)} onCetak={() => cetakSatu(t)} />)}
           </AnimatePresence>
         </div>
       )}
@@ -132,7 +158,7 @@ export default function Kitchen() {
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {selesai.map((t) => (
-              <Kartu key={t.id} t={t} onLanjut={(st) => lanjut(t.id, st)} />
+              <Kartu key={t.id} t={t} onLanjut={(st) => lanjut(t.id, st)} onCetak={() => cetakSatu(t)} />
             ))}
           </div>
         </section>
@@ -152,7 +178,9 @@ export default function Kitchen() {
   );
 }
 
-function Kartu({ t, onLanjut }: { t: Ticket; onLanjut: (s: Ticket["status"]) => void }) {
+function Kartu({ t, onLanjut, onCetak }: {
+  t: Ticket; onLanjut: (s: Ticket["status"]) => void; onCetak: () => void;
+}) {
   const f = STATUS_DAPUR[t.status];
 
   /**
@@ -234,6 +262,10 @@ function Kartu({ t, onLanjut }: { t: Ticket; onLanjut: (s: Ticket["status"]) => 
           className="mt-3 min-h-[46px] w-full rounded-xl bg-amber text-[15px] font-bold text-ink"
         >{f.aksi}</motion.button>
       )}
+      <button onClick={onCetak}
+        className="mt-2 min-h-[36px] w-full rounded-lg border border-line text-[12px] text-mute hover:border-amber hover:text-amber">
+        Cetak kertas pesanan ini
+      </button>
     </motion.div>
   );
 }

@@ -92,6 +92,8 @@ export type Pelanggan = {
 export type MemberBaris = {
   phone: string; nama: string; email: string; setuju_promo: boolean;
   sejak_ms: number; terakhir_ms: number; kunjungan: number; belanja: number;
+  /** TTTT-BB-HH, kosong kalau belum diisi. */
+  lahir: string; domisili: string;
 };
 
 /** Satu catatan absen. Fotonya diambil terpisah lewat absenFoto (berat). */

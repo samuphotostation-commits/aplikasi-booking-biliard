@@ -19,7 +19,13 @@ import { simpanProfil } from "./profilTamu";
 import type { LiveSession } from "../data/live";
 import type { GuestOrder } from "./engine";
 
-export type Member = { hp: string; nama: string; email: string; setuju: boolean; sejak: number };
+export type Member = {
+  hp: string; nama: string; email: string; setuju: boolean; sejak: number;
+  /** TTTT-BB-HH, kosong untuk member lama yang belum mengisi. */
+  lahir: string;
+  domisili: string;
+};
+export type DataDaftar = { hp: string; lahir: string; domisili: string };
 export type HasilMember = { ok: true; member: Member } | { ok: false; alasan: string };
 
 const K_TOKEN = "spl:v1:member";
@@ -109,13 +115,15 @@ export type HasilGoogle =
 
 /**
  * Tukar sesi Google menjadi akun member SPL. Panggilan pertama bisa menjawab
- * `perluHp` — nomor HP memang tidak ada di akun Google, padahal kasir perlu.
+ * `perluHp`: nomor HP, tanggal lahir, dan domisili tidak ada di akun Google.
  */
-export async function selesaikanGoogle(hp?: string): Promise<HasilGoogle> {
+export async function selesaikanGoogle(d?: DataDaftar): Promise<HasilGoogle> {
   const c = sb();
   if (!c) return { ok: false, alasan: "Butuh sambungan ke server venue." };
   try {
-    const { data, error } = await c.rpc("member_google", { p_hp: hp ?? null });
+    const { data, error } = await c.rpc("member_google", {
+      p_hp: d?.hp ?? null, p_lahir: d?.lahir ?? null, p_domisili: d?.domisili ?? null,
+    });
     if (error) return { ok: false, alasan: error.message };
     const r = data as { ok?: boolean; perluHp?: boolean; alasan?: string; token?: string; profil?: unknown; nama?: string; email?: string };
     if (r?.perluHp) return { ok: false, perluHp: true, nama: r.nama ?? "", email: r.email ?? "" };
@@ -151,6 +159,8 @@ const bacaProfilServer = (x: unknown): Member | null => {
     email: typeof p.email === "string" ? p.email : "",
     setuju: p.setuju === true,
     sejak: typeof p.sejak === "number" ? p.sejak : 0,
+    lahir: typeof p.lahir === "string" ? p.lahir : "",
+    domisili: typeof p.domisili === "string" ? p.domisili : "",
   };
 };
 
@@ -179,7 +189,7 @@ export async function memberSaya(): Promise<Member | null> {
   } catch { return null; }
 }
 
-export async function ubahMember(p: { nama?: string; setuju?: boolean }): Promise<HasilMember> {
+export async function ubahMember(p: { nama?: string; setuju?: boolean; lahir?: string; domisili?: string }): Promise<HasilMember> {
   const c = sb();
   const t = tokenMember();
   if (!c || !t) return { ok: false, alasan: "Silakan masuk dulu." };
@@ -188,6 +198,8 @@ export async function ubahMember(p: { nama?: string; setuju?: boolean }): Promis
       p_token: t,
       p_nama: p.nama ?? null,
       p_setuju: p.setuju ?? null,
+      p_lahir: p.lahir || null,
+      p_domisili: p.domisili || null,
     });
     if (error) return { ok: false, alasan: error.message };
     const r = data as { ok?: boolean; alasan?: string; profil?: unknown };

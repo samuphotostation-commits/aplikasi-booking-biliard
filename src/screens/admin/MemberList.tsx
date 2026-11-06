@@ -28,6 +28,7 @@ export default function DaftarMember() {
 
   const [cari, setCari] = useState("");
   const [hanyaSetuju, setHanyaSetuju] = useState(false);
+  const [ultahBulanIni, setUltahBulanIni] = useState(false);
   const [baris, setBaris] = useState<MemberBaris[] | null>(null);
   const [galat, setGalat] = useState<string | null>(null);
   const [pesan, setPesan] = useState<string | null>(null);
@@ -48,14 +49,16 @@ export default function DaftarMember() {
   }, [cari, muat]);
 
   const semua = baris ?? [];
-  const tampil = semua.filter((m) => !hanyaSetuju || m.setuju_promo);
+  const bulanIni = String(new Date().getMonth() + 1).padStart(2, "0");
+  const tampil = semua.filter((m) => (!hanyaSetuju || m.setuju_promo)
+    && (!ultahBulanIni || m.lahir.slice(5, 7) === bulanIni));
   const bolehDiblast = tampil.filter((m) => m.setuju_promo);
 
   async function unduhCSV() {
     const rows = [
-      ["nomor_hp", "nama", "email", "izin_promo", "daftar_sejak", "terakhir_aktif", "kunjungan", "belanja"],
+      ["nomor_hp", "nama", "email", "tanggal_lahir", "domisili", "izin_promo", "daftar_sejak", "terakhir_aktif", "kunjungan", "belanja"],
       ...tampil.map((m) => [
-        m.phone, m.nama, m.email, m.setuju_promo ? "ya" : "tidak",
+        m.phone, m.nama, m.email, m.lahir, m.domisili, m.setuju_promo ? "ya" : "tidak",
         tanggal(Number(m.sejak_ms)), tanggal(Number(m.terakhir_ms)),
         String(m.kunjungan), String(Number(m.belanja || 0)),
       ]),
@@ -96,7 +99,7 @@ export default function DaftarMember() {
       <input
         value={cari}
         onChange={(e) => setCari(e.target.value)}
-        placeholder="Cari nama, nomor HP, atau email…"
+        placeholder="Cari nama, nomor HP, email, atau domisili…"
         className="min-h-[44px] w-full rounded-xl border border-line bg-ink-2 px-4 text-sm text-cream placeholder:text-dim"
       />
 
@@ -105,6 +108,11 @@ export default function DaftarMember() {
           <input type="checkbox" checked={hanyaSetuju} onChange={(e) => setHanyaSetuju(e.target.checked)}
             className="h-4 w-4 accent-amber" />
           Hanya yang mengizinkan promo
+        </label>
+        <label className="flex items-center gap-2 text-[12px] text-mute">
+          <input type="checkbox" checked={ultahBulanIni} onChange={(e) => setUltahBulanIni(e.target.checked)}
+            className="h-4 w-4 accent-amber" />
+          Ulang tahun bulan ini
         </label>
         <button onClick={() => void salinNomor()} disabled={bolehDiblast.length === 0}
           className="min-h-[36px] rounded-lg border border-line px-3 text-xs text-mute hover:border-amber hover:text-amber disabled:opacity-40">
@@ -121,7 +129,7 @@ export default function DaftarMember() {
 
       {baris && tampil.length === 0 && (
         <div className="rounded-xl border border-line bg-ink-2 p-4 text-sm text-mute">
-          {cari || hanyaSetuju
+          {cari || hanyaSetuju || ultahBulanIni
             ? "Tidak ada member yang cocok."
             : "Belum ada member. Tamu mendaftar sendiri di aplikasi sebelum booking — daftarnya muncul di sini."}
         </div>
@@ -143,6 +151,11 @@ export default function DaftarMember() {
                 <a href={`https://wa.me/${m.phone}`} target="_blank" rel="noreferrer"
                   className="text-xs text-mute underline underline-offset-4">{nomorTampil(m.phone)}</a>
                 {m.email && <p className="truncate text-[11px] text-dim">{m.email}</p>}
+                {(m.lahir || m.domisili) && (
+                  <p className="truncate text-[11px] text-dim">
+                    {[m.lahir && `Lahir ${tanggal(Date.parse(m.lahir))}`, m.domisili].filter(Boolean).join(" · ")}
+                  </p>
+                )}
               </div>
               <div className="shrink-0 text-right">
                 <p className="font-serif text-sm text-cream tabular-nums">{rupiah(Number(m.belanja || 0))}</p>

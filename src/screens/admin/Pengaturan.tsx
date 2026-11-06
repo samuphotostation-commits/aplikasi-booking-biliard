@@ -20,7 +20,7 @@ const KETERANGAN_LINI: Record<Lini, string> = {
 };
 import { ROLES, ROLE_LABEL, type Employee, type Role } from "../../data/staff";
 import { rupiah } from "../../lib/core";
-import { LayarTamu, PilihPrinter } from "./PilihPrinter";
+import { LayarTamu, PilihPrinter, PrinterDapur } from "./PilihPrinter";
 import { jam } from "./AdminShell";
 import QrisPanel from "./QrisPanel";
 import {
@@ -251,6 +251,8 @@ export default function Pengaturan() {
       {/* Printer struk: setelan PERANGKAT, bukan data venue — tiap komputer
           kasir punya printernya sendiri. */}
       <PilihPrinter />
+
+      <PrinterDapur />
 
       <LayarTamu />
 

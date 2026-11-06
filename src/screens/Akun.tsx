@@ -6,6 +6,7 @@ import {
   type Member,
 } from "../lib/member";
 import { rapikanHp } from "../lib/profilTamu";
+import { AWALAN_LUAR, KECAMATAN_PADANG, dariIso, domisiliLengkap, keIso, rapikanTanggal } from "../lib/dataMember";
 
 /* ═══════════════════════════════════════════════════════════════════
    AKUN MEMBER SPL
@@ -55,14 +56,20 @@ function ProfilMember({ member, onChange, onKeluar }: {
 }) {
   const [nama, setNama] = useState(member.nama);
   const [setuju, setSetuju] = useState(member.setuju);
+  const [lahir, setLahir] = useState(dariIso(member.lahir));
+  const [domisili, setDomisili] = useState(member.domisili);
   const [pesan, setPesan] = useState<string | null>(null);
   const [sibuk, setSibuk] = useState(false);
 
-  const berubah = nama !== member.nama || setuju !== member.setuju;
+  const lahirIso = keIso(lahir);
+  const berubah = nama !== member.nama || setuju !== member.setuju
+    || lahirIso !== (member.lahir || null) || domisili !== member.domisili;
+  // Member lama boleh menyimpan yang lain walau dua isian ini masih kosong.
+  const sah = (lahir === "" || lahirIso !== null) && (domisili === "" || domisiliLengkap(domisili));
 
   async function simpan() {
     setSibuk(true);
-    const r = await ubahMember({ nama, setuju });
+    const r = await ubahMember({ nama, setuju, lahir: lahirIso ?? undefined, domisili });
     setSibuk(false);
     if (r.ok) { onChange(r.member); setPesan("Tersimpan."); }
     else setPesan(r.alasan);
@@ -83,12 +90,14 @@ function ProfilMember({ member, onChange, onKeluar }: {
 
       <Card className="space-y-3 p-4">
         <Isian label="Nama" value={nama} onChange={setNama} placeholder="Nama lengkap" />
+        <IsianLahir value={lahir} onChange={setLahir} />
+        <PilihDomisili value={domisili} onChange={setDomisili} />
         <label className="flex items-start gap-2.5 text-[12px] leading-snug text-mute">
           <input type="checkbox" checked={setuju} onChange={(e) => setSetuju(e.target.checked)}
             className="mt-0.5 h-4 w-4 accent-amber" />
           <span>Boleh dikirimi info promo &amp; turnamen SPL lewat WhatsApp/email. Bisa dimatikan kapan saja.</span>
         </label>
-        <Button full disabled={!berubah || sibuk} busy={sibuk} onClick={() => void simpan()}>Simpan perubahan</Button>
+        <Button full disabled={!berubah || !sah || sibuk} busy={sibuk} onClick={() => void simpan()}>Simpan perubahan</Button>
         {pesan && <p className="text-center text-[12px] text-amber">{pesan}</p>}
       </Card>
 
@@ -108,6 +117,8 @@ export function PanelMasuk({ onMasuk, ringkas, labelGoogle = "Lanjut dengan Goog
   // ada (Google memang tidak memberikannya), tanyakan sekali di sini.
   const [google, setGoogle] = useState<{ nama: string; email: string } | null>(null);
   const [hpGoogle, setHpGoogle] = useState("");
+  const [lahir, setLahir] = useState("");
+  const [domisili, setDomisili] = useState("");
   const [cekGoogle, setCekGoogle] = useState(false);
   useEffect(() => {
     let batal = false;
@@ -130,7 +141,7 @@ export function PanelMasuk({ onMasuk, ringkas, labelGoogle = "Lanjut dengan Goog
   async function lanjutGoogle() {
     setAlasan(null);
     setSibuk(true);
-    const r = await selesaikanGoogle(hpGoogle);
+    const r = await selesaikanGoogle({ hp: hpGoogle, lahir: keIso(lahir) ?? "", domisili });
     setSibuk(false);
     if (r.ok) onMasuk(r.member);
     else if (!("perluHp" in r)) setAlasan(r.alasan);
@@ -145,15 +156,18 @@ export function PanelMasuk({ onMasuk, ringkas, labelGoogle = "Lanjut dengan Goog
           <div className="text-[12px] text-mute">{google.email}</div>
         </div>
         <p className="text-[12px] leading-relaxed text-mute">
-          Tinggal satu langkah: nomor HP kamu. Kasir memakainya kalau ada perubahan meja
-          atau saat pesanan siap — Google tidak memberikan nomor.
+          Tinggal tiga isian, tidak sampai semenit. Kasir memakai nomor HP kalau ada perubahan meja
+          atau saat pesanan siap, dan sisanya membantu SPL menyesuaikan promo untukmu.
         </p>
         <Isian label="Nomor HP" value={hpGoogle} onChange={setHpGoogle} placeholder="08xxxxxxxxxx" type="tel"
           ok={hpGoogle === "" ? undefined : /^62[1-9][0-9]{7,13}$/.test(rapikanHp(hpGoogle))} />
+        <IsianLahir value={lahir} onChange={setLahir} />
+        <PilihDomisili value={domisili} onChange={setDomisili} />
         {alasan && (
           <p className="rounded-xl border border-amber/50 bg-amber/10 px-3 py-2 text-[12px] leading-snug text-amber">{alasan}</p>
         )}
-        <Button full busy={sibuk} disabled={!/^62[1-9][0-9]{7,13}$/.test(rapikanHp(hpGoogle))}
+        <Button full busy={sibuk}
+          disabled={!/^62[1-9][0-9]{7,13}$/.test(rapikanHp(hpGoogle)) || !keIso(lahir) || !domisiliLengkap(domisili)}
           onClick={() => void lanjutGoogle()}>Selesaikan pendaftaran</Button>
       </Card>
     );
@@ -192,6 +206,50 @@ export function PanelMasuk({ onMasuk, ringkas, labelGoogle = "Lanjut dengan Goog
         Kami hanya memakai nama dan email akun Google kamu. Kata sandimu tidak pernah kami lihat.
       </p>
     </Card>
+  );
+}
+
+/* Tanggal cukup diketik di papan angka: 17081995 jadi 17/08/1995.
+   Pemilih tanggal bawaan HP memaksa orang menggulir puluhan tahun ke belakang. */
+function IsianLahir({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] uppercase tracking-[0.16em] text-dim">Tanggal lahir</span>
+      <input
+        value={value} inputMode="numeric" placeholder="HH/BB/TTTT" autoComplete="bday"
+        onChange={(e) => onChange(rapikanTanggal(e.target.value))}
+        className={`w-full rounded-xl border bg-ink px-4 py-3 tabular-nums text-cream placeholder:text-dim focus:outline-none
+          ${value.length === 10 && !keIso(value) ? "border-amber" : "border-line focus:border-amber"}`}
+      />
+      {value.length === 10 && !keIso(value) && (
+        <span className="mt-1 block text-[11px] text-amber">Tanggal ini tidak ada. Contoh: 17/08/1995</span>
+      )}
+    </label>
+  );
+}
+
+/* Pilihan, bukan ketikan: sekali ketuk, dan datanya bisa dihitung per kecamatan. */
+function PilihDomisili({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const luar = value.startsWith(AWALAN_LUAR);
+  const kota = luar ? value.slice(AWALAN_LUAR.length + 3) : "";
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="mb-1 block text-[11px] uppercase tracking-[0.16em] text-dim">Domisili</span>
+        <select
+          value={luar ? AWALAN_LUAR : value}
+          onChange={(e) => onChange(e.target.value === AWALAN_LUAR ? `${AWALAN_LUAR} · ` : e.target.value)}
+          className="min-h-[48px] w-full rounded-xl border border-line bg-ink px-3 text-cream focus:border-amber focus:outline-none"
+        >
+          <option value="" disabled>Pilih kecamatan</option>
+          {KECAMATAN_PADANG.map((k) => <option key={k} value={k}>{k}</option>)}
+          <option value={AWALAN_LUAR}>Luar Kota Padang</option>
+        </select>
+      </label>
+      {luar && (
+        <Isian label="Kota" value={kota} onChange={(v) => onChange(`${AWALAN_LUAR} · ${v}`)} placeholder="Misal: Bukittinggi" />
+      )}
+    </div>
   );
 }
 

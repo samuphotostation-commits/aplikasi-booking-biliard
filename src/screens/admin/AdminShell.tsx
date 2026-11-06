@@ -9,6 +9,7 @@ import { VENUE_LABEL, type Venue } from "../../data/venue";
 import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
 import { fmtDateLong, rupiah } from "../../lib/core";
 import { usePantauKabar } from "../../lib/pantauKabar";
+import { usePantauCetak } from "../../lib/pantauCetak";
 import { masukDenganGoogle, memberMungkin, selesaikanGoogleStaf } from "../../lib/member";
 
 /* Login per KARYAWAN (bukan per peran) supaya setiap tindakan punya nama
@@ -84,6 +85,7 @@ export default function AdminShell() {
    * menampilkan daftar yang sudah selesai.
    */
   usePantauKabar(a, role);
+  usePantauCetak(a.tickets, !!a.me, tick);
   const nav = useNavigate();
   const path = useLocation().pathname;
   const [pin, setPin] = useState("");
