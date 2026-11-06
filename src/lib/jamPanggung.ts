@@ -54,9 +54,15 @@ export function keAtas() {
 
 export type TitikBola = { x: number; y: number; s: number; o: number };
 
-export const bola: { tujuan: TitikBola; tarikan: number } = {
+export const bola: {
+  tujuan: TitikBola; tarikan: number;
+  /** Sudut gelinding dan sumbunya: sumbu Y untuk ke samping, sumbu X untuk maju. */
+  sudut: number; sumbu: readonly [number, number, number];
+} = {
   tujuan: { x: -24, y: 50, s: 0.4, o: 0 },
   tarikan: 0.08,
+  sudut: 0.35,
+  sumbu: [0, 1, 0],
 };
 
 export const aturBola = (t: Partial<TitikBola>, tarikan = 0.09) => {

@@ -45,8 +45,9 @@ export default function Gerbang() {
 
   // Pembuka: bola menggelinding masuk, lalu layar terbelah.
   useEffect(() => {
-    if (terbuka) { aturBola({ x: 50, y: 50, s: 0.3, o: 1 }); return; }
+    if (terbuka) { bola.sumbu = [0, 1, 0]; aturBola({ x: 50, y: 50, s: 0.3, o: 1 }); return; }
     bola.tujuan = { x: -22, y: 50, s: 0.44, o: 1 };
+    bola.sumbu = [0, 1, 0];
     const a1 = setTimeout(() => aturBola({ x: 50, y: 50, s: 0.44, o: 1 }, 0.045), 120);
     const a2 = setTimeout(() => {
       setTerbuka(true);
@@ -72,7 +73,7 @@ export default function Gerbang() {
     if (pilih) return;
     keAtas();
     setPilih(p);
-    aturBola(p === "sport" ? { x: 74, y: 34, s: 0.86 } : { s: 0.02, o: 0 }, 0.05);
+    aturBola(p === "sport" ? { x: 50, y: 83, s: 0.3 } : { s: 0.02, o: 0 }, 0.05);
     window.setTimeout(() => nav(p === "sport" ? "/sport" : "/smokehouse"), 640);
   }
 
