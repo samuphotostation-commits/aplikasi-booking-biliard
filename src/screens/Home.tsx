@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { Ball } from "../components/motion/Billiard";
 import { Judul, LabelSandi, Muncul } from "../components/motion/Adegan";
 import { BabTeks, Perjalanan, type Bab } from "../components/motion/Perjalanan";
-import { Aksi, Aksi2, BilahVenue, PenutupVenue, TanyaJawab, wa } from "../components/BagianVenue";
+import { AjakMember, Aksi, Aksi2, BilahVenue, PenutupVenue, TanyaJawab, wa } from "../components/BagianVenue";
 import { FOTO_SPORT, fotoVenue } from "../data/fotoVenue";
 import { fmtHour } from "../data/venue";
 import {
@@ -28,8 +28,13 @@ const GELAP = "#07140e";
 /** Sesudah hero bola turun lurus di rel kanan, satu arah sampai masuk lubang. */
 const rel = (y: number) => ({
   bola: { x: 93, y, s: 0.14, o: 1 },
-  bolaHp: { x: 93, y, s: 0.2, o: 1 },
+  bolaHp: { x: 97.4, y, s: 0.07, o: 1 },
 });
+
+const masukLubang = {
+  bola: { x: 93, y: 86, s: 0.01, o: 0 },
+  bolaHp: { x: 97.4, y: 86, s: 0.01, o: 0 },
+};
 
 /** Urutannya sama dengan urutan `BabTeks` di bawah. */
 const BAB: Bab[] = [
@@ -40,8 +45,8 @@ const BAB: Bab[] = [
   { foto: fotoVenue("bl-147"), fotoHp: fotoVenue("bl-153"), redup: 0.14, ...rel(54) },
   { foto: fotoVenue("bl-119"), fotoHp: fotoVenue("bl-188"), redup: 0.14, ...rel(64) },
   { foto: fotoVenue("bl-159"), redup: 0.46, ...rel(72) },
-  { warna: GELAP, redup: 0, ...rel(80) },
-  { warna: GELAP, redup: 0, bola: { x: 93, y: 86, s: 0.01, o: 0 }, bolaHp: { x: 93, y: 86, s: 0.01, o: 0 } },
+  { warna: GELAP, redup: 0, ...masukLubang },
+  { warna: GELAP, redup: 0, ...masukLubang },
 ];
 
 const SUASANA = ["Malam di aula utama.", "Fokus di satu pukulan.", "Datang berdua atau rame-rame."];
@@ -95,7 +100,7 @@ export default function Home() {
     <Perjalanan tema="sport" bab={BAB}>
       <BilahVenue tema="sport" aksi="Booking" keAksi="/booking" />
 
-      <BabTeks tinggi="min-h-[140svh]">
+      <BabTeks tinggi="min-h-[120svh] md:min-h-[140svh]">
         <div className="mx-auto flex h-svh w-full max-w-6xl flex-col justify-end px-5 pb-24 sm:pb-14">
           <p className="naik font-display text-[12px] uppercase tracking-[0.22em] text-amber">SPL Sport &middot; Biliar Padang</p>
           <h1 className="mt-3 font-serif text-[3rem] font-bold leading-[.98] tracking-[-0.018em] text-cream sm:text-[5rem]">
@@ -164,11 +169,12 @@ export default function Home() {
                 </Muncul>
               );
             })}
+            <AjakMember tema="sport" teks="Booking berikutnya tinggal pilih meja, riwayatmu tersimpan, dan info promo serta turnamen sampai lebih dulu." />
           </div>
         </div>
       </BabTeks>
 
-      <BabTeks tinggi="min-h-[125svh]" className="items-center">
+      <BabTeks tinggi="min-h-svh md:min-h-[125svh]" className="items-center">
         <div className="mx-auto w-full max-w-6xl px-5 py-24">
           <LabelSandi teks="Cara booking" className="text-amber" />
           <Judul baris={["Empat langkah,", "tanpa chat."]} className="mt-3 text-[2.3rem] sm:text-[3.4rem]" />
@@ -191,7 +197,7 @@ export default function Home() {
       </BabTeks>
 
       {SUASANA.map((teks, i) => (
-        <BabTeks key={teks} id={i === 0 ? "suasana" : undefined} tinggi="min-h-[120svh]" className="items-end">
+        <BabTeks key={teks} id={i === 0 ? "suasana" : undefined} tinggi="min-h-svh md:min-h-[120svh]" className="items-end">
           <div className="mx-auto w-full max-w-6xl px-5 pb-[22svh]">
             {i === 0 && <LabelSandi teks="Suasana" className="text-amber" />}
             <Judul baris={[teks]} className="mt-2 text-[2.2rem] [text-shadow:0_2px_24px_rgba(0,0,0,.6)] sm:text-[3.6rem]" />
@@ -199,7 +205,7 @@ export default function Home() {
         </BabTeks>
       ))}
 
-      <BabTeks id="acara" tinggi="min-h-[125svh]" className="items-center">
+      <BabTeks id="acara" tinggi="min-h-svh md:min-h-[125svh]" className="items-center">
         <div className="mx-auto w-full max-w-6xl px-5 py-24">
           <div className="max-w-2xl">
             <LabelSandi teks="Acara" className="text-amber" />
@@ -223,7 +229,7 @@ export default function Home() {
         </div>
       </BabTeks>
 
-      <BabTeks tinggi="min-h-[110svh]" className="items-center">
+      <BabTeks tinggi="min-h-svh md:min-h-[110svh]" className="items-center">
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-24 lg:grid-cols-12 lg:gap-14">
           <div className="lg:col-span-5">
             <LabelSandi teks="Tanya jawab" className="text-amber" />

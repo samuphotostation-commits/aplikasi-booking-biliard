@@ -59,9 +59,13 @@ export function BilahVenue({ tema, aksi, keAksi }: { tema: Tema; aksi: string; k
   }, []);
 
   return (
-    <header className={`safe-t fixed inset-x-0 top-0 z-40 transition-colors duration-300 ${
-      padat ? "bg-gradient-to-b from-ink via-ink/85 to-transparent" : ""}`}>
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-5 py-2.5">
+    <header className="safe-t fixed inset-x-0 top-0 z-40">
+      {/* Bilah padat begitu digulir: isi halaman lewat di bawahnya, tidak menabrak logo. */}
+      <div aria-hidden className={`pointer-events-none absolute inset-0 transition-opacity duration-200 ${padat ? "" : "opacity-0"}`}>
+        <div className="absolute inset-0 bg-ink" />
+        <div className="absolute inset-x-0 top-full h-5 bg-gradient-to-b from-ink to-transparent" />
+      </div>
+      <div className="relative mx-auto flex w-full max-w-6xl items-center gap-3 px-5 py-2.5">
         <button type="button" aria-label="Kembali ke pilihan tempat" onClick={() => pergi("/", tema)}
           className="flex min-h-[40px] items-center gap-2.5 text-cream">
           <span className={tema === "sport" ? "text-amber" : ""}>
@@ -104,6 +108,22 @@ export function TanyaJawab({ daftar }: { daftar: { t: string; j: string }[] }) {
   );
 }
 
+/** Ajakan member di tengah halaman, supaya tidak hanya ketemu kalau tamu sampai ke paling bawah. */
+export function AjakMember({ tema, teks }: { tema: Tema; teks: string }) {
+  const nav = useNavigate();
+  return (
+    <Muncul>
+      <div className="mt-8 flex flex-col gap-3 border-y border-cream/15 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="min-w-0">
+          <h3 className="font-serif text-[1.35rem] font-bold leading-tight text-cream">Jadi member {NAMA[tema]}</h3>
+          <p className="mt-1 max-w-[46ch] text-[13.5px] leading-relaxed text-cream/75">{teks}</p>
+        </div>
+        <Aksi onClick={() => nav(tema === "sport" ? "/sport/daftar" : "/smokehouse/daftar")}>Daftar member</Aksi>
+      </div>
+    </Muncul>
+  );
+}
+
 /** Penutup: lokasi, member, dan kaki halaman. Isinya mengikuti venue. */
 export function PenutupVenue({ tema }: { tema: Tema }) {
   const nav = useNavigate();
@@ -143,6 +163,14 @@ export function PenutupVenue({ tema }: { tema: Tema }) {
                 </a>
               </dd>
             </div>
+            <div className="flex items-baseline justify-between gap-4 py-4">
+              <dt className="text-[12px] uppercase tracking-[0.14em] text-dim">Ulasan</dt>
+              <dd>
+                <a href={PETA} target="_blank" rel="noreferrer" className="text-[14px] text-amber hover:text-amber-deep">
+                  Baca di Google Maps
+                </a>
+              </dd>
+            </div>
           </dl>
           <div className="mt-6">
             <Aksi2 lebar onClick={() => nav(sport ? "/sport/daftar" : "/smokehouse/daftar")}>Daftar member</Aksi2>
@@ -151,7 +179,7 @@ export function PenutupVenue({ tema }: { tema: Tema }) {
       </div>
 
       <footer className="border-t border-line/70">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-5 text-[12px] text-dim">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 pb-24 pt-5 text-[12px] text-dim md:pb-5">
           <span>{sport ? "SPL Sports Pool Lounge" : "Smokehouse Resto"} &middot; Padang</span>
           <nav className="flex flex-wrap gap-x-5 gap-y-2">
             <a href={wa("Halo SPL, saya mau melamar kerja. Posisi: ... Pengalaman: ... Domisili: ...")}

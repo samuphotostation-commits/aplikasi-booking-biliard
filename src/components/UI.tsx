@@ -108,7 +108,7 @@ export function BottomNav({ sembunyiLebar }: { sembunyiLebar?: boolean }) {
   const TABS = venue === "smh" ? TABS_SMH : TABS_SPL;
   return (
     <nav
-      className={`safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/95 backdrop-blur-md ${sembunyiLebar ? "md:hidden" : ""}`}
+      className={`safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line ${sembunyiLebar ? "bg-ink md:hidden" : "bg-ink/95 backdrop-blur-md"}`}
       aria-label="Navigasi utama"
     >
       <div className="mx-auto flex max-w-lg">

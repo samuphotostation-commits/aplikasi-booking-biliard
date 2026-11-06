@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 import Coverflow from "../components/Coverflow";
 import { Judul, LabelSandi, Muncul } from "../components/motion/Adegan";
 import { BabTeks, Perjalanan, type Bab } from "../components/motion/Perjalanan";
-import { Aksi, Aksi2, BilahVenue, PenutupVenue, TanyaJawab, wa } from "../components/BagianVenue";
+import { AjakMember, Aksi, Aksi2, BilahVenue, PenutupVenue, TanyaJawab, wa } from "../components/BagianVenue";
 import { aturBola } from "../lib/jamPanggung";
 import { kartuKategori } from "../lib/kartuMenu";
 import { FOTO_KATEGORI, FOTO_ITEM, FOTO_HERO_SMH } from "../data/fotoMenu";
@@ -99,11 +99,11 @@ export default function Smokehouse() {
     <Perjalanan tema="smokehouse" bab={BAB}>
       <BilahVenue tema="smokehouse" aksi="Reservasi" keAksi="/smokehouse/reservasi" />
 
-      <BabTeks tinggi="min-h-[140svh]">
+      <BabTeks tinggi="min-h-[120svh] md:min-h-[140svh]">
         <div className="mx-auto flex h-svh w-full max-w-6xl flex-col justify-end px-5 pb-24 sm:pb-14">
-          <p className="naik font-display text-[12px] uppercase tracking-[0.22em] text-cream">Smokehouse Resto &middot; Padang</p>
+          <p className="naik font-display text-[12px] uppercase tracking-[0.22em] text-cream [text-shadow:0_1px_10px_#000]">Smokehouse Resto &middot; Padang</p>
           {/* Satu-satunya Jazzbury di halaman ini. */}
-          <p className="naik mt-2 font-script text-[2rem] leading-none text-amber" style={{ animationDelay: ".08s" }}>
+          <p className="naik mt-2 font-script text-[2rem] leading-none text-amber [text-shadow:0_2px_12px_#000,0_0_3px_#000]" style={{ animationDelay: ".08s" }}>
             Dapur nyala sampai malam.
           </p>
           <h1 className="mt-2 font-serif text-[3rem] font-bold leading-[.98] tracking-[-0.018em] text-cream sm:text-[5rem]">
@@ -123,7 +123,7 @@ export default function Smokehouse() {
 
       <BabTeks id="menu" tinggi="min-h-[135svh]" className="items-center">
         <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-24 lg:grid-cols-12 lg:gap-14">
-          <div className="lg:col-span-5">
+          <div className="min-w-0 lg:col-span-5">
             <LabelSandi teks="Dapur" className="text-amber" />
             <Judul baris={["Iga asap, enaknya", "dimakan rame-rame."]} className="mt-3 text-[2.3rem] sm:text-[3.2rem]" />
             <Muncul>
@@ -151,7 +151,7 @@ export default function Smokehouse() {
         </div>
       </BabTeks>
 
-      <BabTeks id="andalan" tinggi="min-h-[125svh]" className="items-center">
+      <BabTeks id="andalan" tinggi="min-h-svh md:min-h-[125svh]" className="items-center">
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-24 lg:grid-cols-12 lg:gap-14">
           <div className="lg:col-span-5">
             <LabelSandi teks={pakaiAngka ? "Terlaris" : "Pilihan dapur"} className="text-amber" />
@@ -160,13 +160,13 @@ export default function Smokehouse() {
               {pakaiAngka ? "Dari pesanan 30 hari terakhir di Smokehouse." : "Dipilih dapur, belum dari riwayat pesanan."}
             </p>
           </div>
-          <Muncul i={1} className="lg:col-span-7">
+          <Muncul i={1} className="min-w-0 lg:col-span-7">
             <ul>
               {pilihan.map((p, i) => {
                 const it = findItem(p.itemId)!;
                 const foto = FOTO_ITEM[p.itemId];
                 return (
-                  <li key={p.itemId} className="border-b border-cream/15">
+                  <li key={p.itemId} className={`border-b border-cream/15 ${i > 3 ? "hidden md:block" : ""}`}>
                     <button onClick={() => nav("/menu")} className="flex w-full items-center gap-3.5 py-3 text-left">
                       <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-ink/50">
                         {foto
@@ -185,12 +185,13 @@ export default function Smokehouse() {
                 );
               })}
             </ul>
+            <AjakMember tema="smokehouse" teks="Riwayat pesananmu tersimpan di akun, dan info promo sampai lebih dulu. Daftarnya cuma dua langkah." />
           </Muncul>
         </div>
       </BabTeks>
 
       {GALERI.map((g, i) => (
-        <BabTeks key={g.nama} tinggi="min-h-[120svh]" className="items-end">
+        <BabTeks key={g.nama} tinggi="min-h-svh md:min-h-[120svh]" className="items-end">
           <div className="mx-auto w-full max-w-6xl px-5 pb-[22svh]">
             {i === 0 && <LabelSandi teks="Dari dapur" className="text-amber" />}
             <Judul baris={[g.nama]} className="mt-2 text-[2.4rem] [text-shadow:0_2px_24px_rgba(0,0,0,.65)] sm:text-[3.8rem]" />
@@ -199,7 +200,7 @@ export default function Smokehouse() {
         </BabTeks>
       ))}
 
-      <BabTeks id="acara" tinggi="min-h-[120svh]" className="items-center">
+      <BabTeks id="acara" tinggi="min-h-svh md:min-h-[120svh]" className="items-center">
         <div className="mx-auto w-full max-w-6xl px-5 py-24">
           <div className="max-w-2xl">
             <LabelSandi teks="Acara" className="text-cream" />
@@ -215,7 +216,7 @@ export default function Smokehouse() {
         </div>
       </BabTeks>
 
-      <BabTeks tinggi="min-h-[110svh]" className="items-center">
+      <BabTeks tinggi="min-h-svh md:min-h-[110svh]" className="items-center">
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-24 lg:grid-cols-12 lg:gap-14">
           <div className="lg:col-span-5">
             <LabelSandi teks="Tanya jawab" className="text-amber" />

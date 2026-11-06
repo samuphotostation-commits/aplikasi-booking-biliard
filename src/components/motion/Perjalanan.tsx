@@ -32,10 +32,23 @@ export type Bab = {
   bolaHp?: TitikBola;
 };
 
+/**
+ * Latar untuk foto mendatar di layar tegak: foto diperkecil lalu diregangkan.
+ * Tampak seperti blur, tanpa `filter: blur` yang berat dan bisa berkedip di iPhone.
+ */
+function lukisLatar(c: HTMLCanvasElement | null, foto: HTMLImageElement) {
+  const g = c?.getContext("2d");
+  if (!c || !g) return;
+  g.drawImage(foto, 0, 0, c.width, c.height);
+  g.fillStyle = "rgba(0,0,0,.42)";
+  g.fillRect(0, 0, c.width, c.height);
+}
+
 export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehouse"; bab: Bab[]; children: ReactNode }) {
   const akar = useRef<HTMLDivElement>(null);
   const lapis = useRef<(HTMLDivElement | null)[]>([]);
   const gambar = useRef<(HTMLImageElement | null)[]>([]);
+  const latar = useRef<(HTMLCanvasElement | null)[]>([]);
   const garis = useRef<HTMLDivElement>(null);
   const rel = useRef<HTMLDivElement>(null);
   const kuat = useMotionValue(0.8);
@@ -47,8 +60,9 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
     if (!el) return;
     const matikan = lemah ? undefined : nyalakanGulir();
 
-    let atas: number[] = [], tinggi = 0, tinggiLayar = 1, hp = false;
+    let atas: number[] = [], tinggi = 0, tinggiLayar = 1, hp = false, diam = false;
     const ukur = () => {
+      diam = false;
       atas = [...el.querySelectorAll<HTMLElement>("[data-bab]")].map((b) => b.getBoundingClientRect().top + window.scrollY);
       tinggi = document.documentElement.scrollHeight;
       tinggiLayar = window.innerHeight;
@@ -62,11 +76,17 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
     // Halaman baru terbuka dari balik kabut, jadi tersambung dengan halaman sebelumnya.
     let masuk = 0.8;
     const lepas = padaBingkai(() => {
-      masuk *= 0.965;
+      // Tidak ada yang berubah = tidak menyentuh halaman sama sekali. Tiap sentuhan
+      // memaksa iPhone menyusun ulang lapisan, dan itu bisa terlihat sebagai kedipan.
+      const berhenti = Math.abs(window.scrollY - y) < 0.3 && masuk < 0.01;
+      if (berhenti && diam) return;
+      diam = berhenti;
+      masuk = masuk < 0.01 ? 0 : masuk * 0.965;
       // Di HP gulirnya tidak lewat Lenis, jadi panggung mengejarnya sendiri.
       y += (window.scrollY - y) * 0.14;
       const tengah = y + tinggiLayar * 0.5;
-      const lebarKabut = tinggiLayar * 0.42;
+      // Bab di HP lebih pendek, jadi kabutnya ikut lebih sempit supaya foto sempat bersih.
+      const lebarKabut = tinggiLayar * (hp ? 0.3 : 0.42);
       let aktif = 0, kabut = 0;
 
       for (let i = 0; i < bab.length; i++) {
@@ -78,6 +98,13 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
           const tampak = buka > 0.001 && (i === bab.length - 1 || tengah < (atas[i + 1] ?? Infinity) + tinggiLayar);
           l.style.opacity = String(buka);
           l.style.visibility = tampak ? "visible" : "hidden";
+          // Foto berikutnya diurai sebelum dibutuhkan, supaya tidak muncul terlambat.
+          const lanjut = gambar.current[i + 1];
+          if (tampak && lanjut && !lanjut.dataset.siap) {
+            lanjut.dataset.siap = "1";
+            lanjut.loading = "eager";
+            void lanjut.decode?.().catch(() => {});
+          }
         }
         const g = gambar.current[i];
         if (g && l?.style.visibility === "visible") {
@@ -88,7 +115,13 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
         if (i > 0) kabut = Math.max(kabut, 1 - Math.abs(tengah - batas) / lebarKabut);
       }
       kuat.set(Math.max(0, kabut, masuk));
-      if (rel.current) rel.current.style.opacity = String(halus((tengah - tinggiLayar) / tinggiLayar));
+      if (rel.current) {
+        // Rel hanya ada selama perjalanan. Tanya jawab dan lokasi harus bersih.
+        const sisa = atas[bab.length - 2] ?? Infinity;
+        const tampil = halus((tengah - tinggiLayar) / tinggiLayar) * (1 - halus((tengah - sisa + tinggiLayar * 0.5) / (tinggiLayar * 0.4)));
+        rel.current.style.opacity = String(tampil);
+        rel.current.style.visibility = tampil < 0.01 ? "hidden" : "visible";
+      }
 
       // Bola berjalan di antara dua titik bab, mengikuti kemajuan bab itu.
       const titik = (i: number) => (hp ? bab[i]?.bolaHp : undefined) ?? bab[i]?.bola;
@@ -109,20 +142,21 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
 
   const sport = tema === "sport";
   return (
-    <div ref={akar} className={sport ? "bg-[#07140e]" : "bg-[#160807]"}>
-      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-ink">
+    <div ref={akar} className={`overflow-x-clip ${sport ? "bg-[#07140e]" : "bg-[#160807]"}`}>
+      <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-0 h-lvh overflow-hidden bg-ink">
         {bab.map((b, i) => (
           <div key={i} ref={(n) => { lapis.current[i] = n; }}
-            className="absolute inset-0 opacity-0 will-change-[opacity]" style={{ background: b.warna ?? "#0b0b0c" }}>
+            className="absolute inset-0 opacity-0" style={{ background: b.warna ?? "#0b0b0c" }}>
             {b.foto && !b.fotoHp && (
-              <img src={b.foto} alt="" decoding="async" loading="lazy" className="foto-latar absolute inset-0 h-full w-full object-cover" />
+              <canvas ref={(n) => { latar.current[i] = n; }} width={20} height={36} className="foto-latar absolute inset-0 h-full w-full" />
             )}
             {b.foto && (
               <picture>
                 {b.fotoHp && <source media="(max-aspect-ratio: 4/5)" srcSet={b.fotoHp} />}
                 <img ref={(n) => { gambar.current[i] = n; }} src={b.foto} alt="" decoding="async"
+                  onLoad={b.fotoHp ? undefined : (e) => lukisLatar(latar.current[i], e.currentTarget)}
                   fetchPriority={i === 0 ? "high" : "low"} loading={i === 0 ? "eager" : "lazy"}
-                  className={`absolute inset-0 h-full w-full object-cover will-change-transform ${b.fotoHp ? "" : "foto-utuh"}`} />
+                  className={`absolute inset-0 h-full w-full object-cover ${b.fotoHp ? "" : "foto-utuh"}`} />
               </picture>
             )}
             <div className="absolute inset-0" style={{ background: `rgba(7,6,6,${b.redup})` }} />
@@ -137,8 +171,8 @@ export function Perjalanan({ tema, bab, children }: { tema: "sport" | "smokehous
         {/* Rel meja: jalur bola sepanjang halaman, berakhir di lubang. */}
         {sport && (
           <div ref={rel} className="absolute inset-0 opacity-0">
-            <div className="absolute bottom-[14svh] left-[93vw] top-[17svh] w-0 -translate-x-1/2 border-l-2 border-dotted border-amber/40" />
-            <div className="absolute left-[93vw] top-[86svh] h-11 w-11 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber/70 bg-black shadow-[inset_0_6px_14px_#000]" />
+            <div className="absolute left-[97.4vw] top-[17svh] h-[69svh] w-0 -translate-x-1/2 border-l-2 border-dotted border-amber/40 md:left-[93vw]" />
+            <div className="absolute left-[97.4vw] top-[86svh] h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber/70 bg-black shadow-[inset_0_6px_14px_#000] md:left-[93vw] md:h-11 md:w-11" />
           </div>
         )}
       </div>
@@ -174,9 +208,13 @@ export function BolaBersama() {
   useEffect(() => {
     if (!tampil) return;
     const p = { ...bola.tujuan };
-    let sudut = 0;
+    let sudut = 0, tenang = false;
     return padaBingkai(() => {
       const t = bola.tujuan, k = bola.tarikan;
+      // Bola yang sudah sampai tidak perlu ditulis ulang tiap bingkai.
+      const sampai = Math.abs(t.x - p.x) + Math.abs(t.y - p.y) + Math.abs(t.s - p.s) + Math.abs(t.o - p.o) < 0.002;
+      if (sampai && tenang) return;
+      tenang = sampai;
       const dx = (t.x - p.x) * k, dy = (t.y - p.y) * k;
       p.x += dx; p.y += dy; p.s += (t.s - p.s) * k; p.o += (t.o - p.o) * Math.max(k, 0.12);
       // Berputar sejauh jarak tempuhnya, jadi bola benar-benar menggelinding.

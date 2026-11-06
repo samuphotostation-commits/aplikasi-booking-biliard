@@ -145,7 +145,7 @@ export default function Panggung3D({ jenis, tema = "smokehouse", nilai, classNam
   useEffect(() => {
     const k = kanvas.current;
     if (!k) return;
-    const gl = k.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: jenis === "bola", powerPreference: "low-power" });
+    const gl = k.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: jenis === "bola", powerPreference: "low-power", preserveDrawingBuffer: true });
     if (!gl) { onGagal?.(); return; }
 
     let p: WebGLProgram;
@@ -165,25 +165,19 @@ export default function Panggung3D({ jenis, tema = "smokehouse", nilai, classNam
     const ukur = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, jenis === "bola" ? 1.5 : 1);
       const faktor = jenis === "bola" ? 1 : 0.5;
-      k.width = Math.max(2, Math.round(k.clientWidth * dpr * faktor));
-      k.height = Math.max(2, Math.round(k.clientHeight * dpr * faktor));
-      gl.viewport(0, 0, k.width, k.height);
-      if (uUkuran) gl.uniform2f(uUkuran, k.width, k.height);
+      const l = Math.max(2, Math.round(k.clientWidth * dpr * faktor));
+      const t = Math.max(2, Math.round(k.clientHeight * dpr * faktor));
+      // Mengisi ulang ukuran kanvas menghapus isinya, jadi hanya kalau ukurannya berubah.
+      if (l === k.width && t === k.height) return;
+      k.width = l;
+      k.height = t;
+      gl.viewport(0, 0, l, t);
+      if (uUkuran) gl.uniform2f(uUkuran, l, t);
+      gambarSekarang();
     };
-    ukur();
-    const ro = new ResizeObserver(ukur);
-    ro.observe(k);
-
-    let tampak = true, rAF = 0, terakhir = 0;
+    let tampak = true, rAF = 0, terakhir = 0, bersih = false;
     const mulai = performance.now();
-    const gambar = (kini: number) => {
-      rAF = 0;
-      if (!tampak || document.hidden) return;
-      // Asap cukup 30 fps: tidak terasa bedanya, dan HP tidak panas.
-      if (jenis === "asap" && kini - terakhir < 32) { rAF = requestAnimationFrame(gambar); return; }
-      // Kabut yang nyaris tak terlihat tidak perlu digambar.
-      if (jenis === "asap" && skala.current < 0.01 && kini - terakhir < 90) { rAF = requestAnimationFrame(gambar); return; }
-      terakhir = kini;
+    const lukis = (kini: number) => {
       const dtk = (kini - mulai) / 1000;
       if (jenis === "bola") {
         gl.uniformMatrix3fv(uPutar, false, putaran(0.35 + dtk * 0.12 + skala.current));
@@ -194,6 +188,26 @@ export default function Panggung3D({ jenis, tema = "smokehouse", nilai, classNam
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+    function gambarSekarang() { lukis(performance.now()); }
+    ukur();
+    const ro = new ResizeObserver(ukur);
+    ro.observe(k);
+
+    const gambar = (kini: number) => {
+      rAF = 0;
+      if (!tampak || document.hidden) return;
+      // Bola yang sedang tersembunyi tidak digambar. Geraknya membangunkan lagi lewat `nilai`.
+      if (k.parentElement?.style.visibility === "hidden") return;
+      // Asap cukup 30 fps: tidak terasa bedanya, dan HP tidak panas.
+      if (jenis === "asap" && kini - terakhir < 32) { rAF = requestAnimationFrame(gambar); return; }
+      // Kabut yang habis digambar sekali sampai bersih, lalu berhenti total sampai dibutuhkan.
+      if (jenis === "asap" && skala.current < 0.01) {
+        if (bersih) return;
+        bersih = true;
+      } else bersih = false;
+      terakhir = kini;
+      lukis(kini);
       rAF = requestAnimationFrame(gambar);
     };
     minta.current = () => { if (!rAF && tampak) rAF = requestAnimationFrame(gambar); };
