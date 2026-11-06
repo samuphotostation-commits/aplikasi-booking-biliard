@@ -582,7 +582,9 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
   function dispatch(action: Action): string | null {
     if (action.t === "login") {
       me = action.emp;
-      attempt(() => session?.setItem(K_ME, action.emp.id));
+      // Orangnya utuh, bukan hanya nomornya: akun asli tidak ada di daftar contoh
+      // EMPLOYEES, jadi nomor saja membuatnya terlempar keluar tiap halaman dimuat ulang.
+      attempt(() => session?.setItem(K_ME, JSON.stringify({ ...action.emp, pin: "" })));
       notify();
       return null;
     }
@@ -722,8 +724,10 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
   attempt(() => window.addEventListener("online", () => { retryMs = RETRY_MS; void sync(); }));
 
   /* ── Mulai ──────────────────────────────────────────────────────── */
-  const meId = attempt(() => session?.getItem(K_ME));
-  me = EMPLOYEES.find((x) => x.id === meId && x.active) ?? null;
+  const meTersimpan = attempt(() => session?.getItem(K_ME));
+  const meBaca = attempt(() => JSON.parse(meTersimpan ?? "null") as Employee | null);
+  // Sesi yang tersimpan sebelum perbaikan ini hanya berisi nomor akun.
+  me = meBaca?.id ? meBaca : EMPLOYEES.find((x) => x.id === meTersimpan && x.active) ?? null;
   loadAll();
   computeView();
 
