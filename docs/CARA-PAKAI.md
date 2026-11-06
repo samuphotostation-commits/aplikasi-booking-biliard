@@ -7,13 +7,17 @@ booking 30 menit sebelum main, meja open bill tidak dijual online, QRIS DOKU)
 
 | Untuk siapa | Alamat / berkas | Isi |
 |---|---|---|
-| **Staf** (kasir, dapur, pemilik) | **https://spl-kasir.pages.dev** | Panel lengkap. Wajib PIN — PIN diperiksa **server**, bukan perangkat |
+| **Staf** (kasir, dapur, pemilik) | **https://kasir.sportspoollounge.com** | Hanya panel karyawan, langsung ke layar login. Masuk dengan Gmail; PIN untuk ganti shift diperiksa **server** |
 | **Staf, aplikasi Windows** | `release\SPL-Kasir-Setup-1.0.0.exe` | Installer resmi. Klik dua kali → pilih folder → selesai. Ikon sendiri, layar penuh, tanpa bilah alamat, **cetak struk tanpa dialog**. Bisa dicopot lewat Settings → Apps |
-| **Pelanggan** | **https://spl-tamu.pages.dev** | Booking biliar, reservasi meja resto, pesan makanan. Tidak ada panel staf di dalamnya |
+| **Pelanggan** | **https://sportspoollounge.com** | Booking biliar, reservasi meja resto, pesan makanan, daftar member. Tidak ada panel staf di dalamnya |
+
+> **Pindah domain 6 Nov 2026:** alamat resmi sekarang `sportspoollounge.com` (tamu) dan `kasir.sportspoollounge.com` (staf), keduanya tetap di Cloudflare Pages akun `grendsoni`. Alamat `.pages.dev` dan `www` otomatis diarahkan ke alamat resmi.
+
+**QR daftar member:** `sportspoollounge.com/sport/daftar` untuk SPL Sport dan `sportspoollounge.com/smokehouse/daftar` untuk Smokehouse.
 
 > **Pindah hosting 27 Sep 2026:** situs sekarang di **Cloudflare Pages** (akun `grendsoni`), karena kredit deploy Netlify gratis habis. Alamat Netlify lama (`spl-kasir.netlify.app`, `spl-tamu.netlify.app`) MASIH HIDUP tapi isinya versi 26 Sep sore dan tidak bisa diperbarui — pakai alamat `.pages.dev`, dan minta staf memasang ulang PWA-nya dari alamat baru.
 
-Server data: Supabase project **`spl-venue`** (`fhoxdsxabpohafilqxoz`) di org `grendsoni`, region Singapore.
+Server data: Supabase project **`spl-venue`** (`fhoxdsxabpohafilqxoz`) di org **`samu photostation`** (paket Pro, pindah dari org `grendsoni` 6 Nov 2026), region Singapore.
 
 ## 2. Meja & tarif
 
@@ -91,6 +95,12 @@ sebagai omzet — jadi laporan tidak pernah menghitung makanan yang belum diambi
 
 ## 8. Akun staf, multi superadmin & masuk dengan email
 
+> **Sejak 6 Nov 2026 semua akun staf wajib Gmail terverifikasi** (`supabase/schema-gmail.sql`). Email + password dan kode email sudah ditutup; bagian lama di bawah ini hanya riwayat.
+> 1. Pemilik mengisi Gmail orangnya di **Atur → Akun staf**.
+> 2. Orang itu menekan **Masuk dengan Google** sekali di browser (`kasir.sportspoollounge.com`). Statusnya berubah jadi *Gmail terverifikasi*.
+> 3. Sesudah itu baru PIN-nya berlaku untuk ganti shift, termasuk di aplikasi Windows.
+> Gmail diganti = harus dibuktikan ulang. Akun tanpa Gmail tidak bisa masuk sama sekali.
+
 **Atur → Akun staf.** Pemilik bisa menambah akun (karyawan atau superadmin), mengganti peran,
 menonaktifkan, dan menghapus. Aturan yang dijaga:
 
@@ -130,7 +140,7 @@ menonaktifkan, dan menghapus. Aturan yang dijaga:
   - **Kunjungan** — terkumpul sendiri dari booking & pesanan bernomor HP.
   - **Member aplikasi** — tamu yang mendaftar sendiri sebelum booking (lihat §16). Ada izin promonya,
     tombol **Salin nomor (blast)** yang otomatis hanya mengambil yang mengizinkan, **Unduh CSV**,
-    **Reset PIN** kalau tamu lupa, dan **Hapus akun** (UU PDP).
+    dan **Hapus akun** (UU PDP).
 
 ## 10. Pembayaran QRIS dinamis (Midtrans / DOKU)
 
@@ -170,6 +180,8 @@ aksi yang dirilis dibekukan sejak QR dibuat; dan kalau slotnya keburu diambil or
 mesin menolak booking itu dan mencatat dananya untuk dikembalikan.
 
 ## 10b. Akun member tamu (daftar & masuk sebelum booking)
+
+> **Sejak 6 Nov 2026 member hanya bisa dibuat lewat Google, dan nomor HP wajib diisi** (`supabase/schema-gmail.sql`). Email tidak bisa diketik atau diganti, jadi email palsu tidak bisa punya akun. Daftar/masuk dengan HP + PIN dan Reset PIN sudah ditutup; bagian lama di bawah ini hanya riwayat. Nomor HP dicek formatnya tapi belum diverifikasi lewat kode.
 
 Permintaan pemilik: **booking online hanya diproses atas nama member**, supaya data tamunya menjadi
 milik venue dan bisa dipakai blast promo.
@@ -287,7 +299,7 @@ Semua langkah di bawah dikerjakan pemilik karena menyangkut kredensial.
    **APIs & Services → OAuth consent screen** → External → isi nama aplikasi "SPL Sports
    Pool Lounge", email dukungan, lalu Save.
 2. **Credentials → Create credentials → OAuth client ID → Web application**.
-   - *Authorized JavaScript origins*: `https://spl-tamu.pages.dev` dan `https://spl-kasir.pages.dev`
+   - *Authorized JavaScript origins*: `https://sportspoollounge.com` dan `https://kasir.sportspoollounge.com`
    - *Authorized redirect URI*: `https://fhoxdsxabpohafilqxoz.supabase.co/auth/v1/callback`
 3. Salin **Client ID** dan **Client secret**.
 4. Supabase → **Authentication → Sign In / Providers → Google** → Enable → tempel kedua

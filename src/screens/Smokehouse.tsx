@@ -48,6 +48,7 @@ import {
 import { rupiah } from "../lib/core";
 import { fmtHour } from "../data/venue";
 import { setVenueTamu } from "../lib/venueAktif";
+import { tokenMember } from "../lib/member";
 
 const muncul = {
   hidden: { opacity: 0, y: 14 },
@@ -163,6 +164,11 @@ export default function Smokehouse() {
             <Tautan label="Pesan sekarang" sub="ambil / di meja" onClick={() => nav("/menu")} />
             <Tautan label="Pesanan saya" sub="lacak & kode" onClick={() => nav("/pesanan")} />
           </div>
+          {!tokenMember() && (
+            <div className="mt-2 grid">
+              <Tautan label="Daftar member" sub="pakai akun Google, isi nomor HP" onClick={() => nav("/smokehouse/daftar")} />
+            </div>
+          )}
         </motion.section>
 
         {/* ── Kategori berfoto: orang memilih makanan dengan mata ────

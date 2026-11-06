@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button, Card, PageHeader } from "../components/UI";
 import {
-  adaSesiGoogle, daftarMember, gantiPinMember, keluarMember, masukDenganGoogle, masukMember,
-  memberMungkin, memberSaya, selesaikanGoogle, ubahMember,
+  adaSesiGoogle, keluarMember, masukDenganGoogle, memberMungkin, memberSaya, selesaikanGoogle, ubahMember,
   type Member,
 } from "../lib/member";
-import { bacaProfil, rapikanHp } from "../lib/profilTamu";
+import { rapikanHp } from "../lib/profilTamu";
 
 /* ═══════════════════════════════════════════════════════════════════
    AKUN MEMBER SPL
@@ -14,9 +13,8 @@ import { bacaProfil, rapikanHp } from "../lib/profilTamu";
    Permintaan pemilik: sebelum booking diproses tamu harus daftar/masuk,
    supaya data membernya menjadi milik venue (untuk blast promo nanti).
 
-   Identitasnya nomor HP + PIN 6 angka — tanpa email, tanpa SMS, supaya
-   tamu yang sudah berdiri di depan meja tidak perlu menunggu kode apa pun.
-   Lupa PIN diselesaikan kasir lewat tombol "Reset PIN" di panel Pelanggan.
+   Identitasnya akun Google (emailnya pasti asli) + nomor HP yang wajib diisi.
+   Tidak ada kata sandi atau PIN yang perlu diingat tamu.
    ═══════════════════════════════════════════════════════════════════ */
 
 export default function Akun() {
@@ -32,7 +30,7 @@ export default function Akun() {
   return (
     <div className="pb-28">
       <PageHeader kicker="Member" title="Akun SPL"
-        sub={member ? `Halo, ${member.nama}` : "Daftar sekali, booking berikutnya tinggal pilih meja"} />
+        sub={member ? `Halo, ${member.nama}` : "Masuk dengan Google, booking berikutnya tinggal pilih meja"} />
       <div className="mx-auto max-w-lg space-y-4 px-5 py-5">
         {!memberMungkin() ? (
           <Card className="p-4 text-[13px] leading-relaxed text-mute">
@@ -51,36 +49,24 @@ export default function Akun() {
   );
 }
 
-/* ── Sudah masuk: ubah data & PIN ──────────────────────────────── */
+/* ── Sudah masuk: ubah data ──────────────────────────────── */
 function ProfilMember({ member, onChange, onKeluar }: {
   member: Member; onChange: (m: Member) => void; onKeluar: () => void;
 }) {
   const [nama, setNama] = useState(member.nama);
-  const [email, setEmail] = useState(member.email);
   const [setuju, setSetuju] = useState(member.setuju);
   const [pesan, setPesan] = useState<string | null>(null);
   const [sibuk, setSibuk] = useState(false);
-  const [pinLama, setPinLama] = useState("");
-  const [pinBaru, setPinBaru] = useState("");
-  const [pinPesan, setPinPesan] = useState<string | null>(null);
 
-  const berubah = nama !== member.nama || email !== member.email || setuju !== member.setuju;
+  const berubah = nama !== member.nama || setuju !== member.setuju;
 
   async function simpan() {
     setSibuk(true);
-    const r = await ubahMember({ nama, email, setuju });
+    const r = await ubahMember({ nama, setuju });
     setSibuk(false);
     if (r.ok) { onChange(r.member); setPesan("Tersimpan."); }
     else setPesan(r.alasan);
     setTimeout(() => setPesan(null), 4000);
-  }
-
-  async function gantiPin() {
-    setPinPesan(null);
-    const r = await gantiPinMember(pinLama, pinBaru);
-    setPinPesan(r.ok ? "PIN diganti." : (r.alasan ?? "PIN gagal diganti"));
-    if (r.ok) { setPinLama(""); setPinBaru(""); }
-    setTimeout(() => setPinPesan(null), 5000);
   }
 
   return (
@@ -91,11 +77,12 @@ function ProfilMember({ member, onChange, onKeluar }: {
         <p className="mt-1 text-[11px] text-dim">
           Nomor ini yang dipakai saat booking — tidak bisa diubah sendiri. Kalau nomornya ganti, bilang ke kasir.
         </p>
+        <div className="mt-3 text-[11px] uppercase tracking-[0.16em] text-dim">Akun Google</div>
+        <div className="text-[14px] text-cream">{member.email}</div>
       </Card>
 
       <Card className="space-y-3 p-4">
         <Isian label="Nama" value={nama} onChange={setNama} placeholder="Nama lengkap" />
-        <Isian label="Email (opsional)" value={email} onChange={setEmail} placeholder="nama@email.com" type="email" />
         <label className="flex items-start gap-2.5 text-[12px] leading-snug text-mute">
           <input type="checkbox" checked={setuju} onChange={(e) => setSetuju(e.target.checked)}
             className="mt-0.5 h-4 w-4 accent-amber" />
@@ -103,19 +90,6 @@ function ProfilMember({ member, onChange, onKeluar }: {
         </label>
         <Button full disabled={!berubah || sibuk} busy={sibuk} onClick={() => void simpan()}>Simpan perubahan</Button>
         {pesan && <p className="text-center text-[12px] text-amber">{pesan}</p>}
-      </Card>
-
-      <Card className="space-y-3 p-4">
-        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">Ganti PIN</div>
-        <Isian label="PIN lama" value={pinLama} onChange={setPinLama} placeholder="6 angka" type="pin" />
-        <Isian label="PIN baru" value={pinBaru} onChange={setPinBaru} placeholder="6 angka" type="pin" />
-        <Button full disabled={pinLama.length !== 6 || pinBaru.length !== 6} onClick={() => void gantiPin()}>
-          Ganti PIN
-        </Button>
-        {pinPesan && <p className="text-center text-[12px] text-amber">{pinPesan}</p>}
-        <p className="text-[11px] leading-snug text-dim">
-          Lupa PIN? Minta kasir SPL me-reset — PIN sementara dibacakan langsung ke kamu.
-        </p>
       </Card>
 
       <button
@@ -126,10 +100,10 @@ function ProfilMember({ member, onChange, onKeluar }: {
   );
 }
 
-/* ── Belum masuk: daftar atau masuk ────────────────────────────── */
-export function PanelMasuk({ onMasuk, ringkas }: { onMasuk: (m: Member) => void; ringkas?: boolean }) {
-  const profil = bacaProfil();
-  const [tab, setTab] = useState<"masuk" | "daftar">("masuk");
+/* ── Belum masuk: Google lalu nomor HP ────────────────────────────── */
+export function PanelMasuk({ onMasuk, ringkas, labelGoogle = "Lanjut dengan Google" }: {
+  onMasuk: (m: Member) => void; ringkas?: boolean; labelGoogle?: string;
+}) {
   // Kembali dari Google: tukar sesinya jadi akun member. Kalau nomor HP belum
   // ada (Google memang tidak memberikannya), tanyakan sekali di sini.
   const [google, setGoogle] = useState<{ nama: string; email: string } | null>(null);
@@ -149,29 +123,8 @@ export function PanelMasuk({ onMasuk, ringkas }: { onMasuk: (m: Member) => void;
     })();
     return () => { batal = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [hp, setHp] = useState(profil.hp);
-  const [nama, setNama] = useState(profil.nama);
-  const [email, setEmail] = useState(profil.email);
-  const [pin, setPin] = useState("");
-  const [pin2, setPin2] = useState("");
-  const [setuju, setSetuju] = useState(true);
   const [sibuk, setSibuk] = useState(false);
   const [alasan, setAlasan] = useState<string | null>(null);
-
-  const hpOk = /^62[1-9][0-9]{7,13}$/.test(rapikanHp(hp));
-  const siapMasuk = hpOk && pin.length === 6;
-  const siapDaftar = hpOk && pin.length === 6 && pin === pin2 && nama.trim().length >= 2;
-
-  async function jalan() {
-    setAlasan(null);
-    setSibuk(true);
-    const r = tab === "masuk"
-      ? await masukMember(hp, pin)
-      : await daftarMember({ hp, nama: nama.trim(), pin, email: email.trim(), setuju });
-    setSibuk(false);
-    if (r.ok) onMasuk(r.member);
-    else setAlasan(r.alasan);
-  }
 
   // Sesudah Google: tinggal satu isian nomor HP.
   async function lanjutGoogle() {
@@ -210,8 +163,8 @@ export function PanelMasuk({ onMasuk, ringkas }: { onMasuk: (m: Member) => void;
     <Card className="space-y-3 p-4">
       {!ringkas && (
         <p className="text-[12px] leading-relaxed text-mute">
-          Booking meja diproses atas nama member SPL. Sekali daftar, nomor dan namamu tersimpan —
-          dan kamu ikut dapat info promo lebih dulu.
+          Booking meja diproses atas nama member SPL. Masuk dengan akun Google kamu, lalu isi
+          nomor HP sekali — dan kamu ikut dapat info promo lebih dulu.
         </p>
       )}
 
@@ -227,54 +180,16 @@ export function PanelMasuk({ onMasuk, ringkas }: { onMasuk: (m: Member) => void;
           <path fill="#FBBC05" d="M11.6 28c-.5-1.3-.7-2.7-.7-4.1s.3-2.8.7-4.1v-5.8H4.3C2.8 17 2 20.4 2 23.9s.8 6.9 2.3 9.9l7.3-5.8z" />
           <path fill="#EA4335" d="M24 10.8c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.3 30 2 24 2 15.4 2 7.9 6.9 4.3 14.1l7.3 5.8c1.8-5.2 6.6-9.1 12.4-9.1z" />
         </svg>
-        {cekGoogle ? "Memeriksa akun Google…" : "Lanjut dengan Google"}
+        {cekGoogle ? "Memeriksa akun Google…" : labelGoogle}
       </button>
-      <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.16em] text-dim">
-        <span className="h-px flex-1 bg-line" />atau nomor HP<span className="h-px flex-1 bg-line" />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {([["masuk", "Masuk"], ["daftar", "Daftar baru"]] as const).map(([k, label]) => (
-          <button key={k} onClick={() => { setTab(k); setAlasan(null); }} aria-pressed={tab === k}
-            className={`min-h-[40px] rounded-xl border text-[13px] font-semibold ${
-              tab === k ? "border-amber bg-amber/10 text-amber" : "border-line bg-ink text-mute"
-            }`}>{label}</button>
-        ))}
-      </div>
-
-      <Isian label="Nomor HP" value={hp} onChange={setHp} placeholder="08xxxxxxxxxx" type="tel"
-        ok={hp === "" ? undefined : hpOk} />
-      {tab === "daftar" && (
-        <>
-          <Isian label="Nama" value={nama} onChange={setNama} placeholder="Nama lengkap" />
-          <Isian label="Email (opsional)" value={email} onChange={setEmail} placeholder="nama@email.com" type="email" />
-        </>
-      )}
-      <Isian label={tab === "daftar" ? "Buat PIN (6 angka)" : "PIN"} value={pin} onChange={setPin}
-        placeholder="••••••" type="pin" />
-      {tab === "daftar" && (
-        <>
-          <Isian label="Ulangi PIN" value={pin2} onChange={setPin2} placeholder="••••••" type="pin"
-            ok={pin2 === "" ? undefined : pin2 === pin} />
-          <label className="flex items-start gap-2.5 text-[12px] leading-snug text-mute">
-            <input type="checkbox" checked={setuju} onChange={(e) => setSetuju(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-amber" />
-            <span>Boleh dikirimi info promo &amp; turnamen SPL. Bisa dimatikan kapan saja di halaman Akun.</span>
-          </label>
-        </>
-      )}
-
       {alasan && (
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="rounded-xl border border-amber/50 bg-amber/10 px-3 py-2 text-[12px] leading-snug text-amber">
           {alasan}
         </motion.p>
       )}
-
-      <Button full disabled={tab === "masuk" ? !siapMasuk : !siapDaftar} busy={sibuk} onClick={() => void jalan()}>
-        {tab === "masuk" ? "Masuk" : "Daftar & lanjut"}
-      </Button>
       <p className="text-[11px] leading-snug text-dim">
-        PIN hanya untuk akun SPL — jangan pakai PIN ATM. Lupa PIN? Minta kasir me-reset saat kamu datang.
+        Kami hanya memakai nama dan email akun Google kamu. Kata sandimu tidak pernah kami lihat.
       </p>
     </Card>
   );
@@ -285,18 +200,15 @@ function Isian({ label, value, onChange, placeholder, type = "text", ok }: {
   label: string; value: string; onChange: (v: string) => void;
   placeholder?: string; type?: string; ok?: boolean;
 }) {
-  const pin = type === "pin";
   return (
     <label className="block">
       <span className="mb-1 block text-[11px] uppercase tracking-[0.16em] text-dim">{label}</span>
       <input
         value={value}
         placeholder={placeholder}
-        type={pin ? "password" : type}
-        inputMode={pin ? "numeric" : type === "tel" ? "tel" : undefined}
-        autoComplete={pin ? "off" : undefined}
-        maxLength={pin ? 6 : undefined}
-        onChange={(e) => onChange(pin ? e.target.value.replace(/[^0-9]/g, "").slice(0, 6) : e.target.value)}
+        type={type}
+        inputMode={type === "tel" ? "tel" : undefined}
+        onChange={(e) => onChange(e.target.value)}
         className={`w-full rounded-xl border bg-ink px-4 py-3 text-cream placeholder:text-dim
           focus:outline-none ${ok === false ? "border-amber" : "border-line focus:border-amber"}`}
       />

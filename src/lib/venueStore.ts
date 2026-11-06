@@ -101,7 +101,6 @@ export type VenueStoreOptions = {
     forget?: (phone: string) => Promise<number>;
     /** Daftar member (tamu yang mendaftar sendiri) untuk blast promo. */
     fetchMembers?: (cari?: string) => Promise<import("./supabaseRemote").MemberBaris[]>;
-    resetMemberPin?: (phone: string) => Promise<{ ok: boolean; pin?: string; alasan?: string }>;
     forgetMember?: (phone: string) => Promise<number>;
     /** Absensi karyawan. */
     absenCatat?: (jenis: "masuk" | "pulang", foto: string, catatan?: string) => Promise<import("./supabaseRemote").AbsenHasil>;
@@ -116,13 +115,10 @@ export type VenueStoreOptions = {
     /** Akun staf di server (PIN) — supaya akun baru berlaku di semua perangkat. */
     saveStaff?: (emp: { id: string; name: string; role: string; pin?: string; active: boolean }) => Promise<string | null>;
     removeStaff?: (id: string) => Promise<string | null>;
-    /** Masuk dengan email: kirim kode, lalu tukar kodenya jadi sesi venue. */
-    kirimKodeEmail?: (email: string) => Promise<string | null>;
-    loginEmail?: (email: string, kode: string) => Promise<{ ok: true; staffId: string; nama: string; peran: "superadmin" | "karyawan" } | { ok: false; alasan: string }>;
+    /** Gmail staf: tautan, sesi hasil masuk Google, dan siapa yang sudah terbukti. */
     setStaffEmail?: (staffId: string, email: string) => Promise<string | null>;
-    loginSandi?: (email: string, password: string) => Promise<{ ok: true; staffId: string; nama: string; peran: "superadmin" | "karyawan" } | { ok: false; alasan: string }>;
-    setStaffPassword?: (staffId: string, password: string) => Promise<string | null>;
-    stafPunyaSandi?: () => Promise<Record<string, boolean>>;
+    pakaiToken?: (token: string) => void;
+    stafGmailStatus?: () => Promise<Record<string, boolean>>;
   };
   /** Jeda sebelum mencoba menyambung lagi setelah gagal (dilipatduakan sampai 30 dtk). */
   retryMs?: number;
@@ -777,49 +773,15 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
         return "Tidak tersambung ke server — coba lagi setelah koneksi kembali.";
       }
     },
-    /** Kirim kode masuk ke email staf (mode server saja). */
-    kirimKodeEmail: (email: string) =>
-      (remote?.kirimKodeEmail?.(email) ?? Promise.resolve("Mode lokal: masuk cukup dengan PIN.")),
-    /**
-     * Masuk dengan email + kode. Hasilnya sama dengan masuk lewat PIN: sesi
-     * venue 12 jam, lalu jejak ditarik dari server.
-     */
-    async signInEmail(email: string, kode: string) {
-      if (!remote?.loginEmail) return { ok: false as const, alasan: "Mode lokal: masuk cukup dengan PIN." };
-      try {
-        const hasil = await remote.loginEmail(email, kode);
-        if (!hasil.ok) { problem = hasil.alasan; notify(); return hasil; }
-        problem = null;
-        await sync();
-        notify();
-        return hasil;
-      } catch (e) {
-        markOffline();
-        return { ok: false as const, alasan: e instanceof Error ? e.message : "Tidak tersambung ke server." };
-      }
+    /** Sesi venue dari masuk lewat Google: pasang lalu tarik jejak dari server. */
+    async signInGoogle(token: string) {
+      remote?.pakaiToken?.(token);
+      problem = null;
+      try { await sync(); } catch { markOffline(); }
+      notify();
     },
-    /**
-     * Masuk dengan email + password — layar pertama aplikasi. Hasilnya sama
-     * dengan masuk lewat PIN: sesi venue 12 jam, lalu jejak ditarik server.
-     */
-    async signInSandi(email: string, password: string) {
-      if (!remote?.loginSandi) return { ok: false as const, alasan: "Mode lokal: masuk cukup dengan PIN." };
-      try {
-        const hasil = await remote.loginSandi(email, password);
-        if (!hasil.ok) { problem = hasil.alasan; notify(); return hasil; }
-        problem = null;
-        await sync();
-        notify();
-        return hasil;
-      } catch (e) {
-        markOffline();
-        return { ok: false as const, alasan: e instanceof Error ? e.message : "Tidak tersambung ke server." };
-      }
-    },
-    /** Superadmin mengatur password staf. Kosong = cabut. */
-    aturSandi: (staffId: string, password: string) =>
-      (remote?.setStaffPassword?.(staffId, password) ?? Promise.resolve("Butuh sambungan ke server venue.")),
-    daftarSandi: () => (remote?.stafPunyaSandi?.() ?? Promise.resolve({} as Record<string, boolean>)),
+    /** Siapa saja yang Gmail-nya sudah terbukti (layar Atur). */
+    daftarGmail: () => (remote?.stafGmailStatus?.() ?? Promise.resolve({} as Record<string, boolean>)),
     /** Tautkan email ke akun staf (superadmin, mode server). */
     tautkanEmail: (staffId: string, email: string) =>
       (remote?.setStaffEmail?.(staffId, email) ?? Promise.resolve(null)),
@@ -837,8 +799,6 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
     lupakanPelanggan: (phone: string) => (remote?.forget?.(phone) ?? Promise.resolve(0)),
     /** Daftar member yang mendaftar sendiri lewat aplikasi tamu (butuh sesi PIN). */
     member: (cari?: string) => (remote?.fetchMembers?.(cari) ?? Promise.resolve([])),
-    resetPinMember: (phone: string) =>
-      (remote?.resetMemberPin?.(phone) ?? Promise.resolve({ ok: false, alasan: "Butuh sambungan ke server venue." })),
     lupakanMember: (phone: string) => (remote?.forgetMember?.(phone) ?? Promise.resolve(0)),
     /** Absensi karyawan — butuh server: fotonya disimpan di sana, bukan di HP. */
     absenCatat: (jenis: "masuk" | "pulang", foto: string, catatan?: string) =>

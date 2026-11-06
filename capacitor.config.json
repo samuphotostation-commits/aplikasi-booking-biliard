@@ -4,7 +4,7 @@
   "webDir": "web-tamu",
   "android": { "allowMixedContent": false },
   "server": {
-    "url": "https://spl-tamu.pages.dev",
+    "url": "https://sportspoollounge.com",
     "cleartext": false,
     "androidScheme": "https"
   }

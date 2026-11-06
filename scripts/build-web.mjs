@@ -8,7 +8,7 @@
  *   sw.js               — juru simpan: sesudah dibuka sekali, aplikasi jalan walau internet putus
  *   ikon-1080.png       — ikon aplikasi
  *
- * Jalankan:  VITE_HASH_ROUTER=1 npx vite build && node scripts/build-web.mjs
+ * Jalankan:  npx vite build && node scripts/build-web.mjs
  * Alamat di-hash (#/admin) supaya bisa dihosting di path mana pun tanpa
  * pengaturan server khusus.
  */
@@ -90,7 +90,7 @@ const tamu = !!process.env.VITE_MODE_TAMU;
  * Bisa ditimpa lewat SITUS_URL saat venue pindah ke alamat sendiri, supaya
  * ganti domain tidak perlu menyentuh berkas ini.
  */
-const ALAMAT_SITUS = (process.env.SITUS_URL ?? "https://spl-tamu.pages.dev").replace(/\/+$/, "");
+const ALAMAT_SITUS = (process.env.SITUS_URL ?? "https://sportspoollounge.com").replace(/\/+$/, "");
 
 /**
  * Judul membawa KOTA. Orang mencari "biliar Padang", bukan "SPL" — nama
@@ -125,10 +125,20 @@ const kepalaSosial = tamu ? `
 <meta name="twitter:description" content="${RINGKASAN}">
 <meta name="twitter:image" content="${ALAMAT_SITUS}/og-spl.jpg">` : "";
 
+/**
+ * Alamat lama dan www diantar ke alamat resmi, dengan jalur dan kode login
+ * tetap utuh. Hanya nama persis ini: pratinjau seperti abc123.spl-kasir.pages.dev
+ * sengaja tidak ikut, supaya versi lama tetap bisa dibuka saat perlu mundur.
+ */
+const ALIH_ALAMAT = JSON.stringify(tamu
+  ? { "www.sportspoollounge.com": ALAMAT_SITUS, "spl-tamu.pages.dev": ALAMAT_SITUS }
+  : { "spl-kasir.pages.dev": "https://kasir.sportspoollounge.com" });
+
 const html = `<!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
+<script>(function(){var a=${ALIH_ALAMAT}[location.hostname];if(a)location.replace(a+location.pathname+location.search+location.hash)})()</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${JUDUL}</title>
 <meta name="description" content="${RINGKASAN}">${kepalaSosial}
@@ -178,7 +188,7 @@ writeFileSync(join(OUT, "manifest.webmanifest"), JSON.stringify({
   description: tamu
     ? "Booking meja biliar & pesan makanan di SPL Sports Pool Lounge, Padang."
     : "Panel kasir & booking meja biliar SPL Sports Pool Lounge.",
-  start_url: "./index.html",
+  start_url: "./",
   scope: "./",
   display: "standalone",
   orientation: "any",

@@ -448,7 +448,14 @@ export default function Landing() {
               className="text-[13px] text-mute transition hover:text-amber">Smokehouse</button>
             <button type="button" onClick={() => nav("/smokehouse/buku-menu")}
               className="text-[13px] text-mute transition hover:text-amber">Menu &amp; harga</button>
+            <button type="button" onClick={() => nav("/daftar")}
+              className="text-[13px] text-mute transition hover:text-amber">Daftar member</button>
           </nav>
+          <button type="button" onClick={() => nav("/daftar")}
+            className="ml-auto min-h-[38px] rounded-lg border border-line-2 px-3 text-[12px] font-semibold
+              text-cream transition hover:border-amber hover:text-amber md:hidden">
+            Daftar member
+          </button>
           {/* Disembunyikan di HP. Di sana aksinya pindah ke bilah bawah yang
               terjangkau ibu jari; dua tombol booking di satu layar cuma
               menambah keputusan tanpa menambah jalan keluar. */}
@@ -1023,6 +1030,23 @@ export default function Landing() {
               <Aksi2 lebar onClick={() => nav("/smokehouse/buku-menu")} anak="Lihat menu & harga" />
             </div>
           </div>
+
+          {/* Dua pintu, bukan satu: tiap venue mengarahkan tamunya ke sini, dan
+              sesudah mendaftar tamu harus tetap berada di venue yang tadi. */}
+          <div id="member" className="mt-14 border-t border-line pt-12 text-center">
+            <span className="font-display text-[11px] uppercase tracking-[0.22em] text-amber">Member SPL</span>
+            <h2 className="mt-3 text-balance font-serif text-[2.1rem] font-bold leading-[1.02]
+              tracking-[-0.015em] text-cream sm:text-[3rem]">
+              Daftar sekali, berikutnya tinggal pilih meja.
+            </h2>
+            <p className="mx-auto mt-3 max-w-[46ch] text-[14.5px] text-mute">
+              Masuk dengan akun Google lalu isi nomor HP. Riwayat booking dan pesananmu tersimpan di akun.
+            </p>
+            <div className="mx-auto mt-8 flex max-w-md flex-col gap-2.5 sm:flex-row">
+              <Aksi lebar onClick={() => nav("/sport/daftar")} anak="Daftar di SPL Sport" />
+              <Aksi2 lebar onClick={() => nav("/smokehouse/daftar")} anak="Daftar di Smokehouse" />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1044,10 +1068,12 @@ export default function Landing() {
             <TautanKaki ke="/booking" anak="Cek meja & jadwal" />
             <TautanKaki ke="/sport" anak="Tarif &amp; jam main" />
             <TautanKaki ke="/pesanan" anak="Booking saya" />
+            <TautanKaki ke="/sport/daftar" anak="Daftar member" />
           </nav>
 
           <nav className="flex flex-col items-start gap-2.5">
             <h3 className="font-display text-[11px] uppercase tracking-[0.2em] text-amber">Smokehouse</h3>
+            <TautanKaki ke="/smokehouse/daftar" anak="Daftar member" />
             <TautanKaki ke="/smokehouse/buku-menu" anak="Menu &amp; harga" />
             <TautanKaki ke="/smokehouse/reservasi" anak="Reservasi meja restoran" />
             <TautanKaki ke="/menu" anak="Pesan makanan &amp; minuman" />

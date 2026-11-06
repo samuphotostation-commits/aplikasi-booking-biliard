@@ -2,7 +2,7 @@
  * Menggabungkan hasil `vite build` menjadi SATU berkas HTML mandiri.
  *
  * Vite sudah menanam font & foto sebagai data URI (lihat `assetsInlineLimit`
- * di vite.config.ts saat VITE_HASH_ROUTER aktif), jadi di sini tinggal
+ * di vite.config.ts saat VITE_SATU_BERKAS aktif), jadi di sini tinggal
  * menyatukan CSS + JS ke dalam satu berkas dan MELEPAS kerangka dokumen —
  * host Artifact menyediakan <!doctype>/<html>/<head>/<body> sendiri.
  *

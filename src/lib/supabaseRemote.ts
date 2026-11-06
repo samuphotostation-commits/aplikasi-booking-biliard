@@ -44,16 +44,10 @@ export type StaffRemote = Remote & {
   /** Masuk dengan PIN staf; server yang memeriksa, bukan perangkat. */
   login(pin: string): Promise<LoginHasil>;
   /** Kirim kode 6 angka ke email staf. Mengembalikan alasan kalau gagal. */
-  kirimKodeEmail(email: string): Promise<string | null>;
-  /** Tukar kode email menjadi sesi venue 12 jam. */
-  loginEmail(email: string, kode: string): Promise<LoginHasil>;
-  /** Masuk dengan email + password — layar pertama aplikasi. */
-  loginSandi(email: string, password: string): Promise<LoginHasil>;
-  /** Superadmin mengatur password staf. Kosong = cabut password. */
-  setStaffPassword(staffId: string, password: string): Promise<string | null>;
-  /** Siapa saja yang sudah punya password (penanda ya/tidak, bukan hash-nya). */
-  stafPunyaSandi(): Promise<Record<string, boolean>>;
-  /** Tautkan/lepas email sebuah akun staf (superadmin). */
+  /** Pakai sesi venue hasil masuk lewat Google. */
+  pakaiToken(t: string): void;
+  /** Siapa saja yang Gmail-nya sudah terbukti. */
+  stafGmailStatus(): Promise<Record<string, boolean>>;
   setStaffEmail(staffId: string, email: string): Promise<string | null>;
   /** Lupakan sesi (tombol Kunci). */
   logout(): void;
@@ -70,7 +64,6 @@ export type StaffRemote = Remote & {
   /** Daftar MEMBER (tamu yang mendaftar sendiri lewat aplikasi) untuk blast promo. */
   fetchMembers(cari?: string): Promise<MemberBaris[]>;
   /** Tamu lupa PIN: kasir memberi PIN sementara. */
-  resetMemberPin(phone: string): Promise<{ ok: boolean; pin?: string; alasan?: string }>;
   forgetMember(phone: string): Promise<number>;
   /** Absensi karyawan: selfie + jam, identitas dari token PIN. */
   absenCatat(jenis: "masuk" | "pulang", foto: string, catatan?: string): Promise<AbsenHasil>;
@@ -180,65 +173,17 @@ export function supabaseRemote(opts: SupabaseRemoteOptions): StaffRemote {
       void client.auth.signOut().catch(() => { /* tidak apa-apa: sesi email hanya di memori */ });
     },
 
-    /**
-     * Kode 6 angka dikirim HANYA ke email yang sudah ditautkan superadmin ke
-     * akun staf — supaya pintu ini tidak bisa dipakai mengirimi email siapa pun.
-     */
-    async kirimKodeEmail(email: string) {
-      const bersih = email.trim().toLowerCase();
-      const { data, error } = await client.rpc("email_staf_terdaftar", { p_email: bersih });
-      if (error) return error.message;
-      if (data !== true) return "Email ini belum ditautkan ke akun staf. Minta superadmin menautkannya di tab Atur.";
-      const { error: kirim } = await client.auth.signInWithOtp({
-        email: bersih, options: { shouldCreateUser: true },
-      });
-      return kirim ? kirim.message : null;
+    pakaiToken(t: string) {
+      token = t;
+      simpanToken(t);
     },
 
-    async loginEmail(email: string, kode: string): Promise<LoginHasil> {
-      const { error } = await client.auth.verifyOtp({
-        email: email.trim().toLowerCase(), token: kode.trim(), type: "email",
-      });
-      if (error) return { ok: false, alasan: /expired|invalid/i.test(error.message) ? "Kode salah atau sudah kedaluwarsa." : error.message };
-      const { data, error: e2 } = await client.rpc("staff_login_email");
-      if (e2) return { ok: false, alasan: e2.message };
-      const h = data as { ok: boolean; token?: string; staffId?: string; nama?: string; peran?: string; alasan?: string };
-      if (!h?.ok || !h.token) return { ok: false, alasan: h?.alasan ?? "Email ditolak server" };
-      token = h.token;
-      simpanToken(token);
-      return { ok: true, staffId: h.staffId!, nama: h.nama!, peran: h.peran as "superadmin" | "karyawan" };
-    },
-
-    /**
-     * Masuk dengan email + password. Tidak lewat Supabase Auth sama sekali:
-     * yang memeriksa adalah RPC venue sendiri, dan hasilnya token venue yang
-     * sama persis dengan hasil masuk PIN — jadi sisa aplikasinya tidak perlu
-     * tahu lewat pintu mana staf tadi masuk.
-     */
-    async loginSandi(email: string, password: string): Promise<LoginHasil> {
-      const { data, error } = await client.rpc("staff_login_password", {
-        p_email: email.trim().toLowerCase(), p_password: password,
-      });
-      if (error) throw new Error(error.message);
-      const h = data as { ok: boolean; token?: string; staffId?: string; nama?: string; peran?: string; alasan?: string };
-      if (!h?.ok || !h.token) return { ok: false, alasan: h?.alasan ?? "Ditolak server" };
-      token = h.token;
-      simpanToken(token);
-      return { ok: true, staffId: h.staffId!, nama: h.nama!, peran: h.peran as "superadmin" | "karyawan" };
-    },
-
-    async setStaffPassword(staffId: string, password: string) {
-      if (!token) return "Belum masuk.";
-      const { data, error } = await client.rpc("set_staff_password", { p_token: token, p_id: staffId, p_password: password });
-      return error ? error.message : ((data as string | null) ?? null);
-    },
-
-    async stafPunyaSandi() {
+    async stafGmailStatus() {
       if (!token) return {};
-      const { data, error } = await client.rpc("staf_punya_sandi", { p_token: token });
+      const { data, error } = await client.rpc("staf_gmail_status", { p_token: token });
       if (error) return {};
       const out: Record<string, boolean> = {};
-      for (const r of (data ?? []) as { staff_id: string; ada: boolean }[]) out[r.staff_id] = r.ada;
+      for (const r of (data ?? []) as { staff_id: string; terbukti: boolean }[]) out[r.staff_id] = r.terbukti;
       return out;
     },
 
@@ -317,14 +262,6 @@ export function supabaseRemote(opts: SupabaseRemoteOptions): StaffRemote {
       const { data, error } = await client.rpc("fetch_members", { p_token: token, p_cari: cari ?? null, p_limit: 1000 });
       if (error) throw new Error(error.message);
       return (data ?? []) as MemberBaris[];
-    },
-
-    async resetMemberPin(phone: string) {
-      if (!token) return { ok: false, alasan: "Belum masuk dengan PIN." };
-      const { data, error } = await client.rpc("member_reset_pin", { p_token: token, p_hp: phone });
-      if (error) return { ok: false, alasan: error.message };
-      const r = data as { ok?: boolean; pin?: string; alasan?: string };
-      return r?.ok ? { ok: true, pin: r.pin } : { ok: false, alasan: r?.alasan ?? "Reset PIN gagal" };
     },
 
     /* ── Absensi karyawan ─────────────────────────────────────────── */

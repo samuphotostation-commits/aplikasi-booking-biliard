@@ -27,4 +27,4 @@ for (const { folder, project } of situs) {
     "--project-name", project, "--branch", "main", "--commit-dirty=true"],
     { stdio: "inherit", shell: true });
 }
-console.log("\nSelesai. https://spl-kasir.pages.dev · https://spl-tamu.pages.dev");
+console.log("\nSelesai. https://kasir.sportspoollounge.com · https://sportspoollounge.com");

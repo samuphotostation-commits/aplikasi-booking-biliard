@@ -6,8 +6,7 @@
  * daftar member + izin promonya + tombol salin nomor / unduh CSV.
  *
  * Izin promo ditegakkan di sini: tombol "Salin nomor" HANYA mengambil yang
- * mencentang izin (UU PDP). PIN member tidak pernah bisa dilihat siapa pun —
- * kalau tamu lupa, kasir menekan Reset PIN dan membacakan PIN sementaranya.
+ * mencentang izin (UU PDP). Semua member masuk lewat akun Google.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useAdmin } from "../../lib/adminStore";
@@ -24,7 +23,6 @@ export default function DaftarMember() {
   const { allow } = useAdmin();
   const store = venueStore() as ReturnType<typeof venueStore> & {
     member?: (cari?: string) => Promise<MemberBaris[]>;
-    resetPinMember?: (phone: string) => Promise<{ ok: boolean; pin?: string; alasan?: string }>;
     lupakanMember?: (phone: string) => Promise<number>;
   };
 
@@ -158,16 +156,6 @@ export default function DaftarMember() {
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   onClick={async () => {
-                    if (!confirm(`Reset PIN member ${m.nama}? PIN lamanya langsung tidak berlaku dan semua perangkatnya keluar.`)) return;
-                    const r = await store.resetPinMember?.(m.phone);
-                    setPesan(r?.ok
-                      ? `PIN sementara ${m.nama}: ${r.pin} — bacakan langsung ke tamunya, jangan dikirim lewat chat.`
-                      : (r?.alasan ?? "Reset PIN gagal"));
-                  }}
-                  className="min-h-[36px] rounded-lg border border-line px-3 text-xs text-mute hover:border-amber hover:text-amber"
-                >Reset PIN</button>
-                <button
-                  onClick={async () => {
                     if (!confirm(`Hapus akun member ${m.nama} (${nomorTampil(m.phone)})?\n\nRiwayat kunjungan & angka penjualan tidak ikut terhapus.`)) return;
                     await store.lupakanMember?.(m.phone);
                     void muat(cari);
@@ -182,8 +170,8 @@ export default function DaftarMember() {
 
       <p className="text-[11px] leading-snug text-dim">
         Blast promo hanya boleh ke member yang mencentang izin promo (UU PDP) — tombol "Salin nomor"
-        sudah membuang yang tidak mengizinkan. PIN member tidak bisa dilihat siapa pun, termasuk pemilik;
-        kalau tamu lupa, pakai Reset PIN.
+        sudah membuang yang tidak mengizinkan. Semua member masuk lewat akun Google,
+        jadi tidak ada PIN yang perlu direset.
       </p>
     </div>
   );

@@ -9,6 +9,7 @@ import { VENUE_LABEL, type Venue } from "../../data/venue";
 import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
 import { fmtDateLong, rupiah } from "../../lib/core";
 import { usePantauKabar } from "../../lib/pantauKabar";
+import { masukDenganGoogle, memberMungkin, selesaikanGoogleStaf } from "../../lib/member";
 
 /* Login per KARYAWAN (bukan per peran) supaya setiap tindakan punya nama
    pelakunya di jejak audit — itu syarat kontrol kebocoran kas. */
@@ -75,8 +76,7 @@ const bolehTab = (t: (typeof TABS)[number], role: Role | null) =>
   t.izin ? can(role, t.izin) : t.roles ? !!role && t.roles.includes(role) : !!role;
 
 export default function AdminShell() {
-  const { a, dispatchA, role, sync, tick, signIn, signOut, kirimKodeEmail, signInEmail, signInSandi,
-    sambungkanLagi } = useAdmin();
+  const { a, dispatchA, role, sync, tick, signIn, signOut, signInGoogle, peek, sambungkanLagi } = useAdmin();
   /**
    * SPL-5 · bunyi & notifikasi dipasang DI KERANGKA, bukan di tiap layar:
    * reservasi yang masuk harus tetap terdengar walau yang sedang dibuka tab
@@ -91,36 +91,39 @@ export default function AdminShell() {
   const [err, setErr] = useState(false);
   const [lock, setLock] = useState<PinLock>(readLock);
   const [, rerender] = useState(0);
-  /** Masuk dengan email: null = tertutup, "email" = isi alamat, "kode" = isi kode. */
-  const [emailTahap, setEmailTahap] = useState<null | "email" | "kode">(null);
-  const [email, setEmail] = useState("");
-  const [kodeEmail, setKodeEmail] = useState("");
-  const [emailPesan, setEmailPesan] = useState<string | null>(null);
-  const [emailSibuk, setEmailSibuk] = useState(false);
   /**
-   * Layar pertama adalah EMAIL + PASSWORD (permintaan pemilik). PIN tetap ada
-   * dan tinggal satu ketukan: pergantian kasir antar shift terjadi berkali-kali
-   * semalam, dan mengetik email tiap kali terlalu lambat di meja kasir saat
-   * ramai — yang lambat akan dicari jalan pintasnya.
+   * Layar pertama adalah GOOGLE: Gmail yang ditautkan pemilik membuktikan orangnya.
+   * PIN tetap ada untuk ganti kasir antar shift, tapi server baru menerimanya
+   * sesudah Gmail orang itu terbukti sekali. Aplikasi Windows tidak bisa membuka
+   * layar Google, jadi di sana langsung PIN.
    */
+  const bisaGoogle = memberMungkin() && /^https?:$/.test(window.location.protocol);
   const venue = useVenueAktif();
   const [menyambung, setMenyambung] = useState(false);
-  const [caraMasuk, setCaraMasuk] = useState<"sandi" | "pin">("sandi");
-  const [sandi, setSandi] = useState("");
-  const [sandiPesan, setSandiPesan] = useState<string | null>(null);
-  const [sandiSibuk, setSandiSibuk] = useState(false);
+  const [caraMasuk, setCaraMasuk] = useState<"google" | "pin">(bisaGoogle ? "google" : "pin");
+  const [googlePesan, setGooglePesan] = useState<string | null>(null);
+  const [googleSibuk, setGoogleSibuk] = useState(false);
 
-  async function masukSandi() {
-    setSandiSibuk(true);
-    setSandiPesan(null);
-    const hasil = await signInSandi(email.trim(), sandi);
-    setSandiSibuk(false);
-    if (!hasil.ok) { setSandiPesan(hasil.alasan); return; }
-    const emp = a.employees.find((x) => x.id === hasil.staffId)
-      ?? { id: hasil.staffId, name: hasil.nama, pin: "", role: hasil.peran, active: true };
-    dispatchA({ t: "login", emp });
-    setSandi("");
-  }
+  // Kembali dari Google: tukar sesinya jadi sesi venue. Akun DICARI DI STATE dulu
+  // karena ikatan venuenya tersimpan di sana; jalur jatuhnya untuk baris staf yang
+  // hanya ada di server, diperlakukan sebagai pengurus kedua venue.
+  useEffect(() => {
+    if (a.me || !bisaGoogle) return;
+    let batal = false;
+    void (async () => {
+      setGoogleSibuk(true);
+      const h = await selesaikanGoogleStaf();
+      if (batal) return;
+      if (h?.ok) {
+        await signInGoogle(h.token);
+        const emp = peek().employees.find((x) => x.id === h.staffId)
+          ?? { id: h.staffId, name: h.nama, pin: "", role: h.peran as Role, active: true };
+        dispatchA({ t: "login", emp });
+      } else if (h) setGooglePesan(h.alasan);
+      setGoogleSibuk(false);
+    })();
+    return () => { batal = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * AKUN YANG TERIKAT VENUE MEMATOK LAYAR PERANGKAT INI.
@@ -161,8 +164,14 @@ export default function AdminShell() {
         writeLock(cleared); setLock(cleared);
         // Mode server: PIN yang sama diperiksa lagi di server dan menghasilkan
         // sesi 12 jam. Tanpa sesi itu jejak venue tidak bisa dibaca perangkat ini.
-        void signIn(next).then((alasan) => setServerErr(alasan));
-        setTimeout(() => { dispatchA({ t: "login", emp }); setPin(""); }, 160);
+        void signIn(next).then((alasan) => {
+          setServerErr(alasan);
+          // Server menolak = tidak masuk, termasuk Gmail yang belum terbukti.
+          // Hanya internet putus yang tetap boleh lanjut memakai data perangkat.
+          if (alasan && !alasan.startsWith("Tidak tersambung")) { setPin(""); return; }
+          dispatchA({ t: "login", emp });
+          setPin("");
+        });
       } else {
         const fails = lock.fails + 1;
         const locks = fails >= 5 ? lock.locks + 1 : lock.locks;
@@ -184,33 +193,28 @@ export default function AdminShell() {
           Panel Operasional
         </h1>
         <p className="mt-1 text-sm text-dim">
-          {caraMasuk === "sandi" ? "Masuk dengan email & password" : "Masukkan PIN karyawan"}
+          {caraMasuk === "google" ? "Masuk dengan Gmail yang didaftarkan pemilik" : "Masukkan PIN karyawan"}
         </p>
 
-        {caraMasuk === "sandi" && (
+        {caraMasuk === "google" && (
           <div className="mt-6 w-full max-w-[320px] space-y-2">
-            <input value={email} onChange={(e) => setEmail(e.target.value)}
-              type="email" inputMode="email" autoComplete="username" placeholder="email"
-              className="min-h-[46px] w-full rounded-xl border border-line bg-ink px-3.5 text-sm text-cream placeholder:text-dim focus:border-amber focus:outline-none" />
-            <input value={sandi} onChange={(e) => setSandi(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && email.trim() && sandi) void masukSandi(); }}
-              type="password" autoComplete="current-password" placeholder="password"
-              className="min-h-[46px] w-full rounded-xl border border-line bg-ink px-3.5 text-sm text-cream placeholder:text-dim focus:border-amber focus:outline-none" />
             <button
-              disabled={sandiSibuk || !email.trim() || !sandi}
-              onClick={() => void masukSandi()}
+              disabled={googleSibuk}
+              onClick={() => {
+                setGooglePesan(null);
+                setGoogleSibuk(true);
+                void masukDenganGoogle().then((r) => {
+                  if (!r.ok) { setGoogleSibuk(false); setGooglePesan(r.alasan ?? "Masuk dengan Google gagal"); }
+                });
+              }}
               className="min-h-[48px] w-full rounded-xl bg-amber text-[14px] font-bold text-ink disabled:opacity-40">
-              {sandiSibuk ? "Memeriksa…" : "Masuk"}
+              {googleSibuk ? "Memeriksa akun Google…" : "Masuk dengan Google"}
             </button>
-            {sandiPesan && <p role="alert" className="text-center text-[12px] leading-snug text-red-400">{sandiPesan}</p>}
-            <button onClick={() => { setCaraMasuk("pin"); setSandiPesan(null); }}
+            {googlePesan && <p role="alert" className="text-center text-[12px] leading-snug text-red-400">{googlePesan}</p>}
+            <button onClick={() => { setCaraMasuk("pin"); setGooglePesan(null); }}
               className="min-h-[44px] w-full rounded-xl border border-line text-[13px] text-mute hover:border-amber hover:text-amber">
               Ganti shift · masuk dengan PIN
             </button>
-            <p className="pt-1 text-center text-[11px] leading-snug text-dim">
-              Password diatur pemilik di Atur → Akun staf. Staf yang belum diberi password
-              tetap masuk lewat PIN.
-            </p>
           </div>
         )}
 
@@ -241,86 +245,22 @@ export default function AdminShell() {
             {["1","2","3","4","5","6","7","8","9"].map((d) => (
               <PinKey key={d} onClick={() => press(d)}>{d}</PinKey>
             ))}
-            <PinKey onClick={() => nav("/")} small>Keluar</PinKey>
+            <PinKey onClick={() => setPin("")} small>Ulang</PinKey>
             <PinKey onClick={() => press("0")}>0</PinKey>
             <PinKey onClick={() => setPin(pin.slice(0, -1))} small>Hapus</PinKey>
           </div>
-            <button onClick={() => { setCaraMasuk("sandi"); setServerErr(null); }}
-              className="mt-4 min-h-[40px] text-[13px] text-mute underline underline-offset-4">
-              Kembali ke email &amp; password
-            </button>
+            {bisaGoogle ? (
+              <button onClick={() => { setCaraMasuk("google"); setServerErr(null); }}
+                className="mt-4 min-h-[40px] text-[13px] text-mute underline underline-offset-4">
+                Kembali ke masuk dengan Google
+              </button>
+            ) : (
+              <p className="mt-4 max-w-[34ch] text-center text-[11px] leading-snug text-dim">
+                Akun baru: masuk dengan Google sekali di kasir.sportspoollounge.com, lalu PIN berlaku di sini.
+              </p>
+            )}
           </>
         )}
-
-        {/* ── Masuk dengan email (untuk pemilik/manajer) ────────── */}
-        <div className="mt-6 w-full max-w-[300px]">
-          {emailTahap === null ? (
-            <button onClick={() => { setEmailTahap("email"); setEmailPesan(null); }}
-              className="min-h-[44px] w-full text-[13px] text-mute underline underline-offset-4">
-              Lupa password? Masuk dengan kode email
-            </button>
-          ) : (
-            <div className="space-y-2 rounded-xl border border-line bg-ink-2 p-3">
-              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
-                {emailTahap === "email" ? "Masuk dengan email" : "Kode dari email"}
-              </div>
-              {emailTahap === "email" ? (
-                <>
-                  <input value={email} onChange={(e) => setEmail(e.target.value)}
-                    type="email" inputMode="email" autoComplete="email" placeholder="email staf"
-                    className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-sm text-cream placeholder:text-dim" />
-                  <button
-                    disabled={emailSibuk || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())}
-                    onClick={async () => {
-                      setEmailSibuk(true);
-                      const alasan = await kirimKodeEmail(email.trim());
-                      setEmailSibuk(false);
-                      if (alasan) { setEmailPesan(alasan); return; }
-                      setEmailPesan("Kode 6 angka dikirim ke email itu. Cek juga folder spam.");
-                      setEmailTahap("kode");
-                    }}
-                    className="min-h-[44px] w-full rounded-lg bg-amber text-[13px] font-semibold text-ink disabled:opacity-40">
-                    {emailSibuk ? "Mengirim…" : "Kirim kode"}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <input value={kodeEmail} onChange={(e) => setKodeEmail(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                    inputMode="numeric" placeholder="6 angka"
-                    className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-center text-lg tracking-[0.3em] text-cream placeholder:text-sm placeholder:tracking-normal placeholder:text-dim" />
-                  <button
-                    disabled={emailSibuk || kodeEmail.length < 6}
-                    onClick={async () => {
-                      setEmailSibuk(true);
-                      const hasil = await signInEmail(email.trim(), kodeEmail);
-                      setEmailSibuk(false);
-                      if (!hasil.ok) { setEmailPesan(hasil.alasan); return; }
-                      // Pelaku di perangkat ini mengikuti akun staf yang emailnya dipakai.
-                      // Akun DICARI DI STATE dulu: di sanalah ikatan venuenya
-                      // tersimpan (akun staf hidup di jejak kejadian, seperti
-                      // peran, tarif, dan menu). Jalur jatuhnya hanya untuk
-                      // baris staf yang ada di server tapi tidak pernah dibuat
-                      // lewat aplikasi — akun seperti itu tidak punya ikatan
-                      // venue yang bisa dibaca, jadi diperlakukan sebagai
-                      // pengurus kedua venue, sama seperti sebelum ada pagar ini.
-                      const emp = a.employees.find((x) => x.id === hasil.staffId)
-                        ?? { id: hasil.staffId, name: hasil.nama, pin: "", role: hasil.peran, active: true };
-                      dispatchA({ t: "login", emp });
-                      setEmailTahap(null); setKodeEmail(""); setEmailPesan(null);
-                    }}
-                    className="min-h-[44px] w-full rounded-lg bg-amber text-[13px] font-semibold text-ink disabled:opacity-40">
-                    {emailSibuk ? "Memeriksa…" : "Masuk"}
-                  </button>
-                  <button onClick={() => { setEmailTahap("email"); setKodeEmail(""); }}
-                    className="min-h-[36px] w-full text-[12px] text-dim">Ganti email / kirim ulang</button>
-                </>
-              )}
-              {emailPesan && <p role="status" className="text-[12px] leading-snug text-amber">{emailPesan}</p>}
-              <button onClick={() => { setEmailTahap(null); setEmailPesan(null); }}
-                className="min-h-[36px] w-full text-[12px] text-dim">Tutup</button>
-            </div>
-          )}
-        </div>
 
         {SHOW_DEMO_PINS && (
           <div className="mt-8 w-full max-w-[300px] rounded-xl border border-line bg-ink-2 p-3">

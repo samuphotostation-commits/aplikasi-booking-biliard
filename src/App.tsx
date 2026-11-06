@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Suspense, lazy, useEffect } from "react";
 import { BottomNav } from "./components/UI";
 import { BreakIntro, useIntroSeen } from "./components/motion/Billiard";
@@ -8,6 +8,11 @@ import { AdminProvider } from "./lib/adminStore";
 
 /** Build khusus HP pelanggan: panel staf tidak ikut dibangun. */
 const MODE_TAMU = !!import.meta.env.VITE_MODE_TAMU;
+/**
+ * Situs kasir hanya berisi panel karyawan: halaman tamu punya rumah sendiri di
+ * sportspoollounge.com. Saat pengembangan keduanya tetap terbuka.
+ */
+const ADA_TAMU = MODE_TAMU || import.meta.env.DEV;
 /**
  * SATU-SATUNYA LAYAR YANG IKUT MUATAN PERTAMA.
  *
@@ -40,6 +45,7 @@ const Payment = lazy(() => import("./screens/Payment"));
 const Success = lazy(() => import("./screens/Success"));
 const Orders = lazy(() => import("./screens/Orders"));
 const Akun = lazy(() => import("./screens/Akun"));
+const Daftar = lazy(() => import("./screens/Daftar"));
 const AdminShell = lazy(() => import("./screens/admin/AdminShell"));
 const Board = lazy(() => import("./screens/admin/Board"));
 const Kasir = lazy(() => import("./screens/admin/Kasir"));
@@ -109,7 +115,8 @@ function Shell() {
           <Routes location={loc}>
             {/* Landing utama = master. Tiap venue punya alamatnya sendiri
                 supaya tautannya bisa dibagikan langsung ke pelanggan. */}
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={ADA_TAMU ? <Landing /> : <Navigate to="/admin" replace />} />
+            {ADA_TAMU && <>
             <Route path="/sport" element={<Home />} />
             <Route path="/smokehouse" element={<Smokehouse />} />
             {/* Reservasi meja MAKAN — bukan booking biliar. Koreksi pemilik
@@ -123,6 +130,11 @@ function Shell() {
             <Route path="/sukses" element={<Success />} />
             <Route path="/akun" element={<Akun />} />
             <Route path="/pesanan" element={<Orders />} />
+            {/* Tujuan QR di venue, masing-masing ke alamatnya sendiri. */}
+            <Route path="/daftar" element={<Daftar />} />
+            <Route path="/sport/daftar" element={<Daftar />} />
+            <Route path="/smokehouse/daftar" element={<Daftar />} />
+            </>}
 
             {/* Build HP pelanggan tidak memuat panel staf sama sekali. */}
             {/* Layar menghadap tamu: jendela kedua di monitor depan kasir.
@@ -146,6 +158,7 @@ function Shell() {
               <Route path="antar" element={<Antar />} />
               <Route path="atur" element={<Pengaturan />} />
             </Route>}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>
       </motion.main>
@@ -156,7 +169,7 @@ function Shell() {
 
 export default function App() {
   const { seen, markSeen } = useIntroSeen();
-  // App berada di dalam Router (main.tsx). Di build online rute ada di hash,
+  // App berada di dalam Router (main.tsx). Di aplikasi Windows rute ada di hash,
   // jadi window.location.pathname tidak bisa dipakai.
   // Intro juga dilewati di layar menghadap tamu: monitor itu menyala
   // semalaman dan tidak boleh memutar animasi pembuka tiap dimuat ulang.
@@ -167,7 +180,7 @@ export default function App() {
     <AdminProvider>
       <StoreProvider>
         <AnimatePresence>
-          {!seen && !isAdmin && <BreakIntro onDone={markSeen} />}
+          {!seen && !isAdmin && ADA_TAMU && <BreakIntro onDone={markSeen} />}
         </AnimatePresence>
         <Shell />
       </StoreProvider>

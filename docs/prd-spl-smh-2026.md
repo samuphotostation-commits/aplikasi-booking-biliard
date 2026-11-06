@@ -459,10 +459,10 @@ Smokehouse-nya masing-masing."*
 
 | Tautan | Isi |
 |---|---|
-| **https://spl-tamu.pages.dev** | Landing master: dua pintu + jam buka |
-| **https://spl-tamu.pages.dev/sport** | SPL Sport — booking meja biliar, VIP & VVIP |
-| **https://spl-tamu.pages.dev/smokehouse** | Smokehouse — menu & pesan makanan |
-| https://spl-kasir.pages.dev | Panel internal (tidak berubah) |
+| **https://sportspoollounge.com** | Landing master: dua pintu + jam buka |
+| **https://sportspoollounge.com/sport** | SPL Sport — booking meja biliar, VIP & VVIP |
+| **https://sportspoollounge.com/smokehouse** | Smokehouse — menu & pesan makanan |
+| https://kasir.sportspoollounge.com | Panel internal (tidak berubah) |
 
 **Tautannya bersih, tanpa pagar (#).** Rute aplikasi hidup di hash, tapi orang
 mengetik dan membagikan alamat tanpa pagar. Jadi `public/_redirects`

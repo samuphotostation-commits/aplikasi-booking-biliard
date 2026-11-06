@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button, Card, PageHeader } from "../components/UI";
 import { Ball } from "../components/motion/Billiard";
 import { useStore, type CartLine } from "../lib/store";
@@ -418,7 +418,7 @@ export default function Checkout() {
               <div className="rounded-xl border border-line bg-ink-2 px-4 py-3">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-[11px] uppercase tracking-[0.16em] text-dim">Member SPL</span>
-                  <a href="#/akun" className="text-[11px] text-amber underline underline-offset-4">Ubah di Akun</a>
+                  <Link to="/akun" className="text-[11px] text-amber underline underline-offset-4">Ubah di Akun</Link>
                 </div>
                 <div className="mt-0.5 text-[15px] font-semibold text-cream">{member.nama}</div>
                 <div className="text-[12px] tabular-nums text-mute">{member.hp}</div>

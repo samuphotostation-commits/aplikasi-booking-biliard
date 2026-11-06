@@ -63,7 +63,7 @@ export type Employee = {
   pin: string;
   role: Role;
   active: boolean;
-  /** Email yang ditautkan supaya orang ini bisa masuk tanpa PIN (lihat supabase/schema-email.sql). */
+  /** Gmail orang ini. Wajib dibuktikan lewat Google sebelum PIN-nya berlaku (lihat supabase/schema-gmail.sql). */
   email?: string;
   /**
    * VENUE TEMPAT ORANG INI BEKERJA. Kosong = kedua venue (pemilik & manajer

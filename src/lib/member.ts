@@ -4,8 +4,9 @@
    Permintaan pemilik: sebelum booking diproses, tamu harus daftar atau
    masuk, supaya datanya menjadi milik venue (untuk blast promo nanti).
 
-   • Identitasnya nomor HP (dirapikan jadi 62xxx) + PIN 6 angka.
-   • Token sesi 30 hari disimpan di HP tamu; PIN tidak pernah disimpan.
+   • Akun hanya bisa dibuat lewat Google, jadi emailnya pasti asli.
+   • Nomor HP wajib diisi sekali sesudah Google (Google tidak memberikannya).
+   • Token sesi 30 hari disimpan di HP tamu.
    • Tanpa server (mode lokal/uji) semua fungsi menjawab `tersedia: false`
      dan layar kembali ke formulir nama/HP seperti sebelumnya.
 
@@ -50,19 +51,10 @@ function sb(): SupabaseClient | null {
 }
 
 /**
- * Alamat kembali sesudah Google.
- *
- * PENTING: PKCE mengembalikan `?code=…` di QUERY. Kalau alamat baliknya memuat
- * tanda pagar (`#/akun`), kode itu jatuh DI DALAM fragmen (`/#/akun?code=…`) dan
- * pustaka Supabase — yang membaca `location.search` — tidak pernah melihatnya:
- * tamu kembali dalam keadaan seolah tidak pernah login. Karena itu build hash
- * memakai alamat balik tanpa tanda pagar + penanda `splakun`, yang dibaca
- * `main.tsx` untuk melompat ke halaman Akun.
+ * Kembali ke halaman yang sedang dibuka, supaya tamu yang login di tengah
+ * checkout tidak terlempar. Halamannya harus ada di Redirect URLs Supabase.
  */
-function alamatKembali(): string {
-  const { origin, pathname } = window.location;
-  return env.VITE_HASH_ROUTER ? `${origin}${pathname}?splakun=1` : `${origin}/akun`;
-}
+const alamatKembali = (): string => window.location.origin + window.location.pathname;
 
 /** Buka layar pilih akun Google. Aplikasi akan kembali sendiri ke halaman Akun. */
 export async function masukDenganGoogle(): Promise<{ ok: boolean; alasan?: string }> {
@@ -76,6 +68,31 @@ export async function masukDenganGoogle(): Promise<{ ok: boolean; alasan?: strin
     if (error) return { ok: false, alasan: error.message };
     return { ok: true };
   } catch (e) { return { ok: false, alasan: galat(e) }; }
+}
+
+export type HasilStafGoogle =
+  | { ok: true; token: string; staffId: string; nama: string; peran: string }
+  | { ok: false; alasan: string };
+
+/**
+ * Staf yang baru kembali dari Google: tukar sesinya jadi sesi venue 12 jam.
+ * null = tidak ada sesi Google. Sesi Google selalu dibuang sesudahnya, supaya
+ * orang berikutnya di perangkat kasir memilih akunnya sendiri.
+ */
+export async function selesaikanGoogleStaf(): Promise<HasilStafGoogle | null> {
+  const c = sb();
+  if (!c || !(await adaSesiGoogle())) return null;
+  try {
+    const { data, error } = await c.rpc("staff_login_email");
+    if (error) return { ok: false, alasan: error.message };
+    const r = data as { ok?: boolean; alasan?: string; token?: string; staffId?: string; nama?: string; peran?: string };
+    if (!r?.ok || !r.token) return { ok: false, alasan: r?.alasan ?? "Masuk dengan Google gagal" };
+    return { ok: true, token: r.token, staffId: r.staffId!, nama: r.nama!, peran: r.peran! };
+  } catch (e) {
+    return { ok: false, alasan: galat(e) };
+  } finally {
+    try { await c.auth.signOut(); } catch { /* sesi lokal tetap dilupakan */ }
+  }
 }
 
 /** Sedang ada sesi Google yang belum ditukar jadi member? */
@@ -106,19 +123,6 @@ export async function selesaikanGoogle(hp?: string): Promise<HasilGoogle> {
     if (!r?.ok || !r.token || !m) return { ok: false, alasan: r?.alasan ?? "Masuk dengan Google gagal" };
     simpanToken(r.token);
     return { ok: true, member: pakai(m) };
-  } catch (e) { return { ok: false, alasan: galat(e) }; }
-}
-
-/** Member yang sudah punya PIN menautkan akun Google-nya (dipanggil dari halaman Akun). */
-export async function tautkanGoogle(): Promise<{ ok: boolean; alasan?: string }> {
-  const c = sb();
-  const t = tokenMember();
-  if (!c || !t) return { ok: false, alasan: "Masuk dulu." };
-  try {
-    const { data, error } = await c.rpc("member_tautkan_google", { p_token: t });
-    if (error) return { ok: false, alasan: error.message };
-    const r = data as { ok?: boolean; alasan?: string };
-    return r?.ok ? { ok: true } : { ok: false, alasan: r?.alasan ?? "Penautan gagal" };
   } catch (e) { return { ok: false, alasan: galat(e) }; }
 }
 
@@ -175,41 +179,7 @@ export async function memberSaya(): Promise<Member | null> {
   } catch { return null; }
 }
 
-export async function daftarMember(
-  p: { hp: string; nama: string; pin: string; email?: string; setuju?: boolean },
-): Promise<HasilMember> {
-  const c = sb();
-  if (!c) return { ok: false, alasan: "Pendaftaran member butuh sambungan ke server venue." };
-  try {
-    const { data, error } = await c.rpc("member_daftar", {
-      p_hp: p.hp, p_nama: p.nama, p_pin: p.pin, p_email: p.email ?? "", p_setuju: p.setuju ?? false,
-    });
-    if (error) return { ok: false, alasan: error.message };
-    const r = data as { ok?: boolean; alasan?: string; token?: string; profil?: unknown };
-    if (!r?.ok || !r.token) return { ok: false, alasan: r?.alasan ?? "Pendaftaran gagal" };
-    const m = bacaProfilServer(r.profil);
-    if (!m) return { ok: false, alasan: "Pendaftaran gagal" };
-    simpanToken(r.token);
-    return { ok: true, member: pakai(m) };
-  } catch (e) { return { ok: false, alasan: galat(e) }; }
-}
-
-export async function masukMember(hp: string, pin: string): Promise<HasilMember> {
-  const c = sb();
-  if (!c) return { ok: false, alasan: "Masuk member butuh sambungan ke server venue." };
-  try {
-    const { data, error } = await c.rpc("member_masuk", { p_hp: hp, p_pin: pin });
-    if (error) return { ok: false, alasan: error.message };
-    const r = data as { ok?: boolean; alasan?: string; token?: string; profil?: unknown };
-    if (!r?.ok || !r.token) return { ok: false, alasan: r?.alasan ?? "Nomor atau PIN salah" };
-    const m = bacaProfilServer(r.profil);
-    if (!m) return { ok: false, alasan: "Nomor atau PIN salah" };
-    simpanToken(r.token);
-    return { ok: true, member: pakai(m) };
-  } catch (e) { return { ok: false, alasan: galat(e) }; }
-}
-
-export async function ubahMember(p: { nama?: string; email?: string; setuju?: boolean }): Promise<HasilMember> {
+export async function ubahMember(p: { nama?: string; setuju?: boolean }): Promise<HasilMember> {
   const c = sb();
   const t = tokenMember();
   if (!c || !t) return { ok: false, alasan: "Silakan masuk dulu." };
@@ -217,7 +187,6 @@ export async function ubahMember(p: { nama?: string; email?: string; setuju?: bo
     const { data, error } = await c.rpc("member_ubah", {
       p_token: t,
       p_nama: p.nama ?? null,
-      p_email: p.email ?? null,
       p_setuju: p.setuju ?? null,
     });
     if (error) return { ok: false, alasan: error.message };
@@ -225,18 +194,6 @@ export async function ubahMember(p: { nama?: string; email?: string; setuju?: bo
     const m = bacaProfilServer(r?.profil);
     if (!r?.ok || !m) return { ok: false, alasan: r?.alasan ?? "Perubahan gagal disimpan" };
     return { ok: true, member: pakai(m) };
-  } catch (e) { return { ok: false, alasan: galat(e) }; }
-}
-
-export async function gantiPinMember(lama: string, baru: string): Promise<{ ok: boolean; alasan?: string }> {
-  const c = sb();
-  const t = tokenMember();
-  if (!c || !t) return { ok: false, alasan: "Silakan masuk dulu." };
-  try {
-    const { data, error } = await c.rpc("member_ganti_pin", { p_token: t, p_lama: lama, p_baru: baru });
-    if (error) return { ok: false, alasan: error.message };
-    const r = data as { ok?: boolean; alasan?: string };
-    return r?.ok ? { ok: true } : { ok: false, alasan: r?.alasan ?? "PIN gagal diganti" };
   } catch (e) { return { ok: false, alasan: galat(e) }; }
 }
 

@@ -14,8 +14,8 @@ npm run apk:kasir                               # release/SPL-Kasir-debug.apk
 
 | | ID paket | Nama | Memuat |
 |---|---|---|---|
-| Tamu | `id.spl.tamu` | SPL Sports Pool Lounge | spl-tamu.pages.dev |
-| Kasir | `id.spl.kasir` | SPL Kasir | spl-kasir.pages.dev |
+| Tamu | `id.spl.tamu` | SPL Sports Pool Lounge | sportspoollounge.com |
+| Kasir | `id.spl.kasir` | SPL Kasir | kasir.sportspoollounge.com |
 
 ID paketnya berbeda, jadi keduanya bisa terpasang berdampingan di satu HP.
 `applicationId`, nama aplikasi, dan alamat situsnya ditimpa di folder kerja —
@@ -40,10 +40,11 @@ bawaannya. Tidak perlu memasang JDK terpisah. Kalau letaknya berbeda, set
 kembali ke `release/`.
 
 **2. Isi aplikasi diambil dari situs, bukan dari dalam APK.**
-`capacitor.config.json` mengarahkan `server.url` ke `https://spl-tamu.pages.dev`.
+`capacitor.config.json` mengarahkan `server.url` ke `https://sportspoollounge.com`.
 
 Untungnya:
-* Masuk dengan Google tetap jalan. Kalau isi dijalankan dari dalam APK,
+* Alamat balik Google tetap sah. CATATAN: Google sering menolak login di dalam WebView
+  (`disallowed_useragent`), jadi tes dulu di HP sebelum APK dibagikan. Kalau isi dijalankan dari dalam APK,
   alamatnya jadi `https://localhost` dan Google/Supabase menolak pengalihan
   baliknya — tamu tidak bisa masuk pakai Gmail.
 * Perbaikan cukup `npm run terbitkan`. Tamu tidak perlu memasang ulang APK.

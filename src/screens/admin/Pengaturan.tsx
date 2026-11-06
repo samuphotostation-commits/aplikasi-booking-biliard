@@ -867,18 +867,17 @@ function AkunStaf() {
     simpanPinStaf?: (e: { id: string; name: string; role: string; pin?: string; active: boolean }) => Promise<string | null>;
     hapusPinStaf?: (id: string) => Promise<string | null>;
     tautkanEmail?: (staffId: string, email: string) => Promise<string | null>;
-    aturSandi?: (staffId: string, password: string) => Promise<string | null>;
-    daftarSandi?: () => Promise<Record<string, boolean>>;
+    daftarGmail?: () => Promise<Record<string, boolean>>;
   };
   const [buka, setBuka] = useState(false);
   const [form, setForm] = useState<{ id: string; name: string; pin: string; role: Role; venue?: Venue }>({
     id: "", name: "", pin: "", role: "kru_kasir", venue: "spl",
   });
   const [pesan, setPesan] = useState<string | null>(null);
-  /** Siapa yang sudah punya password — penanda saja, hash-nya tidak pernah keluar server. */
-  const [punyaSandi, setPunyaSandi] = useState<Record<string, boolean>>({});
+  /** Siapa yang Gmail-nya sudah terbukti lewat masuk Google. */
+  const [terbukti, setTerbukti] = useState<Record<string, boolean>>({});
 
-  useEffect(() => { void store.daftarSandi?.().then(setPunyaSandi); }, [store]);
+  useEffect(() => { void store.daftarGmail?.().then(setTerbukti); }, [store]);
 
   const flash = (t: string) => { setPesan(t); setTimeout(() => setPesan(null), 4000); };
   const superaktif = a.employees.filter((e) => e.active && e.role === "superadmin").length;
@@ -906,8 +905,10 @@ function AkunStaf() {
         id: tersimpan.id, name: tersimpan.name, role: tersimpan.role, pin: tersimpan.pin, active: tersimpan.active,
       }).then(async (alasan) => {
         if (alasan) { flash(`Tersimpan di perangkat, TAPI server menolak PIN-nya: ${alasan}`); return; }
-        // Email untuk masuk tanpa PIN ikut didaftarkan ke server.
-        const e2 = await store.tautkanEmail?.(tersimpan.id, tersimpan.email ?? "");
+        // Gmail hanya dikirim kalau kolomnya memang disentuh: ganti peran atau venue
+        // tidak boleh menghapus Gmail yang sudah tertaut di server.
+        if (emp.email === undefined) return;
+        const e2 = await store.tautkanEmail?.(tersimpan.id, emp.email);
         if (e2) flash(`Akun tersimpan, tapi email ditolak server: ${e2}`);
       });
     }
@@ -943,7 +944,7 @@ function AkunStaf() {
               </div>
               <input
                 defaultValue={e.email ?? ""} type="email" inputMode="email"
-                placeholder="email untuk masuk tanpa PIN (opsional)"
+                placeholder="Gmail staf ini"
                 onBlur={(ev) => {
                   const nilai = ev.target.value.trim().toLowerCase();
                   if (nilai === (e.email ?? "")) return;
@@ -951,22 +952,9 @@ function AkunStaf() {
                 }}
                 className="mt-1 min-h-[34px] w-full rounded-lg border border-line bg-ink px-2 text-[11px] text-cream placeholder:text-dim"
               />
-              {/* Password hanya berguna kalau emailnya sudah diisi — email itulah
-                  yang diketik di layar masuk. Server menolak kalau belum ada. */}
-              <input
-                type="password" autoComplete="new-password"
-                placeholder={punyaSandi[e.id] ? "password sudah ada · isi untuk mengganti" : "beri password (min. 8 huruf)"}
-                onBlur={async (ev) => {
-                  const nilai = ev.target.value;
-                  if (!nilai) return;
-                  ev.target.value = "";
-                  const alasan = await store.aturSandi?.(e.id, nilai);
-                  if (alasan) { flash(`Password ditolak: ${alasan}`); return; }
-                  setPunyaSandi((d) => ({ ...d, [e.id]: true }));
-                  flash(`Password ${e.name} disimpan.`);
-                }}
-                className="mt-1 min-h-[34px] w-full rounded-lg border border-line bg-ink px-2 text-[11px] text-cream placeholder:text-dim"
-              />
+              <div className={`mt-1 text-[10px] ${terbukti[e.id] ? "text-emerald-400" : "text-dim"}`}>
+                {terbukti[e.id] ? "Gmail terverifikasi" : e.email ? "Menunggu orangnya masuk dengan Google" : "Belum ada Gmail: belum bisa masuk"}
+              </div>
             </div>
             <select
               value={e.role} aria-label={`Peran ${e.name}`}
@@ -1065,17 +1053,11 @@ function AkunStaf() {
         laporan uang dan menyetujui void. Setiap tindakan tetap tercatat atas nama pemiliknya masing-masing,
         jadi jangan berbagi satu PIN berdua.
         <br /><br />
-        <span className="text-mute">Email &amp; password:</span> itulah layar pertama aplikasi sekarang.
-        Isi email dulu, baru passwordnya — server menolak password tanpa email, karena email itulah yang
-        diketik saat masuk. <span className="text-cream">Tidak ada password bawaan</span>: selama belum
-        Anda isikan, orang itu tetap masuk lewat PIN seperti biasa. Kosongkan kolomnya lalu simpan untuk
-        mencabut passwordnya.
+        <span className="text-mute">Gmail wajib untuk semua akun.</span> Isi Gmail orangnya di atas, lalu
+        minta dia menekan Masuk dengan Google sekali di browser. Sesudah terverifikasi, baru PIN-nya berlaku.
         <br /><br />
-        <span className="text-mute">Kode lewat email</span> tetap ada sebagai jalan darurat kalau password
-        lupa — 6 angka dikirim ke email yang sama, berlaku sebagai pengganti password sekali masuk.
-        <br /><br />
-        <span className="text-mute">PIN</span> tidak dihapus: itu yang dipakai untuk ganti kasir antar shift,
-        karena mengetik email tiap pergantian terlalu lambat saat ramai.
+        <span className="text-mute">PIN</span> tetap dipakai untuk ganti kasir antar shift, karena memilih akun
+        Google tiap pergantian terlalu lambat saat ramai. Aplikasi Windows juga masuk dengan PIN.
       </p>
     </section>
   );

@@ -67,6 +67,7 @@ export function dengarTampil(fn: (isi: TampilTamu) => void): () => void {
 
 /** Buka jendela layar tamu. Dipanggil kasir sekali, lalu digeser ke monitor kedua. */
 export function bukaJendelaTamu() {
-  const url = `${window.location.origin}${window.location.pathname}#/tampil`;
+  const { origin, pathname, protocol } = window.location;
+  const url = /^https?:$/.test(protocol) ? `${origin}/tampil` : `${origin}${pathname}#/tampil`;
   window.open(url, "spl-tampil", "width=900,height=700");
 }

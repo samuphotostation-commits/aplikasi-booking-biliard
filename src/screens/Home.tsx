@@ -8,6 +8,7 @@ import { useAdmin, hourIdx, OPEN_IDX, CLOSE_IDX, classOf, mejaDijual } from "../
 import { tableFreeForRange } from "../lib/occupancy";
 import { rupiah } from "../lib/core";
 import { setVenueTamu } from "../lib/venueAktif";
+import { tokenMember } from "../lib/member";
 
 // Diimpor lewat glob supaya Vite yang mengurus URL-nya — ini juga yang membuat
 // build satu-berkas bisa menanam fotonya sebagai data URI tanpa tambalan regex.
@@ -99,6 +100,9 @@ export default function Home() {
               Pesan Tanpa Meja · Ambil di Kasir
             </Button>
             <Button full variant="ghost" onClick={() => nav("/menu")}>Lihat Menu Smokehouse</Button>
+            {!tokenMember() && (
+              <Button full variant="ghost" onClick={() => nav("/sport/daftar")}>Daftar Member SPL</Button>
+            )}
           </motion.div>
 
           {/* Status langsung */}

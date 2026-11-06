@@ -26,14 +26,14 @@ const TARGET = {
     appId: "id.spl.tamu",
     nama: "SPL Sports Pool Lounge",
     web: "web-tamu",
-    situs: "https://spl-tamu.pages.dev",
+    situs: "https://sportspoollounge.com",
     keluar: "SPL-Tamu-debug.apk",
   },
   kasir: {
     appId: "id.spl.kasir",
     nama: "SPL Kasir",
     web: "web",
-    situs: "https://spl-kasir.pages.dev",
+    situs: "https://kasir.sportspoollounge.com",
     keluar: "SPL-Kasir-debug.apk",
   },
 };

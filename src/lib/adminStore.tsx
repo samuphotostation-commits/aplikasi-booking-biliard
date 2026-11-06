@@ -34,12 +34,8 @@ const Ctx = createContext<{
   peek: () => State;
   /** Mode server: PIN diperiksa server. Mengembalikan alasan kalau ditolak. */
   signIn: (pin: string) => Promise<string | null>;
-  /** Masuk dengan email: kirim kode 6 angka ke email staf. */
-  kirimKodeEmail: (email: string) => Promise<string | null>;
-  /** Masuk dengan email + password — layar pertama aplikasi. */
-  signInSandi: (email: string, password: string) => Promise<{ ok: true; staffId: string; nama: string; peran: Role } | { ok: false; alasan: string }>;
-  /** Masuk dengan email: tukar kodenya jadi sesi venue. */
-  signInEmail: (email: string, kode: string) => Promise<{ ok: true; staffId: string; nama: string; peran: Role } | { ok: false; alasan: string }>;
+  /** Pasang sesi venue hasil masuk lewat Google. */
+  signInGoogle: (token: string) => Promise<void>;
   signOut: () => void;
   terbitkanSekarang: () => Promise<void>;
   /** Coba sambungkan ulang sekarang juga, lalu kirim antrean yang menunggu. */
@@ -84,8 +80,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       sync: store.info(), resetData: store.reset, peek: store.getView,
       sambungkanLagi: store.sync,
       signIn: store.signIn, signOut: store.signOut,
-      kirimKodeEmail: store.kirimKodeEmail, signInEmail: store.signInEmail,
-      signInSandi: store.signInSandi,
+      signInGoogle: store.signInGoogle,
       terbitkanSekarang: store.terbitkanSekarang,
     }}>
       {children}
