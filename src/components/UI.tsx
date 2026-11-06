@@ -102,13 +102,13 @@ const TABS_SMH = [
   { to: "/akun", label: "Akun", icon: UserIcon },
 ];
 
-export function BottomNav() {
+export function BottomNav({ sembunyiLebar }: { sembunyiLebar?: boolean }) {
   const { cartCount } = useStore();
   const venue = useVenueTamu();
   const TABS = venue === "smh" ? TABS_SMH : TABS_SPL;
   return (
     <nav
-      className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/95 backdrop-blur-md"
+      className={`safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/95 backdrop-blur-md ${sembunyiLebar ? "md:hidden" : ""}`}
       aria-label="Navigasi utama"
     >
       <div className="mx-auto flex max-w-lg">

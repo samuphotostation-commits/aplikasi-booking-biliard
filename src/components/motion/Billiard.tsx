@@ -1,5 +1,4 @@
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 /* ═══════════════════════════════════════════════════════════════════
    Motion graphic bertema biliar.
@@ -36,106 +35,6 @@ export function Ball({
       )}
       <ellipse cx="14" cy="12" rx="5" ry="3.4" fill="#fff" opacity=".35" transform="rotate(-28 14 12)" />
     </svg>
-  );
-}
-
-/* ── Intro: stik memukul rak, bola berhamburan, logo muncul ─────── */
-export function BreakIntro({ onDone }: { onDone: () => void }) {
-  const reduce = useReducedMotion();
-
-  // 1,2 detik, bukan 2,3. Pembuka ini tampil TIAP kali aplikasi dibuka (ditandai
-  // di sessionStorage), dan jatuh tepat saat peramban sedang sibuk mengurai kode,
-  // memuat huruf, dan menarik data — jadi animasinya yang tersendat, bukan
-  // mempercantik. Dipersingkat supaya tetap jadi sambutan, bukan penghalang.
-  useEffect(() => {
-    const t = setTimeout(onDone, reduce ? 300 : 1200);
-    return () => clearTimeout(t);
-  }, [onDone, reduce]);
-
-  // Formasi rak segitiga
-  const rack: { x: number; y: number; c: string; n: number }[] = [];
-  let idx = 0;
-  for (let row = 0; row < 4; row++) {
-    for (let col = 0; col <= row; col++) {
-      rack.push({
-        x: 210 + row * 17,
-        y: 100 - row * 9.6 + col * 19.2,
-        c: BALL_COLORS[idx % BALL_COLORS.length],
-        n: idx + 1,
-      });
-      idx++;
-    }
-  }
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink grain overflow-hidden"
-      initial={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.45, ease: "easeInOut" } }}
-    >
-      <div className="felt-tex absolute inset-0 opacity-25" />
-      <svg viewBox="0 0 400 200" className="relative w-full max-w-lg px-6" aria-hidden="true">
-        {/* Stik meluncur dari kiri */}
-        <motion.g
-          initial={{ x: -170 }}
-          animate={reduce ? { x: -40 } : { x: [-170, -170, 8, -18] }}
-          transition={{ duration: 0.85, times: [0, 0.35, 0.62, 1], ease: [0.2, 0.9, 0.3, 1] }}
-        >
-          <rect x="0" y="97" width="150" height="6" rx="3" fill="#C89B5A" />
-          <rect x="140" y="97.5" width="16" height="5" rx="2.5" fill="#FDF0DC" />
-          <rect x="156" y="98.5" width="5" height="3" rx="1.5" fill="#2B4C9B" />
-        </motion.g>
-
-        {/* Bola putih */}
-        <motion.g
-          initial={{ x: 0 }}
-          animate={reduce ? { x: 20 } : { x: [0, 0, 34, 34] }}
-          transition={{ duration: 0.85, times: [0, 0.38, 0.6, 1], ease: [0.2, 0.9, 0.3, 1] }}
-        >
-          <circle cx="172" cy="100" r="9" fill="#FDF0DC" />
-          <ellipse cx="169" cy="96" rx="2.6" ry="1.8" fill="#fff" opacity=".8" />
-        </motion.g>
-
-        {/* Rak yang berhamburan */}
-        {rack.map((b, i) => {
-          const ang = (i / rack.length) * Math.PI * 2;
-          const dist = 46 + (i % 4) * 26;
-          return (
-            <motion.g
-              key={i}
-              initial={{ x: 0, y: 0, opacity: 1 }}
-              animate={
-                reduce
-                  ? { x: 0, y: 0 }
-                  : {
-                      x: [0, 0, Math.cos(ang) * dist + 40],
-                      y: [0, 0, Math.sin(ang) * dist * 0.5],
-                      opacity: [1, 1, 0],
-                    }
-              }
-              transition={{ duration: 1.5, times: [0, 0.4, 1], ease: [0.15, 0.75, 0.3, 1] }}
-            >
-              <circle cx={b.x} cy={b.y} r="9" fill={b.c} />
-              <circle cx={b.x} cy={b.y} r="4.4" fill="#FDF0DC" />
-              <text x={b.x} y={b.y} textAnchor="middle" dominantBaseline="central"
-                fontSize="5.5" fontWeight="700" fill="#0B0B0C" fontFamily="Georgia, serif">{b.n}</text>
-              <ellipse cx={b.x - 3} cy={b.y - 3.4} rx="2.4" ry="1.6" fill="#fff" opacity=".38" />
-            </motion.g>
-          );
-        })}
-      </svg>
-
-      {/* Wordmark muncul setelah break */}
-      <motion.div
-        className="absolute inset-x-0 bottom-[24%] text-center px-6"
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: reduce ? 0 : 1.15, duration: 0.55, ease: "easeOut" }}
-      >
-        <div className="font-display text-4xl tracking-[0.18em] text-amber">SPL</div>
-        <div className="font-script text-2xl text-cream/85 -mt-1">Sports Pool Lounge</div>
-      </motion.div>
-    </motion.div>
   );
 }
 
@@ -180,29 +79,6 @@ export function BallSpinner({ size = 18 }: { size?: number }) {
   );
 }
 
-/* ── Bola menggelinding sebagai pembatas seksi ──────────────────── */
-export function RollingDivider() {
-  const reduce = useReducedMotion();
-  return (
-    <div className="relative my-8 h-6 overflow-hidden" aria-hidden="true">
-      <div className="absolute inset-x-0 top-1/2 h-px bg-line" />
-      <motion.div
-        className="absolute top-1/2 -mt-3"
-        initial={{ x: "-12%" }}
-        animate={reduce ? { x: "50%" } : { x: ["-12%", "108%"] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
-      >
-        <motion.div
-          animate={reduce ? {} : { rotate: 360 }}
-          transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
-        >
-          <Ball n={8} size={24} />
-        </motion.div>
-      </motion.div>
-    </div>
-  );
-}
-
 /* ── Progress berbentuk stik biliar ─────────────────────────────── */
 export function CueProgress({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, value));
@@ -240,44 +116,4 @@ export function PocketPulse({ show }: { show: boolean }) {
       )}
     </AnimatePresence>
   );
-}
-
-/* ── Bola ambient melayang di latar hero ────────────────────────── */
-export function AmbientBalls() {
-  const reduce = useReducedMotion();
-  if (reduce) return null;
-  const balls = [
-    { n: 8, c: "#0B0B0C", s: 54, x: "8%", y: "18%", d: 0 },
-    { n: 1, c: "#F0A202", s: 34, x: "78%", y: "12%", d: 1.4 },
-    { n: 3, c: "#992212", s: 42, x: "86%", y: "62%", d: 0.7 },
-    { n: 6, c: "#1F6F4A", s: 26, x: "16%", y: "72%", d: 2.1 },
-  ];
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      {balls.map((b, i) => (
-        <motion.div
-          key={i}
-          className="absolute opacity-[0.16]"
-          style={{ left: b.x, top: b.y }}
-          animate={{ y: [0, -18, 0], rotate: [0, 18, 0] }}
-          transition={{ duration: 7 + i, delay: b.d, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <Ball n={b.n} color={b.c} size={b.s} />
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-export function useIntroSeen() {
-  // Dibungkus try/catch: di mode penyamaran / penyimpanan diblokir, sessionStorage
-  // melempar galat dan dulu itu membuat seluruh aplikasi gagal tampil.
-  const [seen, setSeen] = useState(() => {
-    try { return sessionStorage.getItem("spl-intro") === "1"; } catch { return true; }
-  });
-  const markSeen = () => {
-    try { sessionStorage.setItem("spl-intro", "1"); } catch { /* mode privat */ }
-    setSeen(true);
-  };
-  return { seen, markSeen };
 }

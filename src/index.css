@@ -101,6 +101,16 @@ input, select, textarea { font-size: 16px; }
   background-size: 6px 6px, 6px 6px, 100% 24px, 124px 48px;
 }
 
+/* Bata yang diredupkan: untuk bagian Smokehouse yang banyak teksnya. */
+.bata-redup {
+  background-color: #1f0b08;
+  background-image:
+    linear-gradient(rgba(26,9,6,.86), rgba(26,9,6,.86)),
+    repeating-linear-gradient(0deg, #8d2113 0 22px, #6f1a0e 22px 24px),
+    repeating-linear-gradient(90deg, transparent 0 58px, rgba(0,0,0,.30) 58px 62px);
+  background-size: 100% 100%, 100% 24px, 124px 48px;
+}
+
 /* Kain meja biliar */
 .felt-tex {
   background-color: #1f6f4a;
@@ -131,6 +141,26 @@ input, select, textarea { font-size: 16px; }
   to   { opacity: 1; transform: none; }
 }
 .naik { animation: naik .62s cubic-bezier(.22, 1, .36, 1) both; }
+
+/* ── Gerbang: dua pintu masuk dari sisi layar, bola jatuh ke garis tengah ── */
+@keyframes pintu-atas  { from { transform: translateY(-100%); } to { transform: none; } }
+@keyframes pintu-bawah { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes pintu-kiri  { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes pintu-kanan { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes bola-masuk  { from { opacity: 0; scale: .2; rotate: -200deg; } to { opacity: 1; scale: 1; rotate: 0deg; } }
+.pintu-kiri  { animation: pintu-atas .9s cubic-bezier(.76, 0, .24, 1) both; }
+.pintu-kanan { animation: pintu-bawah .9s cubic-bezier(.76, 0, .24, 1) both; }
+.bola-gerbang { animation: bola-masuk .8s .55s cubic-bezier(.22, 1, .36, 1) both; }
+@media (min-width: 768px) {
+  .pintu-kiri  { animation-name: pintu-kiri; }
+  .pintu-kanan { animation-name: pintu-kanan; }
+}
+
+/* Tautan bilah venue meluncur ke bagiannya, tidak melompat. */
+html { scroll-padding-top: 64px; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
 
 /* Grain halus supaya bidang gelap tidak terasa datar */
 .grain::after {

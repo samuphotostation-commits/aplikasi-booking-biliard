@@ -1,8 +1,8 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Suspense, lazy, useEffect } from "react";
 import { BottomNav } from "./components/UI";
-import { BreakIntro, useIntroSeen } from "./components/motion/Billiard";
+import { TiraiProvider } from "./components/motion/Tirai";
 import { StoreProvider } from "./lib/store";
 import { AdminProvider } from "./lib/adminStore";
 
@@ -28,10 +28,10 @@ const ADA_TAMU = MODE_TAMU || import.meta.env.DEV;
  * di puncak, pemaket tetap menyalin seluruh panel staf ke dalam bundel build
  * tamu. Yang benar-benar memotongnya adalah `import()` di bawah ini.
  *
- * Landing sengaja tetap statis: ia rute `/`, jadi me-lazy-kannya cuma
+ * Gerbang sengaja tetap statis: ia rute `/`, jadi me-lazy-kannya cuma
  * menambah satu perjalanan bolak-balik sebelum layar pertama.
  */
-import Landing from "./screens/Landing";
+import Gerbang from "./screens/Gerbang";
 
 const Home = lazy(() => import("./screens/Home"));
 const Smokehouse = lazy(() => import("./screens/Smokehouse"));
@@ -115,7 +115,7 @@ function Shell() {
           <Routes location={loc}>
             {/* Landing utama = master. Tiap venue punya alamatnya sendiri
                 supaya tautannya bisa dibagikan langsung ke pelanggan. */}
-            <Route path="/" element={ADA_TAMU ? <Landing /> : <Navigate to="/admin" replace />} />
+            <Route path="/" element={ADA_TAMU ? <Gerbang /> : <Navigate to="/admin" replace />} />
             {ADA_TAMU && <>
             <Route path="/sport" element={<Home />} />
             <Route path="/smokehouse" element={<Smokehouse />} />
@@ -162,27 +162,18 @@ function Shell() {
           </Routes>
           </Suspense>
       </motion.main>
-      {!isAdmin && <BottomNav />}
+      {!isAdmin && <BottomNav sembunyiLebar={loc.pathname === "/sport" || loc.pathname === "/smokehouse"} />}
     </>
   );
 }
 
 export default function App() {
-  const { seen, markSeen } = useIntroSeen();
-  // App berada di dalam Router (main.tsx). Di aplikasi Windows rute ada di hash,
-  // jadi window.location.pathname tidak bisa dipakai.
-  // Intro juga dilewati di layar menghadap tamu: monitor itu menyala
-  // semalaman dan tidak boleh memutar animasi pembuka tiap dimuat ulang.
-  const jalur = useLocation().pathname;
-  const isAdmin = jalur.startsWith("/admin") || jalur.startsWith("/tampil");
-
   return (
     <AdminProvider>
       <StoreProvider>
-        <AnimatePresence>
-          {!seen && !isAdmin && ADA_TAMU && <BreakIntro onDone={markSeen} />}
-        </AnimatePresence>
-        <Shell />
+        <TiraiProvider>
+          <Shell />
+        </TiraiProvider>
       </StoreProvider>
     </AdminProvider>
   );
