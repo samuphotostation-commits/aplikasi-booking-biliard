@@ -50,6 +50,7 @@ export default function VoidScreen() {
     const sesudah = peek().voids.find((v) => v.id === id);
     setKabar(
       sesudah?.status === "disetujui" ? "Void disetujui — barangnya dikeluarkan dari bill."
+        : sesudah?.status === "ditolak" && approve ? "Void tidak bisa dijalankan karena tabnya sudah dibayar. Selesaikan pengembalian dengan tamu."
         : sesudah?.status === "ditolak" ? "Void ditolak. Barangnya tetap di bill."
         : "Tidak bisa diputuskan dari sini — pengajuan ini milik venue sebelah. "
           + "Pindahkan venue di kanan atas, atau minta pemilik yang memutuskan.",
@@ -108,9 +109,15 @@ export default function VoidScreen() {
                         Setujui</button>
                     </div>
                   ) : (
-                    <p className="mt-2 text-[11px] text-dim">
-                      Menunggu manajer atau pemilik. Sesi/item masih aktif sampai disetujui.
-                    </p>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <p className="text-[11px] text-dim">
+                        Menunggu manajer atau pemilik. Tab belum bisa dibayar sampai diputuskan.
+                      </p>
+                      <button onClick={() => dispatchA({ t: "tarikVoid", id: v.id })}
+                        className="min-h-[36px] shrink-0 rounded-lg border border-line px-2.5 text-[12px] text-mute">
+                        Tarik pengajuan
+                      </button>
+                    </div>
                   )}
                 </motion.div>
               ))}
@@ -140,7 +147,7 @@ export default function VoidScreen() {
                   </div>
                   <div className="shrink-0 text-right">
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase
-                      tracking-wider ${BADGE[v.status]}`}>{v.status}</span>
+                      tracking-wider ${BADGE[v.status]}`}>{v.decidedBy?.endsWith("(ditarik)") ? "ditarik" : v.status}</span>
                     <div className="mt-0.5 font-serif text-[12px] tabular-nums text-mute">
                       {rupiah(v.amount)}
                     </div>

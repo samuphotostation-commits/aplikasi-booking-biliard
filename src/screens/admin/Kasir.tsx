@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { KonfirmasiBayar } from "./KonfirmasiBayar";
 import { QrisKasir } from "./QrisKasir";
 import PesanTanpaMeja from "./PesanTanpaMeja";
 import PanelStruk from "./PanelStruk";
@@ -34,6 +35,8 @@ export default function Kasir() {
   const [voidMsg, setVoidMsg] = useState<string | null>(null);
   const [voidFor, setVoidFor] = useState<string | null>(null);
   const [pesanBuka, setPesanBuka] = useState(false);
+  /** Pesanan takeaway dan metode yang menunggu konfirmasi kasir. */
+  const [lunasi, setLunasi] = useState<{ id: string; ch: "cash" | "edc" | "qris_online"; label: string; mesin?: string } | null>(null);
   const [strukBuka, setStrukBuka] = useState(false);
 
   const now = Date.now();
@@ -228,6 +231,19 @@ export default function Kasir() {
                       {/* QR dinamis bernominal tepat untuk pesanan ini; yang menandai
                           lunas tetap tombol di bawahnya, ditekan kasir. */}
                       <QrisKasir amount={o.value} ringkas={`Pesanan ${o.code}`} kode={o.code} />
+                    {lunasi?.id === o.id ? (
+                      <KonfirmasiBayar judul={`Tandai ${o.code} lunas?`} total={o.value} metode={lunasi.label}
+                        tombol="Ya, lunas" onBatal={() => setLunasi(null)}
+                        onYa={() => {
+                          const { ch, label, mesin } = lunasi;
+                          const tolak = dispatchA({ t: "settleOrder", id: o.id, channel: ch, ...(mesin ? { mesin } : {}) });
+                          const lunas = !!peek().orders.find((x) => x.id === o.id)?.payment;
+                          setLunasi(null);
+                          flash(lunas
+                            ? `${o.code} lunas ${rupiah(o.value)} (${label}).`
+                            : tolak ?? "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
+                        }} />
+                    ) : (
                     <div className="flex flex-wrap gap-1.5">
                       {([
                         ["cash", "Tunai", undefined],
@@ -235,18 +251,13 @@ export default function Kasir() {
                         ...mesinEdc(a).map((m) => ["edc", `EDC ${m}`, m] as const),
                       ] as const).map(([ch, label, mesin]) => (
                         <button key={`${ch}-${mesin ?? ""}`}
-                          onClick={() => {
-                            const tolak = dispatchA({ t: "settleOrder", id: o.id, channel: ch, ...(mesin ? { mesin } : {}) });
-                            const lunas = !!peek().orders.find((x) => x.id === o.id)?.payment;
-                            flash(lunas
-                              ? `${o.code} lunas ${rupiah(o.value)} (${label}).`
-                              : tolak ?? "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
-                          }}
+                          onClick={() => setLunasi({ id: o.id, ch, label, ...(mesin ? { mesin } : {}) })}
                           className="min-h-[36px] rounded-lg border border-line bg-ink px-3 text-[12px] font-semibold text-cream">
                           {label}
                         </button>
                       ))}
                     </div>
+                    )}
                     </div>
                   )}
                 </div>

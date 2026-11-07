@@ -108,6 +108,26 @@ export const GRACE_MIN = GRACE_MINUTES;
  */
 export const KOREKSI_BARIS_DITUTUP = dariWib(2026, 10, 19, 5);
 
+/**
+ * TAB TIDAK BISA DIBAYAR SELAMA VOID-NYA MENUNGGU.
+ *
+ * Temuan audit 7 Nov 2026: tab bisa ditutup saat void masih menunggu. Tamu
+ * membayar barang yang seharusnya batal, lalu void itu gugur walau manager
+ * menekan Setujui. Tanggal dipakai dengan alasan yang sama seperti
+ * `KOREKSI_BARIS_DITUTUP`: tab yang SUDAH ditutup sebelum aturan ini ada tidak
+ * boleh berubah saat jejaknya diputar ulang.
+ */
+export const VOID_MENAHAN_BAYAR = dariWib(2026, 11, 8, 5);
+
+/**
+ * PIN BARU HARUS TEPAT 4 ANGKA.
+ *
+ * Temuan audit 7 Nov 2026: form menerima 4 sampai 6 angka, tapi keypad masuk
+ * berhenti di angka keempat, jadi PIN yang lebih panjang tidak pernah bisa
+ * dipakai. Jejak lama tetap diputar dengan aturan lamanya.
+ */
+export const PIN_EMPAT_ANGKA = dariWib(2026, 11, 8, 5);
+
 export const RESTO_LEAD_MIN = 30;
 /** Hari LAPORAN STOK dimulai jam 05.00 (permintaan pemilik) - beda dari hari uang (02.00). */
 export const STOCK_DAY_HOUR = 5;
@@ -697,6 +717,8 @@ export type Action =
   | { t: "deletePromo"; id: string }
   | { t: "requestVoid"; req: Omit<VoidRequest, "id" | "at" | "status" | "byId" | "byName"> }
   | { t: "decideVoid"; id: string; approve: boolean }
+  /** Pengajuan ditarik supaya tab bisa ditutup kalau manager belum bisa memutuskan. */
+  | { t: "tarikVoid"; id: string }
   | { t: "toggleLight"; tableId: string }
   | { t: "allLights"; on: boolean }
   /** Pelanggan membuka halaman QRIS: slot ditahan, harga dibekukan. */
@@ -2066,7 +2088,7 @@ function venueAksi(s: State, a: Action): Venue[] {
     }
     case "requestVoid":
       return dariTarget(targetSesi(a.req.targetKind, a.req.targetId));
-    case "decideVoid": {
+    case "decideVoid": case "tarikVoid": {
       const v = s.voids.find((x) => x.id === a.id);
       return v ? dariTarget(targetSesi(v.targetKind, v.targetId)) : [];
     }
@@ -2336,6 +2358,7 @@ function reduce(s: State, a: Action): State {
       if (!allow(s, "tutupTab") || !s.shift) return s;
       const t = s.sessions.find((x) => x.id === a.id);
       if (!t || t.status !== "running") return s;
+      if (now >= VOID_MENAHAN_BAYAR && voidMenungguSesi(s, t.id).length > 0) return s;
       /**
        * Diskon manual DIABAIKAN kalau perannya tidak berhak. Bukan ditolak
        * seluruh pembayarannya: tamu sudah berdiri di kasir, dan menolak
@@ -2594,6 +2617,7 @@ function reduce(s: State, a: Action): State {
       if (!allow(s, "tutupTab") || !s.shift) return s;
       const t = s.sessions.find((x) => x.id === a.id);
       if (!t || t.status !== "running") return s;
+      if (now >= VOID_MENAHAN_BAYAR && voidMenungguSesi(s, t.id).length > 0) return s;
       const sisa = settlementOf(t, s, now).due;
       if (sisa <= 0) return s;
       let amount: number;
@@ -2728,6 +2752,9 @@ function reduce(s: State, a: Action): State {
       const name = (a.emp.name ?? "").trim().slice(0, 40);
       const pin = (a.emp.pin ?? "").trim();
       if (!name || !/^[0-9]{4,6}$/.test(pin)) return s;
+      // Akun lama yang hanya diubah perannya tidak ditolak karena PIN lamanya.
+      const pinLama = s.employees.find((x) => x.id === a.emp.id)?.pin;
+      if (now >= PIN_EMPAT_ANGKA && pin !== pinLama && !/^[0-9]{4}$/.test(pin)) return s;
       // SEMUA peran yang dikenal boleh dibuat. Sampai 12 Okt 2026 baris ini
       // hanya menerima "superadmin" dan "karyawan" — warisan dari sebelum
       // peran dipecah tujuh (8 Okt) — padahal layar Atur sudah menawarkan
@@ -3247,6 +3274,22 @@ function reduce(s: State, a: Action): State {
       };
     }
 
+    /*
+     * Tanpa jalan ini kasir buntu kalau manager belum bisa dihubungi, karena
+     * tab yang void-nya menunggu tidak bisa dibayar. Tercatat di Jejak dan
+     * tampil di riwayat void atas nama yang menarik.
+     */
+    case "tarikVoid": {
+      if (!allow(s, "ajukanVoid")) return s;
+      const req = s.voids.find((v) => v.id === a.id);
+      if (!req || req.status !== "menunggu") return s;
+      const ditarik: VoidRequest = { ...req, status: "ditolak", decidedBy: `${s.me!.name} (ditarik)`, decidedAt: now };
+      return {
+        ...s, voids: s.voids.map((v) => (v.id === a.id ? ditarik : v)),
+        log: note(s, `Void ditarik · ${req.label} (diajukan ${req.byName})`, req.amount),
+      };
+    }
+
     case "toggleLight": {
       if (!allow(s, "kontrolLampu") || !punyaLampu(a.tableId) || !(a.tableId in s.lights)) return s;
       const next = !s.lights[a.tableId];
@@ -3677,6 +3720,11 @@ function reserveResto(s: State, r: RestoRequest, now: number): State {
  * sesuatu yang mesinnya tolak diam-diam — dan itu persis keluhan yang
  * membuat aturan ini ada.
  */
+/** Void yang masih menunggu pada satu sesi. Sesi ini tidak bisa dibayar sampai daftarnya kosong. */
+export function voidMenungguSesi(s: Pick<State, "voids">, sessionId: string): VoidRequest[] {
+  return s.voids.filter((v) => v.status === "menunggu" && targetSesi(v.targetKind, v.targetId) === sessionId);
+}
+
 export function statusVoid(
   s: Pick<State, "voids">, kind: VoidRequest["targetKind"], targetId: string,
 ): VoidRequest | undefined {
@@ -4987,6 +5035,7 @@ export function validAction(a: unknown): a is Action {
     case "requestVoid": return isObj(a.req) && oneOf(a.req.targetKind, ["sesi", "item", "pesanan"] as const) &&
       isStr(a.req.targetId) && isStr(a.req.reason) && isOptStr(a.req.label);
     case "decideVoid": return isStr(a.id) && typeof a.approve === "boolean";
+    case "tarikVoid": return isStr(a.id);
     case "toggleLight": return isStr(a.tableId);
     case "allLights": return typeof a.on === "boolean";
     case "hold":

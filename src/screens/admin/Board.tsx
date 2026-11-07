@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { QrisKasir } from "./QrisKasir";
+import { KonfirmasiBayar } from "./KonfirmasiBayar";
 import { cetakSenyapMungkin, cetakStruk } from "../../lib/cetak";
 import { motion, AnimatePresence } from "framer-motion";
 import { TABLES, CLASS_LABEL, CLASS_SHORT, VENUE_LABEL, tableLabel, venueDari } from "../../data/venue";
-import { VOID_REASONS } from "../../data/staff";
+import { VOID_REASONS, type VoidRequest } from "../../data/staff";
 import { STATUS_DAPUR, URUT_MENDESAK, mulaiStatus, menitSejak, lamaSingkat } from "../../lib/statusDapur";
 import {
   useAdmin, recap, canOpenWalkin, blockEndOf, TURNAROUND_MIN, canExtend, nextSessionOn, hourIdx, OPEN_IDX, CLOSE_IDX, namaMeja,
   dalamJamBuka, batasJamTutup,
   settlementOf, lineValue, maintenanceBlockers, relocationTargets, classOf, sessionType, meterEndOf,
   splitPaidOf, paidLineKeys, GRACE_MIN, maxWalkinHours, priceWith, grupSesi, mesinEdc, punyaLampu,
-  statusVoid, statusVoidBaris, paketAktif, paketProblem, mejaDijual, cariMeja,
+  statusVoid, statusVoidBaris, voidMenungguSesi, paketAktif, paketProblem, mejaDijual, cariMeja,
 } from "../../lib/adminStore";
 import { rupiah } from "../../lib/core";
 import { MENU, findItem } from "../../data/menu";
@@ -393,7 +394,7 @@ function TableSheet({
    * dibuka untuk banyak hal lain (meteran, perpanjang, pindah), jadi di sana
    * tetap mulai dari lembar mejanya.
    */
-  const [mode, setMode] = useState<"main" | "settle" | "maint" | "void" | "order" | "receipt" | "move" | "split" | "pindahItem" | "meteran" | "gabung">(
+  const [mode, setMode] = useState<"main" | "settle" | "maint" | "void" | "order" | "receipt" | "move" | "split" | "pindahItem" | "meteran" | "gabung" | "konfirmBayar" | "konfirmSplit">(
     table.venue === "smh" && session?.status === "running" ? "order" : "main",
   );
   /** Baris F&B yang sedang di-void (null = void seluruh sesi). */
@@ -438,6 +439,8 @@ function TableSheet({
   } | null>(null);
   /** Uang tunai yang diserahkan tamu — hanya alat bantu kasir, tidak masuk jejak. */
   const [tunai, setTunai] = useState("");
+  /** Metode yang dipilih dan menunggu konfirmasi. Uang baru tercatat sesudah kasir menekan Ya. */
+  const [metodePilih, setMetodePilih] = useState<{ ch: "cash" | "edc" | "qris_online"; label: string; mesin?: string } | null>(null);
   const [kode, setKode] = useState("");
   /** Diskon manual (%) — SMH-11b. Kosong = tidak ada diskon manual. */
   const [diskonPct, setDiskonPct] = useState("");
@@ -525,6 +528,8 @@ function TableSheet({
   const digabung = anggotaGrup.length > 1;
   /** Anggota grup selain meja ini — yang akan ikut ditutup bersama. */
   const grupLain = anggotaGrup.filter((x) => x.id !== session?.id && x.status === "running");
+  /** Void menunggu di meja ini atau meja gabungannya: selama ada, tab tidak bisa dibayar. */
+  const voidTahan = session ? [session, ...grupLain].flatMap((x) => voidMenungguSesi(a, x.id)) : [];
   const dueGrup = due + grupLain.reduce((n, x) => n + settlementOf(x, a, Date.now(), kode || undefined, pctManual).due, 0);
   /** Calon meja gabungan: sedang jalan, venue yang sama, belum segrup. */
   const bisaDigabung = session
@@ -585,6 +590,117 @@ function TableSheet({
     }
     flash(`${namaMeja(a, table.id)} selesai ditutup (Lunas Online).`);
     setMode("receipt");
+  };
+
+  /** Menutup tab. Hanya dipanggil dari layar konfirmasi. */
+  const bayarTab = (ch: "cash" | "edc" | "qris_online", label: string, mesin?: string) => {
+    if (!session) return;
+    const at = Date.now();
+    /**
+     * SMH-4 · satu bill untuk meja yang digabung.
+     *
+     * Tiap meja tetap DITUTUP SENDIRI-SENDIRI dengan rumus
+     * uang yang sama seperti biasa — yang disatukan cuma
+     * struknya dan satu kali pembayaran. Dengan begitu
+     * laporan tetap bisa menjawab meja mana menghasilkan
+     * apa, dan seluruh pagar uang yang sudah ada berlaku
+     * tanpa satu pun pengecualian baru.
+     */
+    const ikut = [session, ...grupLain];
+    const hitungan = ikut.map((x) => ({
+      sesi: x,
+      bill: settlementOf(x, a, at, kode || undefined, pctManual),
+    }));
+    const jumlah = (f: (h: typeof hitungan[number]) => number) =>
+      hitungan.reduce((n, h) => n + f(h), 0);
+    const totalDue = jumlah((h) => h.bill.due);
+    setStruk({
+      no: `SPL-${at.toString(36).toUpperCase().slice(-6)}`,
+      meja: ikut.map((x) => namaMeja(a, x.tableId)).join(" + "),
+      tamu: session.guest,
+      mulai: Math.min(...ikut.map((x) => x.startsAt)), selesai: at,
+      menit: hitungan[0].bill.detail?.billedMinutes ?? null,
+      billiard: jumlah((h) => h.bill.billiard),
+      fnb: jumlah((h) => h.bill.fnb),
+      diskon: jumlah((h) => h.bill.discount),
+      promo: hitungan[0].bill.promo?.promo.name,
+      ...(jumlah((h) => h.bill.diskonManual) > 0
+        ? { diskonManual: jumlah((h) => h.bill.diskonManual) } : {}),
+      ...(jumlah((h) => h.bill.compliment) > 0
+        ? { compliment: jumlah((h) => h.bill.compliment) } : {}),
+      prabayar: jumlah((h) => h.sesi.paidOnline + splitPaidOf(h.sesi)),
+      bayar: totalDue,
+      metode: label, kasir: a.me?.name ?? "-",
+      ...(ch === "cash" && diterima >= totalDue
+        ? { tunaiDiterima: diterima, kembalian: diterima - totalDue }
+        : {}),
+      // Baris tiap meja diberi nama mejanya kalau digabung —
+      // tanpa itu tamu melihat dua nasi goreng tanpa tahu
+      // yang mana punya mejanya.
+      items: ikut.flatMap((x) => x.fnb.map((l) => {
+        const b = barisStruk(l);
+        return ikut.length > 1
+          ? { ...b, name: `${namaMeja(a, x.tableId)} · ${b.name}` }
+          : b;
+      })),
+    });
+    /*
+      STRUK HANYA DICETAK KALAU MESIN BENAR-BENAR MENUTUP TABNYA.
+
+      Temuan audit 21 Okt 2026 (laporan pemilik: *"saya sudah
+      buat payment sampai akhir dan cetak struk, statusnya
+      tidak berubah"*). Dulu layar ini SELALU lanjut ke struk,
+      apa pun jawaban mesin: saat internet mati, aksi uang
+      ditahan (lihat `MONEY_ACTIONS`), penolakannya cuma lewat
+      sebagai pesan sekejap, lalu struk tercetak dan tamu
+      pulang — sementara mejanya tetap merah dan uangnya tidak
+      pernah tercatat. Struk untuk pembayaran yang tidak
+      tercatat adalah kebohongan yang dipegang tamu.
+    */
+    const tolakan = ikut
+      .map((x) => dispatchA({
+        t: "settle", id: x.id, channel: ch, promoCode: kode || undefined,
+        ...(pctManual > 0 ? { diskonPersen: pctManual } : {}),
+        ...(mesin ? { mesin } : {}),
+      }))
+      .find((r): r is string => !!r);
+    const sisaTerbuka = peek().sessions
+      .filter((x) => ikut.some((y) => y.id === x.id) && x.status === "running");
+    if (sisaTerbuka.length === ikut.length) {
+      // Tidak satu pun tertutup: tetap di layar bayar.
+      flash(tolakan
+        ?? "Pembayaran belum tercatat. Jangan cetak struk dulu — periksa shift "
+          + "masih buka, dan tagihan ini belum ditutup orang lain.");
+      return;
+    }
+    if (sisaTerbuka.length) {
+      flash(`${sisaTerbuka.length} dari ${ikut.length} meja gabungan belum tertutup — `
+        + `uangnya belum tercatat untuk meja itu. Cek di papan sebelum tamu pulang.`);
+    }
+    setDiskonPct("");
+    setMode("receipt");
+  };
+
+  /** Pembayaran sebagian. Hanya dipanggil dari layar konfirmasi. */
+  const bayarSplit = (ch: "cash" | "edc" | "qris_online", label: string, mesin?: string) => {
+    if (!session) return;
+    const sebelum = (peek().sessions.find((x) => x.id === session.id)?.payments ?? []).length;
+    const tolak = dispatchA({
+      t: "paySplit", id: session.id, channel: ch,
+      ...(pilih.length ? { keys: pilih } : { amount: Number(nominal) }),
+      ...(namaOrang.trim() ? { label: namaOrang.trim() } : {}),
+      ...(mesin ? { mesin } : {}),
+    });
+    const setelah = peek().sessions.find((x) => x.id === session.id)?.payments ?? [];
+    const masuk = setelah.length > sebelum ? setelah[setelah.length - 1] : null;
+    setPilih([]); setNominal(""); setNamaOrang("");
+    setMode("main");
+    flash(masuk
+      ? `${rupiah(masuk.amount)} diterima (${label}). Sisa tagihan ${rupiah(settlementOf(peek().sessions.find((x) => x.id === session.id)!, peek()).due)}.`
+      // Alasan dari mesin lebih dulu: sejak 21 Okt 2026 bayar
+      // per orang ikut ditahan saat internet mati, dan tebakan
+      // "melebihi sisa tagihan" akan menyesatkan kasir.
+      : tolak ?? "Pembayaran ditolak — nominal melebihi sisa tagihan, atau shift belum dibuka.");
   };
 
   return (
@@ -959,7 +1075,7 @@ function TableSheet({
                                 di sini alasannya ditulis supaya tidak terasa rusak. */}
                             {voidBaris?.status === "menunggu" ? (
                               <span className="rounded bg-amber/15 px-1.5 text-[10px] text-amber"
-                                title={`Diajukan ${voidBaris.byName} · ${voidBaris.reason} — menunggu persetujuan superadmin`}>
+                                title={`Diajukan ${voidBaris.byName} · ${voidBaris.reason} — menunggu persetujuan manager`}>
                                 void diajukan
                               </span>
                             ) : voidBaris?.status === "ditolak" ? (
@@ -1097,7 +1213,7 @@ function TableSheet({
                     </Button>
                   )}
                   {session.status === "running" && allow("tutupTab") && due > 0 && (
-                    <Button full variant="ghost"
+                    <Button full variant="ghost" disabled={voidTahan.length > 0}
                       onClick={() => { setPilih([]); setNominal(""); setNamaOrang(""); setMode("split"); }}>
                       Bayar Sebagian / Per Orang
                     </Button>
@@ -1109,6 +1225,7 @@ function TableSheet({
                     </button>
                   )}
                   {note && <p role="status" className="text-[12px] text-amber">{note}</p>}
+                  {voidTahan.length > 0 && <TahanVoid daftar={voidTahan} onTarik={(id) => dispatchA({ t: "tarikVoid", id })} />}
                   {session.status === "running" && allow("orderFnb") && (
                     <Button full variant="ghost" onClick={() => setMode("order")}>
                       + Tambah Makanan / Minuman
@@ -1116,15 +1233,15 @@ function TableSheet({
                   )}
                   {session.status === "running" && (
                     session.source === "online" && due <= 0 ? (
-                      <Button full className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" onClick={tutupMejaLunas}>
+                      <Button full disabled={voidTahan.length > 0} className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold" onClick={tutupMejaLunas}>
                         ✓ Selesai &amp; Tutup Meja (Lunas)
                       </Button>
                     ) : session.source === "online" && due > 0 ? (
-                      <Button full onClick={() => setMode("settle")}>
+                      <Button full disabled={voidTahan.length > 0} onClick={() => setMode("settle")}>
                         Bayar Tambahan ({rupiah(due)}) &amp; Tutup Meja
                       </Button>
                     ) : (
-                      <Button full onClick={() => setMode("settle")}>Tutup Tab &amp; Bayar</Button>
+                      <Button full disabled={voidTahan.length > 0} onClick={() => setMode("settle")}>Tutup Tab &amp; Bayar</Button>
                     )
                   )}
                   {/* Cek bill: diperlihatkan ke tamu SEBELUM dibayar. Kertasnya
@@ -1164,7 +1281,7 @@ function TableSheet({
                       akan ditolak mesin. */}
                   {statusVoid(a, "sesi", session.id)?.status === "menunggu" ? (
                     <div className="rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-center text-[12px] text-amber">
-                      Void sesi sudah diajukan — menunggu persetujuan superadmin
+                      Void sesi sudah diajukan — menunggu persetujuan manager
                     </div>
                   ) : (
                     <button onClick={() => { setVoidKey(null); setMode("void"); }}
@@ -1280,13 +1397,14 @@ function TableSheet({
                     <span className="tabular-nums text-sky-100">{rupiah(dueGrup)}</span>
                   </div>
                   <p className="mt-1 text-[11px] leading-snug text-dim">
-                    Menekan metode pembayaran di bawah akan menutup SEMUA meja di atas sekaligus.
+                    Sesudah dikonfirmasi, SEMUA meja di atas tertutup sekaligus.
                   </p>
                 </div>
               )}
 
               <QrisKasir amount={dueGrup} ringkas={`Tutup tab ${anggotaGrup.map((x) => namaMeja(a, x.tableId)).join(" + ")}`} kode={table.id} />
 
+              {voidTahan.length > 0 && <TahanVoid daftar={voidTahan} onTarik={(id) => dispatchA({ t: "tarikVoid", id })} />}
               <div className="text-[11px] uppercase tracking-wider text-dim">Metode pembayaran</div>
               <div className="grid gap-2">
                 {/*
@@ -1302,95 +1420,10 @@ function TableSheet({
                   ...mesinEdc(a).map((m) => ["edc", `Kartu / EDC · ${m}`, m] as const),
                 ] as const)
                   .map(([ch, label, mesin]) => (
-                    <button key={`${ch}-${mesin ?? ""}`}
-                      onClick={() => {
-                        const at = Date.now();
-                        /**
-                         * SMH-4 · satu bill untuk meja yang digabung.
-                         *
-                         * Tiap meja tetap DITUTUP SENDIRI-SENDIRI dengan rumus
-                         * uang yang sama seperti biasa — yang disatukan cuma
-                         * struknya dan satu kali pembayaran. Dengan begitu
-                         * laporan tetap bisa menjawab meja mana menghasilkan
-                         * apa, dan seluruh pagar uang yang sudah ada berlaku
-                         * tanpa satu pun pengecualian baru.
-                         */
-                        const ikut = [session, ...grupLain];
-                        const hitungan = ikut.map((x) => ({
-                          sesi: x,
-                          bill: settlementOf(x, a, at, kode || undefined, pctManual),
-                        }));
-                        const jumlah = (f: (h: typeof hitungan[number]) => number) =>
-                          hitungan.reduce((n, h) => n + f(h), 0);
-                        const totalDue = jumlah((h) => h.bill.due);
-                        setStruk({
-                          no: `SPL-${at.toString(36).toUpperCase().slice(-6)}`,
-                          meja: ikut.map((x) => namaMeja(a, x.tableId)).join(" + "),
-                          tamu: session.guest,
-                          mulai: Math.min(...ikut.map((x) => x.startsAt)), selesai: at,
-                          menit: hitungan[0].bill.detail?.billedMinutes ?? null,
-                          billiard: jumlah((h) => h.bill.billiard),
-                          fnb: jumlah((h) => h.bill.fnb),
-                          diskon: jumlah((h) => h.bill.discount),
-                          promo: hitungan[0].bill.promo?.promo.name,
-                          ...(jumlah((h) => h.bill.diskonManual) > 0
-                            ? { diskonManual: jumlah((h) => h.bill.diskonManual) } : {}),
-                          ...(jumlah((h) => h.bill.compliment) > 0
-                            ? { compliment: jumlah((h) => h.bill.compliment) } : {}),
-                          prabayar: jumlah((h) => h.sesi.paidOnline + splitPaidOf(h.sesi)),
-                          bayar: totalDue,
-                          metode: label, kasir: a.me?.name ?? "-",
-                          ...(ch === "cash" && diterima >= totalDue
-                            ? { tunaiDiterima: diterima, kembalian: diterima - totalDue }
-                            : {}),
-                          // Baris tiap meja diberi nama mejanya kalau digabung —
-                          // tanpa itu tamu melihat dua nasi goreng tanpa tahu
-                          // yang mana punya mejanya.
-                          items: ikut.flatMap((x) => x.fnb.map((l) => {
-                            const b = barisStruk(l);
-                            return ikut.length > 1
-                              ? { ...b, name: `${namaMeja(a, x.tableId)} · ${b.name}` }
-                              : b;
-                          })),
-                        });
-                        /*
-                          STRUK HANYA DICETAK KALAU MESIN BENAR-BENAR MENUTUP TABNYA.
-
-                          Temuan audit 21 Okt 2026 (laporan pemilik: *"saya sudah
-                          buat payment sampai akhir dan cetak struk, statusnya
-                          tidak berubah"*). Dulu layar ini SELALU lanjut ke struk,
-                          apa pun jawaban mesin: saat internet mati, aksi uang
-                          ditahan (lihat `MONEY_ACTIONS`), penolakannya cuma lewat
-                          sebagai pesan sekejap, lalu struk tercetak dan tamu
-                          pulang — sementara mejanya tetap merah dan uangnya tidak
-                          pernah tercatat. Struk untuk pembayaran yang tidak
-                          tercatat adalah kebohongan yang dipegang tamu.
-                        */
-                        const tolakan = ikut
-                          .map((x) => dispatchA({
-                            t: "settle", id: x.id, channel: ch, promoCode: kode || undefined,
-                            ...(pctManual > 0 ? { diskonPersen: pctManual } : {}),
-                            ...(mesin ? { mesin } : {}),
-                          }))
-                          .find((r): r is string => !!r);
-                        const sisaTerbuka = peek().sessions
-                          .filter((x) => ikut.some((y) => y.id === x.id) && x.status === "running");
-                        if (sisaTerbuka.length === ikut.length) {
-                          // Tidak satu pun tertutup: tetap di layar bayar.
-                          flash(tolakan
-                            ?? "Pembayaran belum tercatat. Jangan cetak struk dulu — periksa shift "
-                              + "masih buka, dan tagihan ini belum ditutup orang lain.");
-                          return;
-                        }
-                        if (sisaTerbuka.length) {
-                          flash(`${sisaTerbuka.length} dari ${ikut.length} meja gabungan belum tertutup — `
-                            + `uangnya belum tercatat untuk meja itu. Cek di papan sebelum tamu pulang.`);
-                        }
-                        setDiskonPct("");
-                        setMode("receipt");
-                      }}
+                    <button key={`${ch}-${mesin ?? ""}`} disabled={voidTahan.length > 0}
+                      onClick={() => { setMetodePilih({ ch, label, ...(mesin ? { mesin } : {}) }); setMode("konfirmBayar"); }}
                       className="min-h-[52px] rounded-xl border border-line bg-ink px-4 text-left
-                        text-[15px] font-semibold text-cream hover:border-amber hover:text-amber">
+                        text-[15px] font-semibold text-cream hover:border-amber hover:text-amber disabled:opacity-35">
                       {label}
                     </button>
                   ))}
@@ -1430,7 +1463,7 @@ function TableSheet({
               </div>
 
               <p className="text-[11px] leading-snug text-dim">
-                Tagihan tidak dicetak otomatis. Setelah dibayar, struk ditampilkan
+                Pilih metode, lalu periksa di layar berikutnya. Tagihan tidak dicetak otomatis. Setelah dibayar, struk ditampilkan
                 dan hanya dicetak kalau tamu memintanya.
                 {/* Lampu barang biliar — meja makan tidak punya, jadi
                     kalimatnya pun tidak boleh muncul di sana. */}
@@ -1439,6 +1472,28 @@ function TableSheet({
               <button onClick={() => setMode("main")} className="min-h-[40px] w-full text-sm text-dim">
                 Kembali
               </button>
+            </div>
+          )}
+
+          {session && mode === "konfirmBayar" && metodePilih && (
+            <div className="mt-4">
+              <KonfirmasiBayar
+                judul={grupLain.length ? `Tutup ${grupLain.length + 1} meja?` : "Tutup tab ini?"}
+                total={dueGrup} metode={metodePilih.label}
+                tunai={metodePilih.ch === "cash" ? diterima : 0}
+                tombol="Ya, tutup tab" pesan={note}
+                onBatal={() => setMode("settle")}
+                onYa={() => bayarTab(metodePilih.ch, metodePilih.label, metodePilih.mesin)} />
+            </div>
+          )}
+          {session && mode === "konfirmSplit" && metodePilih && (
+            <div className="mt-4">
+              <KonfirmasiBayar
+                judul="Terima pembayaran sebagian?"
+                total={pilih.length ? totalPilih : Number(nominal)} metode={metodePilih.label}
+                tombol="Ya, terima" pesan={note}
+                onBatal={() => setMode("split")}
+                onYa={() => bayarSplit(metodePilih.ch, metodePilih.label, metodePilih.mesin)} />
             </div>
           )}
 
@@ -1826,26 +1881,8 @@ function TableSheet({
                   ...mesinEdc(a).map((m) => ["edc", `Kartu / EDC · ${m}`, m] as const),
                 ] as const).map(([ch, label, mesin]) => (
                   <button key={`${ch}-${mesin ?? ""}`}
-                    disabled={pilih.length === 0 && !(Number(nominal) > 0)}
-                    onClick={() => {
-                      const sebelum = (peek().sessions.find((x) => x.id === session.id)?.payments ?? []).length;
-                      const tolak = dispatchA({
-                        t: "paySplit", id: session.id, channel: ch,
-                        ...(pilih.length ? { keys: pilih } : { amount: Number(nominal) }),
-                        ...(namaOrang.trim() ? { label: namaOrang.trim() } : {}),
-                        ...(mesin ? { mesin } : {}),
-                      });
-                      const setelah = peek().sessions.find((x) => x.id === session.id)?.payments ?? [];
-                      const masuk = setelah.length > sebelum ? setelah[setelah.length - 1] : null;
-                      setPilih([]); setNominal(""); setNamaOrang("");
-                      setMode("main");
-                      flash(masuk
-                        ? `${rupiah(masuk.amount)} diterima (${label}). Sisa tagihan ${rupiah(settlementOf(peek().sessions.find((x) => x.id === session.id)!, peek()).due)}.`
-                        // Alasan dari mesin lebih dulu: sejak 21 Okt 2026 bayar
-                        // per orang ikut ditahan saat internet mati, dan tebakan
-                        // "melebihi sisa tagihan" akan menyesatkan kasir.
-                        : tolak ?? "Pembayaran ditolak — nominal melebihi sisa tagihan, atau shift belum dibuka.");
-                    }}
+                    disabled={(pilih.length === 0 && !(Number(nominal) > 0)) || voidTahan.length > 0}
+                    onClick={() => { setMetodePilih({ ch, label, ...(mesin ? { mesin } : {}) }); setMode("konfirmSplit"); }}
                     className="min-h-[52px] rounded-xl border border-line bg-ink px-4 text-left text-[15px]
                       font-semibold text-cream hover:border-amber hover:text-amber disabled:opacity-35">
                     {label}
@@ -1903,7 +1940,7 @@ function TableSheet({
                 <p className="mt-1 text-[12px] leading-snug text-red-200/80">
                   {allow("setujuiVoid")
                     ? "Anda superadmin — void langsung berlaku dan tercatat atas nama Anda."
-                    : `Void akan diajukan ke superadmin. ${voidLine ? "Pesanan" : "Sesi"} tetap tercatat sampai disetujui.`}
+                    : `Void akan diajukan ke manager atau pemilik. ${voidLine ? "Pesanan" : "Sesi"} tetap tercatat sampai disetujui.`}
                   {!voidLine && session.paidOnline > 0 && ` Dana online ${rupiah(session.paidOnline)} dicatat untuk dikembalikan ke pembayarnya.`}
                 </p>
               </div>
@@ -1939,7 +1976,7 @@ function TableSheet({
                   setVoidKey(null);
                   setMode("main");
                   flash(!req ? "Void ditolak — data sudah berubah (mis. sudah dibayar)."
-                    : req.status === "menunggu" ? "Void diajukan ke superadmin." : "Void berlaku.");
+                    : req.status === "menunggu" ? "Void diajukan ke manager." : "Void berlaku.");
                 }}>
                 {allow("setujuiVoid") ? "Void Sekarang" : "Ajukan Void"}
               </Button>
@@ -2018,6 +2055,28 @@ function TableSheet({
 }
 
 /** Satu baris tabel struk: "Qty Menu · @Harga · Jumlah". */
+/** Alasan tab belum bisa dibayar, plus jalan keluar kalau manager belum bisa dihubungi. */
+function TahanVoid({ daftar, onTarik }: { daftar: VoidRequest[]; onTarik: (id: string) => void }) {
+  return (
+    <div role="alert" className="rounded-xl border border-amber/50 bg-amber/10 px-3.5 py-3">
+      <p className="text-[13px] font-semibold leading-snug text-amber">
+        Void menunggu keputusan manager. Tab belum bisa dibayar.
+      </p>
+      <ul className="mt-1.5 space-y-1">
+        {daftar.map((v) => (
+          <li key={v.id} className="flex items-center justify-between gap-2 text-[12px]">
+            <span className="min-w-0 truncate text-cream">{v.label}</span>
+            <button onClick={() => onTarik(v.id)}
+              className="min-h-[36px] shrink-0 rounded-lg border border-line px-2.5 text-[12px] text-mute hover:border-amber hover:text-amber">
+              Tarik pengajuan
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function BarisStruk({ qty, nama, harga, total }: {
   qty: number; nama: string; harga: number; total: number;
 }) {

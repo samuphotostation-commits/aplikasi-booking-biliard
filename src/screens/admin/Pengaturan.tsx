@@ -897,7 +897,7 @@ function AkunStaf() {
     dispatchA({ t: "saveEmployee", emp });
     const sesudah = peek().employees;
     if (JSON.stringify(sesudah) === sebelum) {
-      flash("Ditolak — PIN 4–6 angka & unik, email sah & unik, dan harus selalu tersisa satu superadmin aktif yang mengurus kedua venue.");
+      flash("Ditolak — PIN harus 4 angka & unik, email sah & unik, dan harus selalu tersisa satu superadmin aktif yang mengurus kedua venue.");
       return false;
     }
     // Mesin sudah menerima; sekarang salin PIN-nya ke server (kalau memakai server).
@@ -944,6 +944,9 @@ function AkunStaf() {
               <div className="text-[11px] text-dim">
                 PIN {e.pin} · {ROLE_LABEL[e.role]} · {e.venue ? VENUE_LABEL[e.venue] : "kedua venue"}
               </div>
+              {e.pin.length !== 4 && (
+                <p className="text-[11px] text-amber">PIN ini tidak bisa dipakai di keypad. Buat ulang dengan 4 angka.</p>
+              )}
               <input
                 defaultValue={e.email ?? ""} type="email" inputMode="email"
                 placeholder="Gmail staf ini"
@@ -1009,8 +1012,8 @@ function AkunStaf() {
             placeholder="Nama staf"
             className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-sm text-cream placeholder:text-dim" />
           <input value={form.pin} inputMode="numeric"
-            onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "").slice(0, 6) })}
-            placeholder="PIN 4–6 angka"
+            onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+            placeholder="PIN 4 angka"
             className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-sm tracking-[0.3em] text-cream placeholder:tracking-normal placeholder:text-dim" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ROLES.map((r) => (
@@ -1030,7 +1033,7 @@ function AkunStaf() {
             ))}
           </div>
           <div className="flex gap-2">
-            <Button disabled={!form.name.trim() || form.pin.length < 4}
+            <Button disabled={!form.name.trim() || form.pin.length !== 4}
               onClick={() => {
                 if (simpan({
                   id: "", name: form.name.trim(), pin: form.pin, role: form.role, active: true,
