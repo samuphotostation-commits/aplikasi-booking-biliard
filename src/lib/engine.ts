@@ -2876,10 +2876,13 @@ function reduce(s: State, a: Action): State {
       if (!allow(s, "kelolaKaryawan")) return s;
       const name = (a.emp.name ?? "").trim().slice(0, 40);
       const pin = (a.emp.pin ?? "").trim();
-      if (!name || !/^[0-9]{4,6}$/.test(pin)) return s;
+      // PIN kosong = PIN hanya disimpan server (teracak), bukan di jejak.
+      if (!name || (pin !== "" && !/^[0-9]{4,6}$/.test(pin))) return s;
       // Akun lama yang hanya diubah perannya tidak ditolak karena PIN lamanya.
       const pinLama = s.employees.find((x) => x.id === a.emp.id)?.pin;
-      if (now >= PIN_EMPAT_ANGKA && pin !== pinLama && !/^[0-9]{4}$/.test(pin)) return s;
+      if (now >= PIN_EMPAT_ANGKA && pin !== "" && pin !== pinLama && !/^[0-9]{4}$/.test(pin)) return s;
+      const nip = (a.emp.nip ?? "").trim().toUpperCase();
+      if (nip && !/^[A-Z0-9-]{3,12}$/.test(nip)) return s;
       // SEMUA peran yang dikenal boleh dibuat. Sampai 12 Okt 2026 baris ini
       // hanya menerima "superadmin" dan "karyawan" — warisan dari sebelum
       // peran dipecah tujuh (8 Okt) — padahal layar Atur sudah menawarkan
@@ -2890,7 +2893,8 @@ function reduce(s: State, a: Action): State {
       if (a.emp.venue && a.emp.venue !== "spl" && a.emp.venue !== "smh") return s;
       const lama = s.employees.find((x) => x.id === a.emp.id);
       const id = lama ? lama.id : nextId("u");
-      if (s.employees.some((x) => x.id !== id && x.pin === pin)) return s;      // PIN harus unik
+      if (nip && s.employees.some((x) => x.id !== id && x.nip === nip)) return s;   // NIP harus unik
+      if (pin !== "" && s.employees.some((x) => x.id !== id && x.pin === pin)) return s;      // PIN harus unik
       // Email untuk masuk tanpa PIN — juga harus unik, kalau tidak jejak audit salah orang.
       const email = (a.emp.email ?? "").trim().toLowerCase().slice(0, 80);
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return s;
@@ -2898,6 +2902,7 @@ function reduce(s: State, a: Action): State {
       const next: Employee = {
         id, name, pin, role: a.emp.role, active: a.emp.active !== false,
         ...(email ? { email } : {}),
+        ...(nip ? { nip } : {}),
         ...(a.emp.venue ? { venue: a.emp.venue } : {}),
       };
       const list = lama ? s.employees.map((x) => (x.id === id ? next : x)) : [...s.employees, next];

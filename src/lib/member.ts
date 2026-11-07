@@ -77,7 +77,7 @@ export async function masukDenganGoogle(): Promise<{ ok: boolean; alasan?: strin
 }
 
 export type HasilStafGoogle =
-  | { ok: true; token: string; staffId: string; nama: string; peran: string }
+  | { ok: true; token: string; staffId: string; nama: string; peran: string; nip?: string; venue?: "spl" | "smh" | null }
   | { ok: false; alasan: string };
 
 /**
@@ -91,9 +91,9 @@ export async function selesaikanGoogleStaf(): Promise<HasilStafGoogle | null> {
   try {
     const { data, error } = await c.rpc("staff_login_email");
     if (error) return { ok: false, alasan: error.message };
-    const r = data as { ok?: boolean; alasan?: string; token?: string; staffId?: string; nama?: string; peran?: string };
+    const r = data as { ok?: boolean; alasan?: string; token?: string; staffId?: string; nama?: string; peran?: string; nip?: string; venue?: "spl" | "smh" | null };
     if (!r?.ok || !r.token) return { ok: false, alasan: r?.alasan ?? "Masuk dengan Google gagal" };
-    return { ok: true, token: r.token, staffId: r.staffId!, nama: r.nama!, peran: r.peran! };
+    return { ok: true, token: r.token, staffId: r.staffId!, nama: r.nama!, peran: r.peran!, nip: r.nip, venue: r.venue };
   } catch (e) {
     return { ok: false, alasan: galat(e) };
   } finally {

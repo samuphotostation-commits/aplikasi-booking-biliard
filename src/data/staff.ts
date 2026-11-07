@@ -63,8 +63,10 @@ export type Employee = {
   pin: string;
   role: Role;
   active: boolean;
-  /** Gmail orang ini. Wajib dibuktikan lewat Google sebelum PIN-nya berlaku (lihat supabase/schema-gmail.sql). */
+  /** Gmail orang ini, jalan untuk Lupa PIN. */
   email?: string;
+  /** Nomor induk untuk masuk bersama PIN. Unik per orang. */
+  nip?: string;
   /**
    * VENUE TEMPAT ORANG INI BEKERJA. Kosong = kedua venue (pemilik & manajer
    * grup).
@@ -80,13 +82,13 @@ export type Employee = {
 
 export const EMPLOYEES: Employee[] = [
   // Pemilik & manajer grup TANPA penanda venue: mereka mengurus keduanya.
-  { id: "u-owner", name: "Pak Budi (Pemilik)", pin: "9999", role: "superadmin", active: true },
-  { id: "u-manager", name: "Sinta (Manajer)", pin: "8888", role: "superadmin", active: true },
+  { id: "u-owner", name: "Pak Budi (Pemilik)", pin: "9999", role: "superadmin", active: true, nip: "SPL001" },
+  { id: "u-manager", name: "Sinta (Manajer)", pin: "8888", role: "superadmin", active: true, nip: "SPL002" },
   // Kru lantai TERIKAT venuenya. Pemilik bisa memindahkan atau melepas
   // ikatannya di tab Atur; yang tidak bisa dilepas hanya kunci induk di atas.
-  { id: "u-rian", name: "Rian", pin: "1234", role: "kru_kasir", active: true, venue: "spl" },
-  { id: "u-yoga", name: "Yoga", pin: "2345", role: "kru_kasir", active: true, venue: "spl" },
-  { id: "u-dewi", name: "Dewi", pin: "3456", role: "kru_kasir", active: true, venue: "smh" },
+  { id: "u-rian", name: "Rian", pin: "1234", role: "kru_kasir", active: true, venue: "spl", nip: "SPL003" },
+  { id: "u-yoga", name: "Yoga", pin: "2345", role: "kru_kasir", active: true, venue: "spl", nip: "SPL004" },
+  { id: "u-dewi", name: "Dewi", pin: "3456", role: "kru_kasir", active: true, venue: "smh", nip: "SPL005" },
 ];
 
 /** Apa yang boleh dilakukan tiap peran. Dipakai untuk menyembunyikan tab

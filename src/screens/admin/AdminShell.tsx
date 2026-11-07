@@ -22,6 +22,31 @@ const SHOW_DEMO_PINS = import.meta.env.VITE_SHOW_DEMO_PINS !== "false";
    keypad terkunci 30 detik, lalu dua kali lipat setiap kali terkunci lagi (maks 15 menit).
    Tersimpan di perangkat supaya tidak lepas hanya dengan memuat ulang halaman. */
 const K_PINLOCK = "spl:v1:pinlock";
+/** NIP terakhir di perangkat ini, supaya kasir tinggal mengetik PIN. */
+const K_NIP = "spl:v1:nip";
+/** Penanda bahwa Google dibuka dari menu Lupa PIN. */
+const K_LUPA = "spl:v1:lupa-pin";
+/** Sidik NIP + PIN yang pernah masuk, untuk masuk saat internet putus. */
+const K_OFFLINE = "spl:v1:masuk-offline";
+
+async function sidik(nip: string, pin: string) {
+  const data = new TextEncoder().encode(`spl|${nip}|${pin}`);
+  const h = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function ingatOffline(nip: string, pin: string, staffId: string) {
+  try {
+    const isi = JSON.parse(localStorage.getItem(K_OFFLINE) ?? "{}") as Record<string, { h: string; id: string }>;
+    isi[nip] = { h: await sidik(nip, pin), id: staffId };
+    localStorage.setItem(K_OFFLINE, JSON.stringify(isi));
+  } catch { /* tanpa ini hanya masuk offline yang tidak tersedia */ }
+}
+async function cocokOffline(nip: string, pin: string): Promise<string | null> {
+  try {
+    const isi = JSON.parse(localStorage.getItem(K_OFFLINE) ?? "{}") as Record<string, { h: string; id: string }>;
+    return isi[nip]?.h === await sidik(nip, pin) ? isi[nip].id : null;
+  } catch { return null; }
+}
 type PinLock = { fails: number; locks: number; until: number };
 const readLock = (): PinLock => {
   try {
@@ -77,7 +102,7 @@ const bolehTab = (t: (typeof TABS)[number], role: Role | null) =>
   t.izin ? can(role, t.izin) : t.roles ? !!role && t.roles.includes(role) : !!role;
 
 export default function AdminShell() {
-  const { a, dispatchA, role, sync, tick, signIn, signOut, signInGoogle, peek, sambungkanLagi } = useAdmin();
+  const { a, dispatchA, role, sync, tick, signOut, signInGoogle, signInNip, aturPin, peek, sambungkanLagi } = useAdmin();
   /**
    * SPL-5 · bunyi & notifikasi dipasang DI KERANGKA, bukan di tiap layar:
    * reservasi yang masuk harus tetap terdengar walau yang sedang dibuka tab
@@ -94,17 +119,34 @@ export default function AdminShell() {
   const [lock, setLock] = useState<PinLock>(readLock);
   const [, rerender] = useState(0);
   /**
-   * Layar pertama adalah GOOGLE: Gmail yang ditautkan pemilik membuktikan orangnya.
-   * PIN tetap ada untuk ganti kasir antar shift, tapi server baru menerimanya
-   * sesudah Gmail orang itu terbukti sekali. Aplikasi Windows tidak bisa membuka
-   * layar Google, jadi di sana langsung PIN.
+   * Layar masuk adalah NIP + PIN, dan SERVER yang memeriksanya. Layar tidak
+   * lagi mencocokkan PIN dengan daftar di perangkat: perangkat yang belum masuk
+   * hanya tahu daftar bawaan, dan itulah sebab PIN asli sering ditolak.
+   * Google tetap ada untuk Lupa PIN. Aplikasi Windows tidak bisa membuka layar
+   * Google, jadi di sana Lupa PIN diarahkan ke browser.
    */
   const bisaGoogle = memberMungkin() && /^https?:$/.test(window.location.protocol);
   const venue = useVenueAktif();
   const [menyambung, setMenyambung] = useState(false);
-  const [caraMasuk, setCaraMasuk] = useState<"google" | "pin">(bisaGoogle ? "google" : "pin");
+  const [nip, setNip] = useState(() => { try { return localStorage.getItem(K_NIP) ?? ""; } catch { return ""; } });
+  const [sibuk, setSibuk] = useState(false);
+  const [lupa, setLupa] = useState(false);
+  /** Sesudah Gmail terbukti di jalur Lupa PIN: tinggal membuat PIN baru. */
+  const [pinBaru, setPinBaru] = useState<null | { token: string; staffId: string; nama: string; peran: string; nip?: string; venue?: Venue | null }>(null);
+  const [isiPin, setIsiPin] = useState({ a: "", b: "" });
   const [googlePesan, setGooglePesan] = useState<string | null>(null);
   const [googleSibuk, setGoogleSibuk] = useState(false);
+
+  /** Pasang sesi lalu buka aplikasi. Ikatan venue dibaca dari jejak, lalu dari server. */
+  async function selesaiMasuk(token: string, h: { staffId: string; nama: string; peran: string; venue?: Venue | null }) {
+    await signInGoogle(token);
+    bukaAkun(h);
+  }
+  function bukaAkun(h: { staffId: string; nama: string; peran: string; venue?: Venue | null }) {
+    const emp = peek().employees.find((x) => x.id === h.staffId)
+      ?? { id: h.staffId, name: h.nama, pin: "", role: h.peran as Role, active: true, ...(h.venue ? { venue: h.venue } : {}) };
+    dispatchA({ t: "login", emp });
+  }
 
   // Kembali dari Google: tukar sesinya jadi sesi venue. Akun DICARI DI STATE dulu
   // karena ikatan venuenya tersimpan di sana; jalur jatuhnya untuk baris staf yang
@@ -117,11 +159,12 @@ export default function AdminShell() {
       const h = await selesaikanGoogleStaf();
       if (batal) return;
       if (h?.ok) {
-        await signInGoogle(h.token);
-        const emp = peek().employees.find((x) => x.id === h.staffId)
-          ?? { id: h.staffId, name: h.nama, pin: "", role: h.peran as Role, active: true };
-        dispatchA({ t: "login", emp });
-      } else if (h) setGooglePesan(h.alasan);
+        // Jalur Lupa PIN: Gmail sudah terbukti, PIN baru dibuat dulu sebelum masuk.
+        if (sessionStorage.getItem(K_LUPA)) {
+          sessionStorage.removeItem(K_LUPA);
+          setPinBaru(h);
+        } else await selesaiMasuk(h.token, h);
+      } else if (h) { sessionStorage.removeItem(K_LUPA); setLupa(true); setGooglePesan(h.alasan); }
       setGoogleSibuk(false);
     })();
     return () => { batal = true; };
@@ -154,36 +197,90 @@ export default function AdminShell() {
   }, [lockedFor > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   void tick;
 
+  function salah(alasan: string | null) {
+    const fails = lock.fails + 1;
+    const locks = fails >= 5 ? lock.locks + 1 : lock.locks;
+    const updated: PinLock = fails >= 5
+      ? { fails: 0, locks, until: Date.now() + Math.min(15 * 60, 30 * 2 ** (locks - 1)) * 1000 }
+      : { ...lock, fails };
+    writeLock(updated); setLock(updated);
+    setServerErr(alasan);
+    setErr(true);
+    setPin("");
+  }
+
+  async function masuk(isi: string) {
+    const kode = nip.trim().toUpperCase();
+    setSibuk(true);
+    setServerErr(null);
+    try {
+      // Mode uji tanpa server: akun contoh dicocokkan di perangkat.
+      if (sync.mode !== "server") {
+        const emp = a.employees.find((e) => e.active && e.nip === kode && e.pin === isi);
+        if (!emp) { salah("NIP atau PIN salah."); return; }
+        berhasil(kode);
+        dispatchA({ t: "login", emp });
+        return;
+      }
+      const h = await signInNip(kode, isi);
+      if (h.ok) {
+        berhasil(kode);
+        await ingatOffline(kode, isi, h.staffId);
+        bukaAkun(h);
+      } else if ("offline" in h) {
+        // Internet putus: orang yang pernah masuk di perangkat ini tetap bisa bekerja.
+        const id = await cocokOffline(kode, isi);
+        const emp = id ? peek().employees.find((x) => x.id === id && x.active) : undefined;
+        if (emp) { berhasil(kode); dispatchA({ t: "login", emp }); }
+        else { setServerErr("Tidak tersambung ke server. Coba lagi setelah internet kembali."); setPin(""); }
+      } else salah(h.alasan);
+    } finally { setSibuk(false); }
+  }
+
+  function berhasil(kode: string) {
+    const cleared = { fails: 0, locks: 0, until: 0 };
+    writeLock(cleared); setLock(cleared);
+    setPin(""); setErr(false);
+    try { localStorage.setItem(K_NIP, kode); } catch { /* mode privat */ }
+  }
+
   function press(d: string) {
-    if (pin.length >= 4 || lockedFor > 0) return;
+    if (pin.length >= 4 || lockedFor > 0 || sibuk) return;
+    if (!nip.trim()) { setServerErr("Isi NIP dulu."); return; }
     const next = pin + d;
     setPin(next);
     setErr(false);
-    if (next.length === 4) {
-      const emp = a.employees.find((e) => e.pin === next && e.active);
-      if (emp) {
-        const cleared = { fails: 0, locks: 0, until: 0 };
-        writeLock(cleared); setLock(cleared);
-        // Mode server: PIN yang sama diperiksa lagi di server dan menghasilkan
-        // sesi 12 jam. Tanpa sesi itu jejak venue tidak bisa dibaca perangkat ini.
-        void signIn(next).then((alasan) => {
-          setServerErr(alasan);
-          // Server menolak = tidak masuk, termasuk Gmail yang belum terbukti.
-          // Hanya internet putus yang tetap boleh lanjut memakai data perangkat.
-          if (alasan && !alasan.startsWith("Tidak tersambung")) { setPin(""); return; }
-          dispatchA({ t: "login", emp });
-          setPin("");
-        });
-      } else {
-        const fails = lock.fails + 1;
-        const locks = fails >= 5 ? lock.locks + 1 : lock.locks;
-        const updated: PinLock = fails >= 5
-          ? { fails: 0, locks, until: Date.now() + Math.min(15 * 60, 30 * 2 ** (locks - 1)) * 1000 }
-          : { ...lock, fails };
-        writeLock(updated); setLock(updated);
-        setTimeout(() => { setErr(true); setPin(""); }, 220);
+    setServerErr(null);
+    if (next.length === 4) void masuk(next);
+  }
+
+  function mulaiLupa() {
+    setGooglePesan(null);
+    setGoogleSibuk(true);
+    sessionStorage.setItem(K_LUPA, "1");
+    void masukDenganGoogle().then((r) => {
+      if (!r.ok) {
+        sessionStorage.removeItem(K_LUPA);
+        setGoogleSibuk(false);
+        setGooglePesan(r.alasan ?? "Verifikasi Gmail gagal");
       }
-    }
+    });
+  }
+
+  async function simpanPinBaru() {
+    if (!pinBaru) return;
+    if (!/^[0-9]{4}$/.test(isiPin.a)) { setGooglePesan("PIN harus 4 angka."); return; }
+    if (isiPin.a !== isiPin.b) { setGooglePesan("Kedua PIN belum sama."); return; }
+    setSibuk(true);
+    setGooglePesan(null);
+    const alasan = await aturPin(pinBaru.token, isiPin.a);
+    setSibuk(false);
+    if (alasan) { setGooglePesan(alasan); return; }
+    const akun = pinBaru;
+    if (akun.nip) { setNip(akun.nip); berhasil(akun.nip); }
+    setPinBaru(null);
+    setLupa(false);
+    await selesaiMasuk(akun.token, akun);
   }
 
   /* ── Belum login ─────────────────────────────────────────────── */
@@ -194,35 +291,53 @@ export default function AdminShell() {
         <h1 className="mt-3 font-display text-2xl uppercase tracking-[0.14em] text-cream">
           Panel Operasional
         </h1>
-        <p className="mt-1 text-sm text-dim">
-          {caraMasuk === "google" ? "Masuk dengan Gmail yang didaftarkan pemilik" : "Masukkan PIN karyawan"}
-        </p>
-
-        {caraMasuk === "google" && (
+        {pinBaru ? (
           <div className="mt-6 w-full max-w-[320px] space-y-2">
-            <button
-              disabled={googleSibuk}
-              onClick={() => {
-                setGooglePesan(null);
-                setGoogleSibuk(true);
-                void masukDenganGoogle().then((r) => {
-                  if (!r.ok) { setGoogleSibuk(false); setGooglePesan(r.alasan ?? "Masuk dengan Google gagal"); }
-                });
-              }}
-              className="min-h-[48px] w-full rounded-xl bg-amber text-[14px] font-bold text-ink disabled:opacity-40">
-              {googleSibuk ? "Memeriksa akun Google…" : "Masuk dengan Google"}
-            </button>
+            <p className="text-center text-sm text-mute">
+              Halo {pinBaru.nama}{pinBaru.nip ? `, NIP Anda ${pinBaru.nip}` : ""}. Buat PIN baru 4 angka.
+            </p>
+            <input value={isiPin.a} inputMode="numeric" type="password" autoComplete="new-password" aria-label="PIN baru"
+              onChange={(e) => setIsiPin({ ...isiPin, a: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="PIN baru"
+              className="min-h-[48px] w-full rounded-xl border border-line bg-ink-2 px-4 text-center text-lg tracking-[0.4em] text-cream placeholder:tracking-normal placeholder:text-dim focus:border-amber focus:outline-none" />
+            <input value={isiPin.b} inputMode="numeric" type="password" autoComplete="new-password" aria-label="Ulangi PIN baru"
+              onChange={(e) => setIsiPin({ ...isiPin, b: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="Ulangi PIN baru"
+              className="min-h-[48px] w-full rounded-xl border border-line bg-ink-2 px-4 text-center text-lg tracking-[0.4em] text-cream placeholder:tracking-normal placeholder:text-dim focus:border-amber focus:outline-none" />
             {googlePesan && <p role="alert" className="text-center text-[12px] leading-snug text-red-400">{googlePesan}</p>}
-            <button onClick={() => { setCaraMasuk("pin"); setGooglePesan(null); }}
-              className="min-h-[44px] w-full rounded-xl border border-line text-[13px] text-mute hover:border-amber hover:text-amber">
-              Ganti shift · masuk dengan PIN
+            <button disabled={sibuk || isiPin.a.length !== 4 || isiPin.b.length !== 4} onClick={() => void simpanPinBaru()}
+              className="min-h-[48px] w-full rounded-xl bg-amber text-[14px] font-bold text-ink disabled:opacity-40">
+              {sibuk ? "Menyimpan…" : "Simpan PIN dan masuk"}
             </button>
           </div>
-        )}
-
-        {caraMasuk === "pin" && (
+        ) : lupa ? (
+          <div className="mt-6 w-full max-w-[320px] space-y-2 text-center">
+            <p className="text-sm font-semibold text-cream">Lupa PIN</p>
+            {bisaGoogle ? (
+              <>
+                <p className="text-[13px] leading-snug text-mute">
+                  Pilih Gmail yang terdaftar untuk akun Anda. Setelah terbukti, Anda bisa membuat PIN baru dan melihat NIP.
+                </p>
+                <button disabled={googleSibuk} onClick={mulaiLupa}
+                  className="min-h-[48px] w-full rounded-xl bg-amber text-[14px] font-bold text-ink disabled:opacity-40">
+                  {googleSibuk ? "Memeriksa Gmail…" : "Verifikasi dengan Gmail"}
+                </button>
+              </>
+            ) : (
+              <p className="text-[13px] leading-snug text-mute">
+                Buka kasir.sportspoollounge.com di browser HP atau komputer, lalu tekan Lupa PIN di sana.
+              </p>
+            )}
+            {googlePesan && <p role="alert" className="text-[12px] leading-snug text-red-400">{googlePesan}</p>}
+            <p className="text-[12px] leading-snug text-dim">Belum punya Gmail terdaftar? Minta pemilik mengatur ulang PIN di Atur → Akun staf.</p>
+            <button onClick={() => { setLupa(false); setGooglePesan(null); }}
+              className="min-h-[44px] w-full text-[13px] text-mute underline underline-offset-4">Kembali ke layar masuk</button>
+          </div>
+        ) : (
           <>
-          <motion.div className="mt-6 flex gap-3"
+          <p className="mt-1 text-sm text-dim">Masuk dengan NIP dan PIN</p>
+          <input value={nip} onChange={(e) => { setNip(e.target.value.toUpperCase().slice(0, 12)); setServerErr(null); }}
+            aria-label="NIP" placeholder="NIP, misalnya SPL001" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+            className="mt-5 min-h-[48px] w-full max-w-[260px] rounded-xl border border-line bg-ink-2 px-4 text-center text-[15px] tracking-[0.12em] text-cream placeholder:tracking-normal placeholder:text-dim focus:border-amber focus:outline-none" />
+          <motion.div className="mt-5 flex gap-3"
             animate={err ? { x: [0, -9, 9, -6, 0] } : {}} transition={{ duration: 0.35 }}>
             {[0, 1, 2, 3].map((i) => (
               <span key={i} className={`h-3.5 w-3.5 rounded-full border transition-colors ${
@@ -230,20 +345,17 @@ export default function AdminShell() {
               }`} />
             ))}
           </motion.div>
+          {sibuk && <p role="status" className="mt-3 text-xs text-mute">Memeriksa…</p>}
           {serverErr && (
             <p role="alert" className="mt-3 max-w-[32ch] text-center text-xs text-red-400">{serverErr}</p>
           )}
-          {lockedFor > 0 ? (
+          {lockedFor > 0 && (
             <p role="alert" className="mt-3 text-xs text-red-400">
-              Terlalu banyak PIN salah. Coba lagi dalam {lockedFor >= 60 ? `${Math.ceil(lockedFor / 60)} menit` : `${lockedFor} detik`}.
-            </p>
-          ) : err && (
-            <p className="mt-3 text-xs text-red-400">
-              PIN tidak dikenal.{lock.fails >= 3 && ` ${5 - lock.fails} percobaan lagi sebelum keypad terkunci.`}
+              Terlalu banyak salah. Coba lagi dalam {lockedFor >= 60 ? `${Math.ceil(lockedFor / 60)} menit` : `${lockedFor} detik`}.
             </p>
           )}
 
-          <div className={`mt-8 grid w-full max-w-[260px] grid-cols-3 gap-3 ${lockedFor > 0 ? "pointer-events-none opacity-40" : ""}`}>
+          <div className={`mt-6 grid w-full max-w-[260px] grid-cols-3 gap-3 ${lockedFor > 0 || sibuk ? "pointer-events-none opacity-40" : ""}`}>
             {["1","2","3","4","5","6","7","8","9"].map((d) => (
               <PinKey key={d} onClick={() => press(d)}>{d}</PinKey>
             ))}
@@ -251,16 +363,10 @@ export default function AdminShell() {
             <PinKey onClick={() => press("0")}>0</PinKey>
             <PinKey onClick={() => setPin(pin.slice(0, -1))} small>Hapus</PinKey>
           </div>
-            {bisaGoogle ? (
-              <button onClick={() => { setCaraMasuk("google"); setServerErr(null); }}
-                className="mt-4 min-h-[40px] text-[13px] text-mute underline underline-offset-4">
-                Kembali ke masuk dengan Google
-              </button>
-            ) : (
-              <p className="mt-4 max-w-[34ch] text-center text-[11px] leading-snug text-dim">
-                Akun baru: masuk dengan Google sekali di kasir.sportspoollounge.com, lalu PIN berlaku di sini.
-              </p>
-            )}
+          <button onClick={() => { setLupa(true); setServerErr(null); }}
+            className="mt-4 min-h-[40px] text-[13px] text-mute underline underline-offset-4">
+            Lupa PIN atau NIP?
+          </button>
           </>
         )}
 
@@ -280,7 +386,7 @@ export default function AdminShell() {
                   </span>
                 </span>
                 <span className={`shrink-0 ${e.role === "superadmin" ? "text-amber" : "text-cream"}`}>
-                  {e.pin} · {ROLE_LABEL[e.role]}
+                  {e.nip} · {e.pin} · {ROLE_LABEL[e.role]}
                 </span>
               </div>
             ))}

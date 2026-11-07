@@ -29,7 +29,7 @@ import { isMoneyAction, offlineBlock, type Proposal, type Remote, type ServerEnt
 import { publicVenue } from "./publicView";
 import { businessDateOf } from "./occupancy";
 import { rapikanHp } from "./profilTamu";
-import { remoteFromEnv } from "./supabaseRemote";
+import { remoteFromEnv, type MasukNipHasil } from "./supabaseRemote";
 import { createCustomerStore } from "./customerStore";
 
 const NS = "spl:v1";
@@ -113,7 +113,10 @@ export type VenueStoreOptions = {
     pesanTandai?: (id: number, status: "terkirim" | "batal" | "antre") => Promise<boolean>;
     pesanBlast?: (teks: string) => Promise<number>;
     /** Akun staf di server (PIN) — supaya akun baru berlaku di semua perangkat. */
-    saveStaff?: (emp: { id: string; name: string; role: string; pin?: string; active: boolean }) => Promise<string | null>;
+    saveStaff?: (emp: { id: string; name: string; role: string; pin?: string; active: boolean; nip?: string; venue?: string }) => Promise<{ alasan: string | null; nip?: string }>;
+    masukNip?: (nip: string, pin: string) => Promise<MasukNipHasil>;
+    aturPin?: (token: string, pin: string) => Promise<string | null>;
+    daftarNip?: () => Promise<Record<string, { nip: string | null; terkunci: boolean }>>;
     removeStaff?: (id: string) => Promise<string | null>;
     /** Gmail staf: tautan, sesi hasil masuk Google, dan siapa yang sudah terbukti. */
     setStaffEmail?: (staffId: string, email: string) => Promise<string | null>;
@@ -777,6 +780,28 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
         return "Tidak tersambung ke server — coba lagi setelah koneksi kembali.";
       }
     },
+    /**
+     * Masuk dengan NIP + PIN. Server yang memeriksa, lalu jejaknya ditarik
+     * supaya daftar akun di perangkat ini ikut baru sebelum layar dibuka.
+     */
+    async signInNip(nip: string, pin: string): Promise<MasukNipHasil | { ok: false; offline: true; alasan: string }> {
+      if (!remote?.masukNip) return { ok: false, alasan: "Mode lokal" };
+      try {
+        const hasil = await remote.masukNip(nip, pin);
+        if (!hasil.ok) return hasil;
+        problem = null;
+        await sync();
+        notify();
+        return hasil;
+      } catch {
+        markOffline();
+        return { ok: false, offline: true, alasan: "Tidak tersambung ke server." };
+      }
+    },
+    /** Buat PIN baru sesudah Gmail terbukti. */
+    aturPin: (token: string, pin: string) => (remote?.aturPin?.(token, pin) ?? Promise.resolve("Butuh sambungan ke server.")),
+    /** NIP tiap akun menurut server (layar Atur). */
+    daftarNip: () => (remote?.daftarNip?.() ?? Promise.resolve({} as Record<string, { nip: string | null; terkunci: boolean }>)),
     /** Sesi venue dari masuk lewat Google: pasang lalu tarik jejak dari server. */
     async signInGoogle(token: string) {
       remote?.pakaiToken?.(token);
@@ -794,8 +819,8 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
      * Aturan bisnisnya sudah dijalankan mesin; ini hanya menyalin PIN-nya ke
      * server supaya staf itu bisa masuk dari perangkat lain.
      */
-    simpanPinStaf: (emp: { id: string; name: string; role: string; pin?: string; active: boolean }) =>
-      (remote?.saveStaff?.(emp) ?? Promise.resolve(null)),
+    simpanPinStaf: (emp: { id: string; name: string; role: string; pin?: string; active: boolean; nip?: string; venue?: string }) =>
+      (remote?.saveStaff?.(emp) ?? Promise.resolve({ alasan: null } as { alasan: string | null; nip?: string })),
     hapusPinStaf: (id: string) => (remote?.removeStaff?.(id) ?? Promise.resolve(null)),
     /** Daftar pelanggan (butuh sesi PIN). */
     pelanggan: (cari?: string) => (remote?.fetchCustomers?.(cari) ?? Promise.resolve([])),

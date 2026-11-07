@@ -866,25 +866,46 @@ function AkunStaf() {
   const { a, dispatchA, peek, sync } = useAdmin();
   // Mode server: PIN juga harus terdaftar di server supaya berlaku di perangkat lain.
   const store = venueStore() as ReturnType<typeof venueStore> & {
-    simpanPinStaf?: (e: { id: string; name: string; role: string; pin?: string; active: boolean }) => Promise<string | null>;
+    simpanPinStaf?: (e: { id: string; name: string; role: string; pin?: string; active: boolean; nip?: string; venue?: string }) => Promise<{ alasan: string | null; nip?: string }>;
+    daftarNip?: () => Promise<Record<string, { nip: string | null; terkunci: boolean }>>;
     hapusPinStaf?: (id: string) => Promise<string | null>;
     tautkanEmail?: (staffId: string, email: string) => Promise<string | null>;
     daftarGmail?: () => Promise<Record<string, boolean>>;
   };
   const [buka, setBuka] = useState(false);
-  const [form, setForm] = useState<{ id: string; name: string; pin: string; role: Role; venue?: Venue }>({
-    id: "", name: "", pin: "", role: "kru_kasir", venue: "spl",
+  const [form, setForm] = useState<{ id: string; name: string; pin: string; nip: string; role: Role; venue?: Venue }>({
+    id: "", name: "", pin: "", nip: "", role: "kru_kasir", venue: "spl",
   });
+  /** NIP dan status kunci menurut server. Akun lama hanya punya NIP di sana. */
+  const [dataNip, setDataNip] = useState<Record<string, { nip: string | null; terkunci: boolean }>>({});
+  const muatNip = () => { void store.daftarNip?.().then(setDataNip); };
+  /** Akun yang PIN-nya sedang diatur ulang. */
+  const [ulangPin, setUlangPin] = useState<{ id: string; pin: string } | null>(null);
   const [pesan, setPesan] = useState<string | null>(null);
   /** Siapa yang Gmail-nya sudah terbukti lewat masuk Google. */
   const [terbukti, setTerbukti] = useState<Record<string, boolean>>({});
 
-  useEffect(() => { void store.daftarGmail?.().then(setTerbukti); }, [store]);
+  useEffect(() => { void store.daftarGmail?.().then(setTerbukti); muatNip(); }, [store]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const flash = (t: string) => { setPesan(t); setTimeout(() => setPesan(null), 4000); };
   const superaktif = a.employees.filter((e) => e.active && e.role === "superadmin").length;
 
-  function simpan(emp: Employee) {
+  /** `pinBaru` hanya diisi kalau PIN memang diganti; suntingan lain tidak menyentuh PIN. */
+  /** Ganti PIN satu akun. Di server PIN tidak menyentuh jejak. */
+  function simpanPin(e: Employee, pin: string) {
+    if (sync.mode !== "server") return simpan({ ...e, pin }, pin);
+    void store.simpanPinStaf?.({
+      id: e.id, name: e.name, role: e.role, active: e.active, pin,
+      ...(dataNip[e.id]?.nip ?? e.nip ? { nip: (dataNip[e.id]?.nip ?? e.nip)! } : {}),
+      ...(e.venue ? { venue: e.venue } : {}),
+    }).then((h) => {
+      flash(h?.alasan ? `PIN belum tersimpan: ${h.alasan}` : `PIN ${e.name} sudah diganti.`);
+      muatNip();
+    });
+    return true;
+  }
+
+  function simpan(emp: Employee, pinBaru?: string) {
     /**
      * Ditolak = daftarnya TIDAK BERGERAK sama sekali.
      *
@@ -894,19 +915,31 @@ function AkunStaf() {
      * yang muncul justru "tersimpan", padahal mesin menolaknya.
      */
     const sebelum = JSON.stringify(a.employees);
-    dispatchA({ t: "saveEmployee", emp });
+    const lama = new Set(a.employees.map((x) => x.id));
+    const server = sync.mode === "server";
+    // Di server, PIN hanya disimpan teracak di tabel staf, tidak di jejak yang bisa dibaca.
+    const nipAuto = !emp.nip && !server
+      ? `SPL${String(Math.max(0, ...a.employees.map((x) => Number(/^SPL(\d+)$/.exec(x.nip ?? "")?.[1] ?? 0))) + 1).padStart(3, "0")}`
+      : emp.nip;
+    dispatchA({ t: "saveEmployee", emp: { ...emp, pin: server ? (lama.has(emp.id) ? emp.pin : "") : (pinBaru ?? emp.pin), ...(nipAuto ? { nip: nipAuto } : {}) } });
     const sesudah = peek().employees;
     if (JSON.stringify(sesudah) === sebelum) {
-      flash("Ditolak — PIN harus 4 angka & unik, email sah & unik, dan harus selalu tersisa satu superadmin aktif yang mengurus kedua venue.");
+      flash("Ditolak — NIP harus unik, PIN harus 4 angka, email sah & unik, dan harus selalu tersisa satu superadmin aktif yang mengurus kedua venue.");
       return false;
     }
-    // Mesin sudah menerima; sekarang salin PIN-nya ke server (kalau memakai server).
-    const tersimpan = sesudah.find((x) => x.name === emp.name && x.pin === emp.pin)!;
-    if (sync.mode === "server") {
+    const tersimpan = sesudah.find((x) => (emp.id ? x.id === emp.id : !lama.has(x.id)))!;
+    if (server) {
       void store.simpanPinStaf?.({
-        id: tersimpan.id, name: tersimpan.name, role: tersimpan.role, pin: tersimpan.pin, active: tersimpan.active,
-      }).then(async (alasan) => {
-        if (alasan) { flash(`Tersimpan di perangkat, TAPI server menolak PIN-nya: ${alasan}`); return; }
+        id: tersimpan.id, name: tersimpan.name, role: tersimpan.role, active: tersimpan.active,
+        ...(pinBaru ? { pin: pinBaru } : {}),
+        ...(tersimpan.nip ? { nip: tersimpan.nip } : {}),
+        ...(tersimpan.venue ? { venue: tersimpan.venue } : {}),
+      }).then(async (h) => {
+        if (!h) return;
+        if (h.alasan) { flash(`Tersimpan di perangkat, TAPI server menolak: ${h.alasan}`); return; }
+        if (h.nip && h.nip !== tersimpan.nip) dispatchA({ t: "saveEmployee", emp: { ...tersimpan, nip: h.nip } });
+        if (h.nip && !lama.has(tersimpan.id)) flash(`Akun ${tersimpan.name} dibuat. NIP: ${h.nip}`);
+        muatNip();
         // Gmail hanya dikirim kalau kolomnya memang disentuh: ganti peran atau venue
         // tidak boleh menghapus Gmail yang sudah tertaut di server.
         if (emp.email === undefined) return;
@@ -914,7 +947,6 @@ function AkunStaf() {
         if (e2) flash(`Akun tersimpan, tapi email ditolak server: ${e2}`);
       });
     }
-    flash(`Akun ${emp.name} tersimpan${sync.mode === "server" ? " & didaftarkan ke server" : ""}.`);
     return true;
   }
 
@@ -942,10 +974,24 @@ function AkunStaf() {
                 {!e.active && <span className="ml-2 text-[11px] text-dim">(nonaktif)</span>}
               </div>
               <div className="text-[11px] text-dim">
-                PIN {e.pin} · {ROLE_LABEL[e.role]} · {e.venue ? VENUE_LABEL[e.venue] : "kedua venue"}
+                NIP {dataNip[e.id]?.nip ?? e.nip ?? "belum ada"} · {ROLE_LABEL[e.role]} · {e.venue ? VENUE_LABEL[e.venue] : "kedua venue"}
               </div>
-              {e.pin.length !== 4 && (
-                <p className="text-[11px] text-amber">PIN ini tidak bisa dipakai di keypad. Buat ulang dengan 4 angka.</p>
+              {dataNip[e.id]?.terkunci && (
+                <p className="text-[11px] text-amber">Akun terkunci karena PIN salah. Atur ulang PIN untuk membukanya.</p>
+              )}
+              {ulangPin?.id === e.id ? (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <input value={ulangPin.pin} inputMode="numeric" aria-label={`PIN baru ${e.name}`} placeholder="PIN baru 4 angka"
+                    onChange={(ev) => setUlangPin({ id: e.id, pin: ev.target.value.replace(/\D/g, "").slice(0, 4) })}
+                    className="min-h-[34px] w-32 rounded-lg border border-line bg-ink px-2 text-[12px] tracking-widest text-cream placeholder:tracking-normal placeholder:text-dim" />
+                  <button disabled={ulangPin.pin.length !== 4}
+                    onClick={() => { const nilai = ulangPin.pin; if (simpanPin(e, nilai)) setUlangPin(null); }}
+                    className="min-h-[34px] rounded-lg bg-amber px-2.5 text-[11px] font-bold text-ink disabled:opacity-40">Simpan</button>
+                  <button onClick={() => setUlangPin(null)} className="min-h-[34px] px-1 text-[11px] text-dim">Batal</button>
+                </div>
+              ) : (
+                <button onClick={() => setUlangPin({ id: e.id, pin: "" })}
+                  className="mt-0.5 min-h-[28px] text-[11px] text-amber underline underline-offset-2">Atur ulang PIN</button>
               )}
               <input
                 defaultValue={e.email ?? ""} type="email" inputMode="email"
@@ -958,7 +1004,7 @@ function AkunStaf() {
                 className="mt-1 min-h-[34px] w-full rounded-lg border border-line bg-ink px-2 text-[11px] text-cream placeholder:text-dim"
               />
               <div className={`mt-1 text-[10px] ${terbukti[e.id] ? "text-emerald-400" : "text-dim"}`}>
-                {terbukti[e.id] ? "Gmail terverifikasi" : e.email ? "Menunggu orangnya masuk dengan Google" : "Belum ada Gmail: belum bisa masuk"}
+                {terbukti[e.id] ? "Gmail terverifikasi" : e.email ? "Gmail terdaftar, belum pernah diverifikasi" : "Belum ada Gmail: Lupa PIN belum bisa dipakai"}
               </div>
             </div>
             <select
@@ -1011,6 +1057,9 @@ function AkunStaf() {
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Nama staf"
             className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-sm text-cream placeholder:text-dim" />
+          <input value={form.nip} onChange={(e) => setForm({ ...form, nip: e.target.value.toUpperCase().slice(0, 12) })}
+            placeholder="NIP (kosongkan untuk nomor otomatis)"
+            className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-sm text-cream placeholder:text-dim" />
           <input value={form.pin} inputMode="numeric"
             onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
             placeholder="PIN 4 angka"
@@ -1037,9 +1086,10 @@ function AkunStaf() {
               onClick={() => {
                 if (simpan({
                   id: "", name: form.name.trim(), pin: form.pin, role: form.role, active: true,
+                  ...(form.nip.trim() ? { nip: form.nip.trim() } : {}),
                   ...(form.venue ? { venue: form.venue } : {}),
-                })) {
-                  setForm({ id: "", name: "", pin: "", role: "kru_kasir", venue: "spl" });
+                }, form.pin)) {
+                  setForm({ id: "", name: "", pin: "", nip: "", role: "kru_kasir", venue: "spl" });
                   setBuka(false);
                 }
               }}>Simpan akun</Button>
@@ -1058,8 +1108,8 @@ function AkunStaf() {
         laporan uang dan menyetujui void. Setiap tindakan tetap tercatat atas nama pemiliknya masing-masing,
         jadi jangan berbagi satu PIN berdua.
         <br /><br />
-        <span className="text-mute">Gmail wajib untuk semua akun.</span> Isi Gmail orangnya di atas, lalu
-        minta dia menekan Masuk dengan Google sekali di browser. Sesudah terverifikasi, baru PIN-nya berlaku.
+        <span className="text-mute">Karyawan masuk dengan NIP dan PIN.</span> Isi Gmail orangnya di atas supaya
+        dia bisa memakai Lupa PIN sendiri. Tanpa Gmail, PIN hanya bisa diatur ulang dari sini.
         <br /><br />
         <span className="text-mute">PIN</span> tetap dipakai untuk ganti kasir antar shift, karena memilih akun
         Google tiap pergantian terlalu lambat saat ramai. Aplikasi Windows juga masuk dengan PIN.

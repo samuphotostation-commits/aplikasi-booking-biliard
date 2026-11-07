@@ -250,6 +250,25 @@ console.log("-- Tren per bisnis --");
   t("bisnis tanpa penjualan ditandai kosong", trenBisnis(dunia().st(), "2026-12-04", "smh").kosong, true);
 }
 
+console.log("-- NIP akun staf --");
+{
+  const d = dunia();
+  const akun = (id: string, name: string, nip: string, pin = "") => ({ id, name, pin, nip, role: "kru_kasir" as const, active: true, venue: "spl" as const });
+  d.push(jam(1, 11), { t: "saveEmployee", emp: akun("", "Baru", "spl010") });
+  let baru = d.st().employees.find((e) => e.name === "Baru");
+  t("akun bisa dibuat tanpa PIN di jejak", baru?.pin, "");
+  t("NIP disimpan huruf besar", baru?.nip, "SPL010");
+  d.push(jam(1, 11, 1), { t: "saveEmployee", emp: akun("", "Kembar", "SPL010") });
+  t("NIP kembar ditolak", d.st().employees.some((e) => e.name === "Kembar"), false);
+  d.push(jam(1, 11, 2), { t: "saveEmployee", emp: akun("", "Aneh", "a b") });
+  t("NIP tidak sah ditolak", d.st().employees.some((e) => e.name === "Aneh"), false);
+  d.push(jam(1, 11, 3), { t: "saveEmployee", emp: akun("", "Dua", "SPL011") });
+  t("dua akun tanpa PIN di jejak tidak dianggap kembar", d.st().employees.some((e) => e.name === "Dua"), true);
+  d.push(jam(1, 11, 4), { t: "saveEmployee", emp: { ...baru!, role: "kru_gudang" } });
+  baru = d.st().employees.find((e) => e.name === "Baru");
+  t("akun bisa disunting tanpa mengubah NIP", [baru?.role, baru?.nip], ["kru_gudang", "SPL010"]);
+}
+
 console.log("-- Sebelum tanggal aturan: tetap satu shift --");
 {
   const nov = (h: number) => dariWib(2026, 11, 1, h);

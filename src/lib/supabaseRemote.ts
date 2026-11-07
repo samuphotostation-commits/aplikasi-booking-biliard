@@ -34,6 +34,11 @@ const toEntry = (r: Row): ServerEntry => ({
   act: r.act as ServerEntry["act"],
 });
 
+/** Hasil masuk dengan NIP + PIN. */
+export type MasukNipHasil =
+  | { ok: true; staffId: string; nama: string; peran: string; nip: string; venue: "spl" | "smh" | null }
+  | { ok: false; alasan: string };
+
 /** Hasil masuk dengan PIN. */
 export type LoginHasil =
   | { ok: true; staffId: string; nama: string; peran: "superadmin" | "karyawan" }
@@ -43,6 +48,12 @@ export type StaffRemote = Remote & {
   client: SupabaseClient;
   /** Masuk dengan PIN staf; server yang memeriksa, bukan perangkat. */
   login(pin: string): Promise<LoginHasil>;
+  /** Masuk dengan NIP + PIN. Melempar galat kalau server tidak terjangkau. */
+  masukNip(nip: string, pin: string): Promise<MasukNipHasil>;
+  /** Buat PIN baru sesudah Gmail terbukti. null = berhasil. */
+  aturPin(token: string, pin: string): Promise<string | null>;
+  /** NIP dan status kunci tiap akun, untuk layar Atur. */
+  daftarNip(): Promise<Record<string, { nip: string | null; terkunci: boolean }>>;
   /** Kirim kode 6 angka ke email staf. Mengembalikan alasan kalau gagal. */
   /** Pakai sesi venue hasil masuk lewat Google. */
   pakaiToken(t: string): void;
@@ -78,7 +89,7 @@ export type StaffRemote = Remote & {
   /** Blast promo ke member yang menyetujui. -1 = bukan superadmin. */
   pesanBlast(teks: string): Promise<number>;
   /** Daftarkan/ubah PIN staf di server supaya berlaku di semua perangkat (superadmin). */
-  saveStaff(emp: { id: string; name: string; role: string; pin?: string; active: boolean }): Promise<string | null>;
+  saveStaff(emp: { id: string; name: string; role: string; pin?: string; active: boolean; nip?: string; venue?: string }): Promise<{ alasan: string | null; nip?: string }>;
   removeStaff(id: string): Promise<string | null>;
 };
 
@@ -167,6 +178,33 @@ export function supabaseRemote(opts: SupabaseRemoteOptions): StaffRemote {
       token = h.token;
       simpanToken(token);
       return { ok: true, staffId: h.staffId!, nama: h.nama!, peran: h.peran as "superadmin" | "karyawan" };
+    },
+
+    async masukNip(nip: string, pin: string): Promise<MasukNipHasil> {
+      const { data, error } = await client.rpc("staff_masuk", { p_nip: nip, p_pin: pin });
+      if (error) throw new Error(error.message);
+      const h = data as { ok: boolean; token?: string; staffId?: string; nama?: string; peran?: string; nip?: string; venue?: "spl" | "smh" | null; alasan?: string };
+      if (!h?.ok || !h.token) return { ok: false, alasan: h?.alasan ?? "NIP atau PIN salah." };
+      token = h.token;
+      simpanToken(token);
+      return { ok: true, staffId: h.staffId!, nama: h.nama!, peran: h.peran!, nip: h.nip ?? nip, venue: h.venue ?? null };
+    },
+
+    async aturPin(t: string, pin: string) {
+      const { data, error } = await client.rpc("staff_atur_pin", { p_token: t, p_baru: pin });
+      if (error) return "Tidak tersambung ke server. Coba lagi.";
+      return (data as string | null) ?? null;
+    },
+
+    async daftarNip() {
+      if (!token) return {};
+      const { data, error } = await client.rpc("daftar_nip", { p_token: token });
+      if (error) return {};
+      const out: Record<string, { nip: string | null; terkunci: boolean }> = {};
+      for (const r of (data ?? []) as { staff_id: string; nip: string | null; terkunci: boolean }[]) {
+        out[r.staff_id] = { nip: r.nip, terkunci: r.terkunci };
+      }
+      return out;
     },
 
     logout() {
@@ -344,14 +382,16 @@ export function supabaseRemote(opts: SupabaseRemoteOptions): StaffRemote {
       return Number(data ?? 0);
     },
 
-    /** null = berhasil; selain itu alasan penolakan server (untuk ditampilkan apa adanya). */
+    /** Salin akun ke server. `nip` di hasil adalah NIP yang akhirnya dipakai. */
     async saveStaff(emp) {
-      if (!token) return "Belum masuk dengan PIN.";
-      const { error } = await client.rpc("upsert_staff", {
+      if (!token) return { alasan: "Belum masuk." };
+      const { data, error } = await client.rpc("upsert_staff_nip", {
         p_token: token, p_id: emp.id, p_nama: emp.name, p_peran: emp.role,
-        p_pin: emp.pin ?? null, p_aktif: emp.active,
+        p_pin: emp.pin || null, p_aktif: emp.active, p_nip: emp.nip || null, p_venue: emp.venue ?? null,
       });
-      return error ? error.message : null;
+      if (error) return { alasan: error.message };
+      const h = data as { ok: boolean; nip?: string; alasan?: string };
+      return h?.ok ? { alasan: null, nip: h.nip } : { alasan: h?.alasan ?? "Server menolak akun ini." };
     },
 
     async removeStaff(id: string) {

@@ -34,6 +34,10 @@ const Ctx = createContext<{
   peek: () => State;
   /** Mode server: PIN diperiksa server. Mengembalikan alasan kalau ditolak. */
   signIn: (pin: string) => Promise<string | null>;
+  /** Masuk dengan NIP + PIN. Server yang memeriksa. */
+  signInNip: (nip: string, pin: string) => ReturnType<ReturnType<typeof venueStore>["signInNip"]>;
+  /** Buat PIN baru sesudah Gmail terbukti. null = berhasil. */
+  aturPin: (token: string, pin: string) => Promise<string | null>;
   /** Pasang sesi venue hasil masuk lewat Google. */
   signInGoogle: (token: string) => Promise<void>;
   signOut: () => void;
@@ -80,7 +84,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       sync: store.info(), resetData: store.reset, peek: store.getView,
       sambungkanLagi: store.sync,
       signIn: store.signIn, signOut: store.signOut,
-      signInGoogle: store.signInGoogle,
+      signInGoogle: store.signInGoogle, signInNip: store.signInNip, aturPin: store.aturPin,
       terbitkanSekarang: store.terbitkanSekarang,
     }}>
       {children}
