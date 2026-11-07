@@ -16,6 +16,7 @@ import LaporanStok from "./LaporanStok";
 import DetailTransaksi from "./DetailTransaksi";
 import LaporanProduk from "./LaporanProduk";
 import RekapTigaJenis from "./RekapTigaJenis";
+import TrenPenjualan from "./TrenPenjualan";
 import LaporanRekap from "./LaporanRekap";
 import { useVenueAktif } from "../../lib/venueAktif";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
@@ -57,6 +58,8 @@ function RekapKeuangan() {
   const dates = recapDates(a);
   const [picked, setPicked] = useState(today);
   const [periode, setPeriode] = useState<RekapPeriode>("hari");
+  /** Rekap Harian lebih dulu: itu format yang dipegang pemilik tiap malam. */
+  const [bagian, setBagian] = useState<"harian" | "uang" | "analisa">("harian");
   // Rentang bebas (mode custom): dua kolom tanggal, awalnya 7 hari terakhir.
   const [ct, setCt] = useState({ dari: shiftDate(today, -6), sampai: today });
   const bizDate = dates.includes(picked) ? picked : today;
@@ -235,9 +238,8 @@ function RekapKeuangan() {
       )}
       {r.venueTercampur && (
         <p className="rounded-lg border border-amber/40 bg-amber/5 px-3 py-2 text-[11px] leading-relaxed text-amber">
-          Hari ini sudah tutup buku, dan angka bekunya tersimpan GABUNGAN — jadi
-          yang tampil bukan {VENUE_LABEL[dipakai as Venue]} saja. Rekap per venue hanya
-          tepat untuk hari yang belum tutup buku.
+          Hari ini sudah terlalu lama, jadi angkanya tidak bisa lagi dipisah. Yang
+          tampil adalah gabungan, bukan {VENUE_LABEL[dipakai as Venue]} saja.
         </p>
       )}
 
@@ -296,10 +298,9 @@ function RekapKeuangan() {
       )}
 
       {/* Hari operasional (batas 02.00) */}
+      {!rp && (
       <label className="flex items-center justify-between gap-3 rounded-xl border border-line bg-ink-2 px-3 py-2">
-        <span className="text-[11px] uppercase tracking-[0.16em] text-dim">
-          {rp ? "Hari untuk jejak audit" : "Hari operasional"}
-        </span>
+        <span className="text-[11px] uppercase tracking-[0.16em] text-dim">Hari operasional</span>
         <select
           value={bizDate}
           onChange={(e) => setPicked(e.target.value)}
@@ -310,7 +311,23 @@ function RekapKeuangan() {
           ))}
         </select>
       </label>
+      )}
 
+      {/* Tiga bagian: format kertas, uang, dan bahan analisa */}
+      <div className="grid grid-cols-3 gap-1 rounded-xl border border-line bg-ink-2 p-1" role="tablist" aria-label="Bagian rekap">
+        {([["harian", periode === "hari" ? "Rekap Harian" : "Rekap Periode"], ["uang", "Uang"], ["analisa", "Analisa"]] as const).map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={bagian === k} onClick={() => setBagian(k)}
+            className={`min-h-[44px] rounded-lg text-[13px] font-semibold ${
+              bagian === k ? "bg-amber text-ink" : "text-mute hover:text-cream"
+            }`}>{label}</button>
+        ))}
+      </div>
+
+      {bagian === "harian" && (
+        <RekapTigaJenis dari={rp ? dari : bizDate} sampai={rp ? sampai : bizDate} venue={venue} hariIni={today} />
+      )}
+
+      {bagian === "uang" && (<>
       {/* Rincian per hari dalam periode */}
       {rp && (
         <section>
@@ -684,6 +701,11 @@ function RekapKeuangan() {
         )}
       </section>
 
+      </>)}
+
+      {bagian === "analisa" && (<>
+      <TrenPenjualan venue={venue} hariIni={today} />
+
       {/* Operasional */}
       <section>
         <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
@@ -717,9 +739,8 @@ function RekapKeuangan() {
       <LaporanProduk dari={rp ? dari : bizDate} sampai={rp ? sampai : bizDate} venue={venue} />
 
       {/* Laporan stok 05.00 → 05.00 */}
-      <RekapTigaJenis bizDate={bizDate} venue={venue} />
-
       <LaporanStok />
+      </>)}
 
       {/* JEJAK AKTIVITAS PINDAH KE TABNYA SENDIRI (permintaan pemilik 21 Okt
           2026: *"untuk rekap ini focus ke keuangan dan finance saja dan jejak
@@ -731,6 +752,7 @@ function RekapKeuangan() {
           Jejak: lengkap, bernama, bisa disaring per orang, dan terpisah per
           venue. Tab ini tinggal uang. */}
 
+      {bagian === "uang" && (
       <div>
         <button
           onClick={() => (rp ? exportPeriodeCSV() : exportCSV())}
@@ -756,6 +778,7 @@ function RekapKeuangan() {
           >{saveMsg}</motion.p>
         )}
       </div>
+      )}
     </div>
   );
 }

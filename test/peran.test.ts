@@ -35,21 +35,21 @@ const PETA: Record<Exclude<Role, "superadmin" | "manager">, Permission[]> = {
   // Keuangan: rekap, tarif, dan stok gudang. TIDAK menyentuh lantai.
   // Finance ikut melihat JEJAK AKTIVITAS: dialah yang mencocokkan kas, dan
   // selisih laci tidak pernah bisa dijelaskan tanpa melihat siapa melakukan apa.
-  finance: ["lihatLaporanKeuangan", "lihatRekapPenjualan", "lihatJejak", "ubahTarif", "kelolaStok"],
+  finance: ["lihatLaporanKeuangan", "lihatRekapPenjualan", "lihatJejak", "ubahTarif", "kelolaStok", "catatBiaya"],
   // Gudang: hanya stok.
   kru_gudang: ["kelolaStok"],
   // Kasir: meja, kasir, dapur — tanpa akses uang laporan & tanpa diskon.
   // Kru kasir ikut melihat LAPORAN REKAP PENJUALAN — apa yang terjual dan
   // berapa — tapi bukan laporan keuangan (kas shift, pajak, MDR, selisih
   // laci, uang bersih). Permintaan pemilik 19 Okt 2026.
-  kru_kasir: ["bukaMeja", "tutupTab", "orderFnb", "koreksiPesanan", "kontrolLampu", "tandaiHabis", "ajukanVoid",
+  kru_kasir: ["catatBiaya", "bukaMeja", "tutupTab", "orderFnb", "koreksiPesanan", "kontrolLampu", "tandaiHabis", "ajukanVoid",
     "lihatRekapPenjualan"],
   // Dapur & bar: tiket + stok gudangnya sendiri.
   kru_kitchen: ["kelolaStok", "tandaiHabis", "ajukanVoid"],
   kru_bar: ["kelolaStok", "tandaiHabis", "ajukanVoid"],
   // Peran lama yang DIPERTAHANKAN supaya jejak staf lama tetap bisa diputar
   // ulang. Haknya sama dengan kru kasir.
-  karyawan: ["bukaMeja", "tutupTab", "orderFnb", "koreksiPesanan", "kontrolLampu", "tandaiHabis", "ajukanVoid",
+  karyawan: ["catatBiaya", "bukaMeja", "tutupTab", "orderFnb", "koreksiPesanan", "kontrolLampu", "tandaiHabis", "ajukanVoid",
     "lihatRekapPenjualan"],
 };
 

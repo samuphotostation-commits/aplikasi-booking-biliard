@@ -55,6 +55,7 @@ function dunia() {
   const push = (at: number, act: Action, by: string | null = "u-manager") =>
     entries.push({ id: `e${String(++n).padStart(4, "0")}`, at, by, act });
   push(jam(11), { t: "openShift", openingCash: 0 });
+  push(jam(11, 1), { t: "openShift", openingCash: 0, venue: "smh" });
   return { genesis, entries, push, st: () => replay(genesis, entries) };
 }
 

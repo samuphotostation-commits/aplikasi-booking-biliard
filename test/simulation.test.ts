@@ -247,7 +247,7 @@ const PERM: Partial<Record<Action["t"], Parameters<typeof can>[1]>> = {
   restoreNoShow: "bukaMeja", settleRefund: "lihatLaporanKeuangan",
   editFnb: "koreksiPesanan", moveFnb: "koreksiPesanan", paySplit: "tutupTab", stopMeter: "koreksiWaktu",
   compliment: "beriDiskonManual", gabungMeja: "bukaMeja", pisahMeja: "bukaMeja",
-  settleOrder: "tutupTab",
+  settleOrder: "tutupTab", catatBiaya: "catatBiaya", hapusBiaya: "hapusBiaya",
   setTableClass: "kelolaMeja", saveEmployee: "kelolaKaryawan", removeEmployee: "kelolaKaryawan",
 };
 const NEEDS_SHIFT = new Set<Action["t"]>(["walkin", "settle", "addFnb", "checkin", "restoreNoShow", "editFnb", "moveFnb", "paySplit", "settleOrder", "compliment", "gabungMeja", "pisahMeja"]);

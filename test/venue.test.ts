@@ -62,6 +62,7 @@ function dunia() {
   const push = (at: number, act: Action, by: string | null = BUDI) =>
     entries.push({ id: `e${String(++n).padStart(4, "0")}`, at, by, act });
   push(jam(11), { t: "openShift", openingCash: 0 });
+  push(jam(11, 1), { t: "openShift", openingCash: 0, venue: "smh" });
   return { entries, push, st: () => replay(genesis, entries) };
 }
 
@@ -181,7 +182,7 @@ console.log("\n-- Kas & laporan tidak pernah tercampur --");
   const d2 = dunia();
   d2.entries.length = 0;
   d2.push(jam(11), { t: "openShift", openingCash: 100_000, venue: "spl" }, DEWI);
-  t("shift kasir Smokehouse tercatat sebagai kas Smokehouse", d2.st().shift?.venue, "smh");
+  t("shift kasir Smokehouse tercatat sebagai kas Smokehouse", (d2.st().shiftSmh ?? d2.st().shift)?.venue, "smh");
 
   // Rekap rentang (Mingguan/Bulanan) WAJIB ikut venue. Sampai 12 Okt 2026
   // `recapRange` tidak menerima venue sama sekali, jadi memilih "Smokehouse"

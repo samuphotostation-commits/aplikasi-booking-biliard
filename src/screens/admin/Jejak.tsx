@@ -39,7 +39,7 @@ const JENIS = {
   uang: {
     label: "Uang",
     kata: ["Tab ditutup", "Bayar sebagian", "Pembayaran", "Refund", "Dana dikembalikan",
-      "Takeaway", "Pesanan dibayar", "Setoran"],
+      "Takeaway", "Pesanan dibayar", "Setoran", "Biaya"],
   },
   void: { label: "Void & diskon", kata: ["Void", "Compliment", "Diskon"] },
   meja: {

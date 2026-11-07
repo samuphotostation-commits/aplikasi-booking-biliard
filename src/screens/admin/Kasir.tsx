@@ -5,7 +5,7 @@ import PesanTanpaMeja from "./PesanTanpaMeja";
 import PanelStruk from "./PanelStruk";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../components/UI";
-import {
+import { shiftDi,
   useAdmin, settlementOf, checkinProblem, restoreProblem, businessDateOf, bookingLapsed, unservedLinesOf, lineValue,
   classOf, sessionType, meterEndOf, splitPaidOf, mesinEdc, mejaDijual, cariMeja,
   type GuestOrder, type State,
@@ -100,7 +100,7 @@ export default function Kasir() {
     // Alasan penolakan diambil dari aturan yang sama dengan yang dipakai mesin,
     // dan hasilnya dibaca ulang dari data — layar tidak pernah bilang "berhasil"
     // untuk check-in yang ditolak.
-    if (!a.shift) {
+    if (!shiftDi(a, venue, Date.now())) {
       setMsg({ ok: false, text: "Buka shift dulu sebelum melayani tamu." });
       return;
     }
@@ -462,7 +462,7 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
           <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
             {lateGuests.map((s) => {
               const problem = restoreProblem(a, s.id);
-              const bisa = !problem && !!a.shift && allow("bukaMeja");
+              const bisa = !problem && !!shiftDi(a, venue, Date.now()) && allow("bukaMeja");
               return (
                 <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2.5">
                   <div className="min-w-0">
@@ -470,7 +470,7 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
                     <div className="text-[11px] text-dim">
                       {jam(s.startsAt)}–{jam(s.endsAt)} · kode {s.checkin}
                       {problem && <span className="text-red-300"> · {problem}</span>}
-                      {!problem && !a.shift && <span className="text-amber"> · buka shift dulu</span>}
+                      {!problem && !shiftDi(a, venue, Date.now()) && <span className="text-amber"> · buka shift dulu</span>}
                     </div>
                   </div>
                   <button

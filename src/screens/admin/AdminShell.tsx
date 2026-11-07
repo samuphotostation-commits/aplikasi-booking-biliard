@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Mark } from "../../components/UI";
 import { Ball } from "../../components/motion/Billiard";
-import { useAdmin, recap, businessDateOf, siapDiantar } from "../../lib/adminStore";
+import { useAdmin, recap, businessDateOf, siapDiantar, shiftDi } from "../../lib/adminStore";
 import { can, ROLE_LABEL, type Permission, type Role } from "../../data/staff";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
 import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
@@ -291,12 +291,15 @@ export default function AdminShell() {
   }
 
   /* ── Sudah login, shift belum dibuka ─────────────────────────── */
-  if (!a.shift) {
+  const shiftIni = shiftDi(a, venue, Date.now());
+  // Pemilik dan pengurus keuangan boleh memeriksa tempat yang shiftnya belum buka.
+  const bolehTanpaShift = can(role, "lihatLaporanKeuangan");
+  if (!shiftIni && !bolehTanpaShift) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-ink px-6">
         <Ball n={8} size={48} />
         <h1 className="mt-4 font-display text-2xl uppercase tracking-wide text-cream">
-          Buka Shift
+          Buka Shift · {VENUE_LABEL[venue]}
         </h1>
         <p className="mt-1 max-w-[32ch] text-center text-sm text-dim">
           Hai {a.me.name}. Shift dimulai dengan laci <span className="text-cream">kosong</span> —
@@ -344,7 +347,7 @@ export default function AdminShell() {
   const current = TABS.find((t) => !t.end && (path === t.to || path.startsWith(`${t.to}/`)));
   const terlarang = !!current && !bolehTab(current, role);
   // Karyawan lain yang login saat shift orang lain masih buka: uangnya masuk laci shift itu.
-  const shiftOrangLain = a.shift.employeeId !== a.me.id;
+  const shiftOrangLain = !!shiftIni && shiftIni.employeeId !== a.me.id;
   // Data contoh dibuat relatif terhadap jam saat pertama dibuka; kalau hari
   // operasional sudah berganti, papan berisi tamu fiktif yang jamnya sudah lewat.
   const seedBasi = sync.genesis.seed && businessDateOf(sync.genesis.at) < businessDateOf(Date.now());
@@ -359,7 +362,7 @@ export default function AdminShell() {
               {a.me.name}
             </div>
             <div className="truncate text-[10px] uppercase tracking-wider text-dim">
-              {role ? ROLE_LABEL[role] : "—"} · {VENUE_LABEL[venue]} · {shiftOrangLain ? `shift ${a.shift.employeeName}` : "shift jalan"}
+              {role ? ROLE_LABEL[role] : "—"} · {VENUE_LABEL[venue]} · {!shiftIni ? "shift belum buka" : shiftOrangLain ? `shift ${shiftIni.employeeName}` : "shift jalan"}
             </div>
           </div>
           {r.voidMenunggu > 0 && role === "superadmin" && (
@@ -534,10 +537,19 @@ export default function AdminShell() {
             )}
           </p>
         )}
-        {shiftOrangLain && (
+        {!shiftIni && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber/50 bg-amber/10 px-4 py-2.5">
+            <p className="text-[12px] leading-snug text-amber">
+              Shift {VENUE_LABEL[venue]} belum buka. Laporan tetap bisa dilihat, tapi meja dan pembayaran di sini belum bisa dipakai.
+            </p>
+            <button onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}
+              className="min-h-[40px] rounded-lg bg-amber px-3 text-[13px] font-bold text-ink">Buka shift</button>
+          </div>
+        )}
+        {shiftIni && shiftOrangLain && (
           <p className="mb-3 rounded-xl border border-amber/50 bg-amber/10 px-4 py-2.5 text-[12px] leading-snug text-amber">
-            Anda bekerja di shift <span className="font-semibold">{a.shift.employeeName}</span> — uang tunai yang Anda
-            terima masuk laci shift itu. Untuk serah terima, tutup shift {a.shift.employeeName} di tab{" "}
+            Anda bekerja di shift <span className="font-semibold">{shiftIni.employeeName}</span> — uang tunai yang Anda
+            terima masuk laci shift itu. Untuk serah terima, tutup shift {shiftIni.employeeName} di tab{" "}
             <NavLink to="/admin/shift" className="font-semibold underline underline-offset-4">Shift</NavLink>{" "}
             lalu buka shift Anda sendiri.
           </p>

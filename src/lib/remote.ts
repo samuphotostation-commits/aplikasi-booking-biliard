@@ -77,6 +77,7 @@ export type Remote = {
  */
 export const MONEY_ACTIONS = new Set<Action["t"]>([
   "settle", "paySplit", "settleOrder", "closeShift", "decideVoid", "settleRefund",
+  "catatBiaya", "hapusBiaya",
 ]);
 
 export const isMoneyAction = (a: Action) => MONEY_ACTIONS.has(a.t);

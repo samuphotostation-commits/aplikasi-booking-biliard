@@ -163,6 +163,11 @@ export const CAN = {
   kontrolLampu: ["superadmin", "manager", "kru_kasir", "karyawan"],
   tandaiHabis: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan"],
   ajukanVoid: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan"],
+  // ── Biaya harian ─────────────────────────────────────────
+  // Kasir yang mengeluarkan uang dari laci, jadi kasir yang mencatat.
+  // Menghapus dipegang atasan, karena tiap hapus menaikkan kas seharusnya.
+  catatBiaya: ["superadmin", "manager", "finance", "kru_kasir", "karyawan"],
+  hapusBiaya: ["superadmin", "manager"],
 } as const;
 
 export type Permission = keyof typeof CAN;

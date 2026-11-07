@@ -46,7 +46,7 @@ const AQUA = "bl-03";         // Aqua \u00b7 counter biliar
 const NASGOR = "fr-01";       // Nasi Goreng Telur \u00b7 dapur
 const TEH = "cd-01";          // Ice Tea \u00b7 bar
 
-function dunia(bukaShift = true) {
+function dunia(bukaShift = true, shiftSmh = true) {
   const genesis: Genesis = { at: jam(5), seed: false };
   let n = 0;
   const entries: Entry[] = [];
@@ -55,6 +55,7 @@ function dunia(bukaShift = true) {
   // Aksi diurutkan mesin berdasarkan jamnya, jadi shift harus dibuka sebelum
   // jam paling awal yang dipakai tes — kalau tidak, aksinya ditolak diam-diam.
   if (bukaShift) push(jam(11), { t: "openShift", openingCash: 500_000 });
+  if (bukaShift && shiftSmh) push(jam(11, 1), { t: "openShift", openingCash: 500_000, venue: "smh" });
   return { genesis, entries, push };
 }
 
@@ -403,7 +404,7 @@ console.log("\n-- SMH-11b · Diskon manual (%) --");
   const sA = replay(d2.genesis, d2.entries).sessions.find((x) => x.id === id2)!;
   t("diskon >100% tidak membuat tagihan negatif", sA.settledAmount! >= 0, true);
 
-  const d3 = dunia();
+  const d3 = dunia(true, false);
   const id3 = bukaMeja(d3, "T08", 18, [[NASGOR, 1]]);
   d3.entries.push({ id: "z002", at: jam(20), by: "u-rian", act: { t: "settle", id: id3, channel: "cash", diskonPersen: 50 } });
   const sB = replay(d3.genesis, d3.entries).sessions.find((x) => x.id === id3)!;
@@ -413,7 +414,7 @@ console.log("\n-- SMH-11b · Diskon manual (%) --");
 
 console.log("\n-- SMH-14 · Omzet per shift (pagi/sore/ALL) --");
 {
-  const d = dunia();                                  // shift pagi dibuka 11.00
+  const d = dunia(true, false);                                  // shift pagi dibuka 11.00
   const pagi = bukaMeja(d, "T09", 12, [[NASGOR, 1]]);
   d.push(jam(14), { t: "settle", id: pagi, channel: "cash" });
   d.push(jam(16), { t: "closeShift", countedCash: 0 });
@@ -440,7 +441,7 @@ console.log("\n-- SMH-14 · Omzet per shift (pagi/sore/ALL) --");
 
 console.log("\n-- SMH-14 · Split bill lintas shift ikut shift penerimanya --");
 {
-  const d = dunia();
+  const d = dunia(true, false);
   const id = bukaMeja(d, "T11", 12, [[NASGOR, 1], [TEH, 1]]);
   // Satu orang bayar di shift pagi, sisanya ditutup di shift sore.
   d.push(jam(13), { t: "paySplit", id, channel: "cash", keys: [`T11-${NASGOR}`] });

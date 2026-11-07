@@ -128,6 +128,17 @@ export const VOID_MENAHAN_BAYAR = dariWib(2026, 11, 8, 5);
  */
 export const PIN_EMPAT_ANGKA = dariWib(2026, 11, 8, 5);
 
+/**
+ * SPL SPORT DAN SMOKEHOUSE PUNYA SHIFT DAN LACI SENDIRI.
+ *
+ * Keputusan pemilik 7 Nov 2026: dua tempat ini beda lokasi dan beda orang.
+ * Sebelum tanggal ini aplikasi hanya punya satu shift, jadi selama shift SPL
+ * buka, kasir Smokehouse tidak bisa membuka shiftnya dan tunainya masuk
+ * hitungan laci SPL. Tanggal dipakai supaya shift lama tidak berubah saat
+ * jejaknya diputar ulang.
+ */
+export const SHIFT_PER_VENUE = dariWib(2026, 11, 8, 5);
+
 export const RESTO_LEAD_MIN = 30;
 /** Hari LAPORAN STOK dimulai jam 05.00 (permintaan pemilik) - beda dari hari uang (02.00). */
 export const STOCK_DAY_HOUR = 5;
@@ -214,7 +225,7 @@ export type ArchivedSession = Pick<LiveSession,
   "settledShiftId" | "settledCompliment" | "settledDiskonManual" | "settledMesin">;
 /** Baris ringkas pesanan tamu yang sudah tutup buku. */
 export type ArchivedOrder = Pick<GuestOrder,
-  "id" | "code" | "at" | "guest" | "mode" | "tableId" | "pay" | "value" | "paidOnline" | "sessionId" | "status" | "reason" | "payment">
+  "id" | "code" | "at" | "guest" | "mode" | "tableId" | "pay" | "value" | "paidOnline" | "sessionId" | "status" | "reason" | "payment" | "venue">
   & {
     /**
      * Pecahan nilai pesanan per lini, dihitung SAAT TUTUP BUKU — selagi
@@ -223,6 +234,27 @@ export type ArchivedOrder = Pick<GuestOrder,
      */
     lini?: Record<Lini, number>;
   };
+/**
+ * BIAYA HARIAN, baris "Jam · Deskripsi · Nilai" di struk KAS KASIR.
+ *
+ * `laci` = dibayar dari uang tunai kasir, jadi ikut mengurangi kas seharusnya.
+ * `rekening` = dibayar dari luar laci, hanya mengurangi pendapatan di rekap.
+ * Biaya tidak pernah dihapus dari jejak: yang dihapus diberi tanda supaya
+ * manager tetap bisa melihat siapa menghapus apa.
+ */
+export type Biaya = {
+  id: string;
+  at: number;
+  venue: Venue;
+  keterangan: string;
+  nilai: number;
+  sumber: "laci" | "rekening";
+  oleh: string;
+  /** Shift yang lacinya berkurang. Hanya ada untuk biaya `laci`. */
+  shiftId?: string;
+  dihapusOleh?: string;
+};
+
 /** Angka uang satu hari operasional (lihat `recap`). */
 export type DayMoney = {
   billiard: number; fnb: number; discount: number; gross: number; diterima: number; prabayar: number;
@@ -269,6 +301,15 @@ export type DayArchive = {
    * WAJIB menyebut harinya kurang, bukan menampilkan nol.
    */
   produk?: ProdukHariBaris[];
+  /**
+   * Angka beku PER VENUE. `money` di atas adalah gabungan; tanpa ini rekap
+   * SPL dan Smokehouse berubah jadi angka gabungan begitu harinya tutup buku,
+   * dan rekap bulanan per venue ikut salah. Arsip lama tidak punya ini:
+   * pembacanya menghitung ulang dari baris selama barisnya masih ada.
+   */
+  perVenue?: Record<Venue, { money: DayMoney; counts: DayCounts }>;
+  /** Biaya hari itu. Tidak ikut dilepas bersama rincian baris. */
+  biaya?: Biaya[];
   sessions: ArchivedSession[];
   orders: ArchivedOrder[];
   voids: VoidRequest[];
@@ -507,7 +548,10 @@ export type RestoRequest = {
 
 export type State = {
   me: Employee | null;
+  /** Shift SPL Sport. Sebelum `SHIFT_PER_VENUE`, inilah satu-satunya shift. */
   shift: Shift | null;
+  /** Shift Smokehouse. Selalu baca lewat `shiftDi`, bukan langsung. */
+  shiftSmh?: Shift | null;
   shiftHistory: Shift[];
   employees: Employee[];
   sessions: LiveSession[];
@@ -613,6 +657,8 @@ export type State = {
   day: string;
   /** Hari yang sudah tutup buku, terlama dulu. Tidak ikut dipindai setiap aksi. */
   history: DayArchive[];
+  /** Biaya yang belum tutup buku. Jejak lama tidak punya ini. */
+  biaya?: Biaya[];
 };
 
 /** Mesin EDC bawaan — dari laporan kasir pemilik (KAS · QRIS · MANDIRI · BRI). */
@@ -639,7 +685,7 @@ export type Action =
   | { t: "logout" }
   | { t: "openShift"; openingCash: number; venue?: Venue }
   /** `expected` dari layar DIABAIKAN — mesin menghitung kas shift sendiri. */
-  | { t: "closeShift"; countedCash: number; expected?: number }
+  | { t: "closeShift"; countedCash: number; expected?: number; venue?: Venue }
   /** `hours` diisi = buka meja paket per jam (harga blok, ada jam selesai); kosong = open bill meteran.
    *  `paketId` diisi = buka meja memakai paket pemilik (harga, jam, jatah minuman & isinya dari paket itu). */
   | { t: "walkin"; tableId: string; guest: string; hours?: number; paketId?: string }
@@ -719,6 +765,8 @@ export type Action =
   | { t: "decideVoid"; id: string; approve: boolean }
   /** Pengajuan ditarik supaya tab bisa ditutup kalau manager belum bisa memutuskan. */
   | { t: "tarikVoid"; id: string }
+  | { t: "catatBiaya"; venue: Venue; keterangan: string; nilai: number; sumber: Biaya["sumber"] }
+  | { t: "hapusBiaya"; id: string }
   | { t: "toggleLight"; tableId: string }
   | { t: "allLights"; on: boolean }
   /** Pelanggan membuka halaman QRIS: slot ditahan, harga dibekukan. */
@@ -1122,6 +1170,18 @@ export function settlementOf(
 }
 
 /** Uang tunai yang seharusnya ada di laci untuk shift yang sedang jalan. */
+/** Shift yang sedang buka di satu venue. */
+export function shiftDi(s: Pick<State, "shift" | "shiftSmh">, venue: Venue, now: number): Shift | null {
+  if (now < SHIFT_PER_VENUE) return s.shift;
+  // Shift Smokehouse yang dibuka sebelum aturan ini masih duduk di `shift`.
+  if (venue === "smh") return s.shiftSmh ?? (s.shift?.venue === "smh" ? s.shift : null);
+  return s.shift && s.shift.venue !== "smh" ? s.shift : null;
+}
+
+/** Semua shift yang sedang buka, di venue mana pun. */
+export const shiftTerbuka = (s: Pick<State, "shift" | "shiftSmh">): Shift[] =>
+  [s.shift, s.shiftSmh].filter((x): x is Shift => !!x);
+
 export function shiftCashExpected(st: State, shift = st.shift): number {
   if (!shift) return 0;
   const tutupTab = st.sessions
@@ -1134,8 +1194,13 @@ export function shiftCashExpected(st: State, shift = st.shift): number {
   // Takeaway yang dibayar tunai saat diambil juga masuk laci shift ini.
   const takeaway = st.orders.reduce((n, o) =>
     n + (o.payment && o.payment.shiftId === shift.id && o.payment.channel === "cash" ? o.payment.amount : 0), 0);
-  return shift.openingCash + tutupTab + sebagian + takeaway;
+  return shift.openingCash + tutupTab + sebagian + takeaway - biayaLaci(st, shift.id);
 }
+
+/** Biaya yang dibayar dari laci shift ini dan belum dihapus. */
+export const biayaLaci = (st: Pick<State, "biaya">, shiftId: string) =>
+  (st.biaya ?? []).filter((b) => b.shiftId === shiftId && b.sumber === "laci" && !b.dihapusOleh)
+    .reduce((n, b) => n + b.nilai, 0);
 
 /* ═════════════ Alasan penolakan — satu sumber untuk mesin DAN layar ═════════════
    Layar memanggil fungsi yang sama sebelum tamu membayar, supaya tamu tidak
@@ -1479,6 +1544,8 @@ const compactOrder = (o: ArchivedOrder & { lines?: CartLine[] }): ArchivedOrder 
   id: o.id, code: o.code, at: o.at, guest: o.guest, mode: o.mode, tableId: o.tableId, pay: o.pay,
   value: o.value, paidOnline: o.paidOnline, sessionId: o.sessionId, status: o.status, reason: o.reason,
   payment: o.payment,
+  // Takeaway Smokehouse tidak punya meja, jadi venuenya hanya tersimpan di sini.
+  ...(o.venue ? { venue: o.venue } : {}),
   // Dihitung di sini karena DI SINI barisnya masih ada.
   ...(o.lini ? { lini: o.lini } : o.lines ? { lini: liniDariLines(o.lines) } : {}),
 });
@@ -1535,6 +1602,47 @@ function closeAbandoned(s: State, today: string, now: number): State {
   };
 }
 
+/** Jumlah dua angka uang harian. Dipakai saat satu hari diarsipkan dua kali. */
+function jumlahUang(x: DayMoney, y: DayMoney): DayMoney {
+  const byChannel = { ...x.byChannel };
+  for (const [k, v] of Object.entries(y.byChannel)) {
+    byChannel[k] = { n: (byChannel[k]?.n ?? 0) + v.n, gross: (byChannel[k]?.gross ?? 0) + v.gross };
+  }
+  const sum = (k: Exclude<keyof DayMoney, "byChannel" | "perLini">) => (x[k] ?? 0) + (y[k] ?? 0);
+  // Pecahan lini ikut dijumlah, kalau tidak laporan pajak kehilangan separuh harinya tanpa suara.
+  const perLini = (x.perLini || y.perLini) ? LINI.reduce((o, k) => {
+    const p = x.perLini?.[k], q = y.perLini?.[k];
+    o[k] = {
+      gross: (p?.gross ?? 0) + (q?.gross ?? 0), dpp: (p?.dpp ?? 0) + (q?.dpp ?? 0),
+      tax: (p?.tax ?? 0) + (q?.tax ?? 0), service: (p?.service ?? 0) + (q?.service ?? 0),
+    };
+    return o;
+  }, {} as NonNullable<DayMoney["perLini"]>) : undefined;
+  return {
+    billiard: sum("billiard"), fnb: sum("fnb"), discount: sum("discount"), gross: sum("gross"), diterima: sum("diterima"),
+    prabayar: sum("prabayar"), byChannel, dpp: sum("dpp"), tax: sum("tax"), service: sum("service"),
+    mdr: sum("mdr"), net: sum("net"), compliment: sum("compliment"), diskonManual: sum("diskonManual"),
+    ...(perLini ? { perLini } : {}),
+  };
+}
+
+const jumlahHitungan = (x: DayCounts, y: DayCounts): DayCounts => ({
+  done: x.done + y.done, noShow: x.noShow + y.noShow, takeaway: x.takeaway + y.takeaway,
+  takeawayValue: x.takeawayValue + y.takeawayValue, playedHours: x.playedHours + y.playedHours,
+});
+
+/** Pecah satu hari menjadi angka SPL dan Smokehouse. Takeaway mengikuti venue pesanannya. */
+function bagiVenue(
+  sesi: ArchivedSession[], takeaway: ArchivedOrder[], s: Pick<State, "orders" | "pajak" | "pajakLini">,
+): NonNullable<DayArchive["perVenue"]> {
+  const satu = (v: Venue) => {
+    const sx = sesi.filter((x) => venueDari(x.tableId) === v);
+    const tx = takeaway.filter((o) => venueOrder(o) === v);
+    return { money: dayMoney(sx, tx, s.orders, s), counts: dayCounts(sx, tx) };
+  };
+  return { spl: satu("spl"), smh: satu("smh") };
+}
+
 function closeBooks(s: State, today: string, now: number): State {
   const yesterday = shiftDate(today, -1);
   const dayOf = businessDateOf;
@@ -1544,8 +1652,8 @@ function closeBooks(s: State, today: string, now: number): State {
   const blocked = new Set<string>();
   for (const x of s.sessions) {
     if (x.status === "running") blocked.add(dayOf(x.startsAt));
-    else if (isClosed(x) && (dayOf(x.settledAt ?? x.endsAt) >= yesterday || (s.shift &&
-      (x.settledShiftId === s.shift.id || (x.payments ?? []).some((p) => p.shiftId === s.shift!.id))))) {
+    else if (isClosed(x) && (dayOf(x.settledAt ?? x.endsAt) >= yesterday || shiftTerbuka(s).some((sh) =>
+      x.settledShiftId === sh.id || (x.payments ?? []).some((p) => p.shiftId === sh.id)))) {
       blocked.add(dayOf(x.startsAt));
     }
   }
@@ -1556,6 +1664,7 @@ function closeBooks(s: State, today: string, now: number): State {
   for (const o of s.orders) if (!o.sessionId || !liveIds.has(o.sessionId)) consider(dayOf(o.at));
   for (const v of s.voids) if (v.status !== "menunggu") consider(dayOf(v.decidedAt ?? v.at));
   for (const r of s.refunds) if (r.settledAt) consider(dayOf(r.settledAt));
+  for (const b of s.biaya ?? []) consider(dayOf(b.at));
   if (dates.size === 0) return { ...s, day: today };
 
   const goneSessions = new Set<string>(), goneOrders = new Set<string>(), goneVoids = new Set<string>(), goneRefunds = new Set<string>();
@@ -1574,37 +1683,27 @@ function closeBooks(s: State, today: string, now: number): State {
     // Produk dibekukan SEBELUM barisnya dilepas, dengan rumus yang sama yang
     // dipakai laporan hari hidup — jadi angka beku tidak mungkin berbeda.
     const produk = produkHari(s, sx, takeaway);
+    const bx = (s.biaya ?? []).filter((b) => dayOf(b.at) === d);
+    const perVenue = bagiVenue(sx, takeaway, s);
     const entry: DayArchive = {
       bizDate: d, money, counts,
-      produk,
+      produk, perVenue,
+      ...(bx.length ? { biaya: bx } : {}),
       sessions: sx.map(compactSession), orders: ox.map(compactOrder), voids: vx, refunds: rx,
     };
     const i = history.findIndex((h) => h.bizDate === d);
     if (i >= 0) {
       const h = history[i];
-      const byChannel = { ...h.money.byChannel };
-      for (const [k, v] of Object.entries(money.byChannel)) byChannel[k] = { n: (byChannel[k]?.n ?? 0) + v.n, gross: (byChannel[k]?.gross ?? 0) + v.gross };
-      const sum = (k: Exclude<keyof DayMoney, "byChannel" | "perLini">) => (h.money[k] ?? 0) + (money[k] ?? 0);
-      // Dua arsip hari yang sama digabung: pecahan liniannya ikut dijumlah,
-      // kalau tidak laporan pajak kehilangan separuh harinya tanpa suara.
-      const perLini = (h.money.perLini || money.perLini) ? LINI.reduce((o, k) => {
-        const x = h.money.perLini?.[k], y = money.perLini?.[k];
-        o[k] = {
-          gross: (x?.gross ?? 0) + (y?.gross ?? 0), dpp: (x?.dpp ?? 0) + (y?.dpp ?? 0),
-          tax: (x?.tax ?? 0) + (y?.tax ?? 0), service: (x?.service ?? 0) + (y?.service ?? 0),
-        };
-        return o;
-      }, {} as NonNullable<DayMoney["perLini"]>) : undefined;
       history[i] = {
         bizDate: d,
-        money: { billiard: sum("billiard"), fnb: sum("fnb"), discount: sum("discount"), gross: sum("gross"), diterima: sum("diterima"),
-          prabayar: sum("prabayar"), byChannel, dpp: sum("dpp"), tax: sum("tax"), service: sum("service"),
-          mdr: sum("mdr"), net: sum("net"), compliment: sum("compliment"), diskonManual: sum("diskonManual"),
-          ...(perLini ? { perLini } : {}) },
-        counts: {
-          done: h.counts.done + counts.done, noShow: h.counts.noShow + counts.noShow, takeaway: h.counts.takeaway + counts.takeaway,
-          takeawayValue: h.counts.takeawayValue + counts.takeawayValue, playedHours: h.counts.playedHours + counts.playedHours,
-        },
+        money: jumlahUang(h.money, money),
+        counts: jumlahHitungan(h.counts, counts),
+        // Arsip lama tanpa pecahan venue dibiarkan tanpa: pembacanya menghitung ulang dari baris.
+        ...(h.perVenue ? { perVenue: {
+          spl: { money: jumlahUang(h.perVenue.spl.money, perVenue.spl.money), counts: jumlahHitungan(h.perVenue.spl.counts, perVenue.spl.counts) },
+          smh: { money: jumlahUang(h.perVenue.smh.money, perVenue.smh.money), counts: jumlahHitungan(h.perVenue.smh.counts, perVenue.smh.counts) },
+        } } : {}),
+        ...(h.biaya?.length || bx.length ? { biaya: [...(h.biaya ?? []), ...bx] } : {}),
         ...(h.rowsDropped ? { rowsDropped: true } : {}),
         produk: gabungProduk(h.produk ?? [], produk),
         sessions: [...h.sessions, ...entry.sessions], orders: [...h.orders, ...entry.orders],
@@ -1633,6 +1732,8 @@ function closeBooks(s: State, today: string, now: number): State {
         // laporan penjualan per produk masih bisa menjawab pertanyaan bulan
         // lalu, dan umurnya sendiri jauh lebih panjang (`PRODUK_DAYS`).
         ...(x.produk ? { produk: x.produk } : {}),
+        ...(x.perVenue ? { perVenue: x.perVenue } : {}),
+        ...(x.biaya ? { biaya: x.biaya } : {}),
         sessions: [], orders: [], voids: [], refunds: [],
       };
     }
@@ -1656,6 +1757,7 @@ function closeBooks(s: State, today: string, now: number): State {
   });
   return {
     ...s, sessions, history, log, day: today,
+    ...(s.biaya ? { biaya: s.biaya.filter((b) => !dates.has(dayOf(b.at))) } : {}),
     orders: s.orders.filter((o) => !goneOrders.has(o.id)),
     tickets: s.tickets.filter((k) => !goneSessions.has(k.sessionId) && !goneOrders.has(k.sessionId)),
     voids: s.voids.filter((v) => !goneVoids.has(v.id)),
@@ -2003,6 +2105,11 @@ const AKSI_LUAR_PAGAR = new Set<Action["t"]>([
   "hold", "confirmOnline", "guestOrder", "reserveResto", "releaseHold", "openShift",
 ]);
 
+/** Shift tempat aksi ini terjadi, ditentukan dari meja atau pesanan yang disentuhnya. */
+function shiftAksi(s: State, a: Action, now: number): Shift | null {
+  return shiftDi(s, venueAksi(s, a)[0] ?? s.me?.venue ?? "spl", now);
+}
+
 function lintasVenue(s: State, a: Action): boolean {
   const milik = s.me?.venue;
   if (!milik || AKSI_LUAR_PAGAR.has(a.t)) return false;
@@ -2092,6 +2199,14 @@ function venueAksi(s: State, a: Action): Venue[] {
       const v = s.voids.find((x) => x.id === a.id);
       return v ? dariTarget(targetSesi(v.targetKind, v.targetId)) : [];
     }
+    case "catatBiaya":
+      return [a.venue];
+    case "closeShift":
+      return a.venue ? [a.venue] : [];
+    case "hapusBiaya": {
+      const b = s.biaya?.find((x) => x.id === a.id);
+      return b ? [b.venue] : [];
+    }
     case "settleRefund": {
       const r = s.refunds.find((x) => x.id === a.id);
       if (!r) return [];
@@ -2155,27 +2270,37 @@ function reduce(s: State, a: Action): State {
       return { ...s, me: null };
 
     case "openShift": {
-      if (!s.me || s.shift) return s;
+      if (!s.me) return s;
       // Venue staf yang terikat MENANG atas pilihan perangkat: kalau kasir
       // Smokehouse membuka shift di perangkat yang kebetulan sedang menampilkan
       // SPL, kasnya tetap kas Smokehouse.
       const venue = s.me.venue ?? a.venue;
+      const perVenue = now >= SHIFT_PER_VENUE;
+      if (perVenue ? shiftDi(s, venue ?? "spl", now) : s.shift) return s;
       const sh: Shift = {
         id: nextId("sh"), employeeId: s.me.id, employeeName: s.me.name,
         openedAt: now, openingCash: Math.max(0, Math.round(a.openingCash)),
         ...(venue ? { venue } : {}),
       };
-      return { ...s, shift: sh, log: note(s, `Shift dibuka`, sh.openingCash) };
+      const log = note(s, `Shift dibuka`, sh.openingCash);
+      if (!perVenue) return { ...s, shift: sh, log };
+      // Shift Smokehouse lama yang masih duduk di `shift` dipindah ke tempatnya dulu.
+      const rapi = s.shift?.venue === "smh" ? { ...s, shift: null, shiftSmh: s.shift } : s;
+      return venue === "smh" ? { ...rapi, shiftSmh: sh, log } : { ...rapi, shift: sh, log };
     }
 
     case "closeShift": {
-      if (!s.me || !s.shift) return s;
-      const expected = shiftCashExpected(s);
+      if (!s.me) return s;
+      const v = s.me.venue ?? a.venue ?? (s.shift ? (s.shift.venue ?? "spl") : "smh");
+      const sh = shiftDi(s, v, now);
+      if (!sh) return s;
+      const expected = shiftCashExpected(s, sh);
       const counted = Math.max(0, Math.round(a.countedCash));
-      const closed: Shift = { ...s.shift, closedAt: now, countedCash: counted, variance: counted - expected };
+      const closed: Shift = { ...sh, closedAt: now, countedCash: counted, variance: counted - expected };
       return {
         // Riwayat shift dibatasi supaya state tidak tumbuh tanpa batas (±3 bulan untuk 2 shift/hari).
-        ...s, shift: null, shiftHistory: [closed, ...s.shiftHistory].slice(0, 200),
+        ...s, ...(sh === s.shift ? { shift: null } : { shiftSmh: null }),
+        shiftHistory: [closed, ...s.shiftHistory].slice(0, 400),
         log: note(s, `Shift ditutup · kas seharusnya ${expected} · selisih ${closed.variance! >= 0 ? "+" : ""}${closed.variance}`, counted),
       };
     }
@@ -2183,7 +2308,7 @@ function reduce(s: State, a: Action): State {
     /* ── Buka meja: open bill (meteran) atau paket per jam ──────── */
     case "walkin": {
       const table = cariMeja(a.tableId);
-      if (!table || !mejaDipakai(s, a.tableId) || !allow(s, "bukaMeja") || !s.shift) return s;
+      if (!table || !mejaDipakai(s, a.tableId) || !allow(s, "bukaMeja") || !shiftAksi(s, a, now)) return s;
       const h = hourIdx(now);
       if (!dalamJamBuka(s, h)) return s;
       const kelas = classOf(s, a.tableId);
@@ -2255,7 +2380,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Check-in booking online ────────────────────────────────── */
     case "checkin": {
-      if (!allow(s, "bukaMeja") || !s.shift) return s;
+      if (!allow(s, "bukaMeja") || !shiftAksi(s, a, now)) return s;
       if (checkinProblem(s, a.code, now)) return s;
       const bk = s.sessions.find((x) => x.checkin === a.code && x.status === "booked")!;
       // Jam selesai TIDAK bergeser: datang telat = kehilangan waktu, bukan menabrak
@@ -2311,7 +2436,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Perpanjang booking online (per jam) ────────────────────── */
     case "extend": {
-      if (!allow(s, "bukaMeja") || !s.shift) return s;
+      if (!allow(s, "bukaMeja") || !shiftAksi(s, a, now)) return s;
       const t = s.sessions.find((x) => x.id === a.id);
       if (!t || !canExtend(s, t.id, a.minutes, now)) return s;
       const newEnd = t.endsAt + a.minutes * 60_000;
@@ -2355,7 +2480,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Tutup tab ──────────────────────────────────────────────── */
     case "settle": {
-      if (!allow(s, "tutupTab") || !s.shift) return s;
+      if (!allow(s, "tutupTab") || !shiftAksi(s, a, now)) return s;
       const t = s.sessions.find((x) => x.id === a.id);
       if (!t || t.status !== "running") return s;
       if (now >= VOID_MENAHAN_BAYAR && voidMenungguSesi(s, t.id).length > 0) return s;
@@ -2378,7 +2503,7 @@ function reduce(s: State, a: Action): State {
           ...(mesinSah(s, a.channel, a.mesin) ? { settledMesin: mesinSah(s, a.channel, a.mesin) } : {}),
           settledBilliard: bill.billiard, settledFnb: bill.fnb, settledDiscount: bill.discount,
           settledLini: liniSesi(x, bill.billiard),
-          settledAt: now, settledShiftId: s.shift!.id,
+          settledAt: now, settledShiftId: shiftAksi(s, a, now)!.id,
           ...(bill.diskonManual > 0 ? { settledDiskonManual: bill.diskonManual } : {}),
           ...(bill.compliment > 0 ? { settledCompliment: bill.compliment } : {}),
         } : x),
@@ -2389,7 +2514,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Gabung meja: beberapa meja jadi satu bill ──────────────── */
     case "gabungMeja": {
-      if (!allow(s, "bukaMeja") || !s.shift) return s;
+      if (!allow(s, "bukaMeja") || !shiftAksi(s, a, now)) return s;
       const ids = [...new Set(a.ids)];
       if (ids.length < 2) return s;
       const sesi = ids.map((id) => s.sessions.find((x) => x.id === id));
@@ -2422,7 +2547,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Pisah satu meja dari gabungannya ───────────────────────── */
     case "pisahMeja": {
-      if (!allow(s, "bukaMeja") || !s.shift) return s;
+      if (!allow(s, "bukaMeja") || !shiftAksi(s, a, now)) return s;
       const t = s.sessions.find((x) => x.id === a.id);
       if (!t || !t.grup) return s;
       // Yang dilepas hanya meja ini. Gabungan yang jadi bersisa satu meja
@@ -2441,7 +2566,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Compliment: satu baris digratiskan, ditanggung venue ───── */
     case "compliment": {
-      if (!allow(s, "beriDiskonManual") || !s.shift) return s;
+      if (!allow(s, "beriDiskonManual") || !shiftAksi(s, a, now)) return s;
       const sess = s.sessions.find((x) => x.id === a.sessionId);
       if (!sess || sess.status !== "running") return s;
       const line = sess.fnb.find((l) => l.key === a.key);
@@ -2478,7 +2603,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Koreksi pesanan: salah item atau salah jumlah ──────────── */
     case "editFnb": {
-      if (!allow(s, "koreksiPesanan") || !s.shift) return s;
+      if (!allow(s, "koreksiPesanan") || !shiftAksi(s, a, now)) return s;
       // DITUTUP 19 Okt 2026 — lihat `KOREKSI_BARIS_DITUTUP`.
       if (now >= KOREKSI_BARIS_DITUTUP) return s;
       const sess = s.sessions.find((x) => x.id === a.sessionId);
@@ -2541,7 +2666,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Salah nomor meja: pindahkan baris ke meja lain ─────────── */
     case "moveFnb": {
-      if (!allow(s, "koreksiPesanan") || !s.shift) return s;
+      if (!allow(s, "koreksiPesanan") || !shiftAksi(s, a, now)) return s;
       const from = s.sessions.find((x) => x.id === a.fromId);
       if (!from || from.status !== "running") return s;
       const diminta = new Set(a.keys);
@@ -2614,7 +2739,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Split bill: bayar sebagian / per orang ─────────────────── */
     case "paySplit": {
-      if (!allow(s, "tutupTab") || !s.shift) return s;
+      if (!allow(s, "tutupTab") || !shiftAksi(s, a, now)) return s;
       const t = s.sessions.find((x) => x.id === a.id);
       if (!t || t.status !== "running") return s;
       if (now >= VOID_MENAHAN_BAYAR && voidMenungguSesi(s, t.id).length > 0) return s;
@@ -2635,7 +2760,7 @@ function reduce(s: State, a: Action): State {
       }
       if (!(amount > 0) || amount > sisa) return s;
       const bayar: Payment = {
-        id: nextId("pay"), at: now, channel: a.channel, amount, shiftId: s.shift.id,
+        id: nextId("pay"), at: now, channel: a.channel, amount, shiftId: shiftAksi(s, a, now)!.id,
         ...(s.me ? { by: s.me.name } : {}), ...(keys ? { keys } : {}),
         ...(a.label ? { label: a.label.slice(0, 24) } : {}),
         ...(mesinSah(s, a.channel, a.mesin) ? { mesin: mesinSah(s, a.channel, a.mesin) } : {}),
@@ -2827,7 +2952,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Pesan makanan/minuman ke bill ──────────────────────────── */
     case "addFnb": {
-      if (!allow(s, "orderFnb") || !s.shift) return s;
+      if (!allow(s, "orderFnb") || !shiftAksi(s, a, now)) return s;
       const sess = s.sessions.find((x) => x.id === a.sessionId);
       const item = itemOf(s, a.line.itemId);
       if (!sess || sess.status !== "running" || !item) return s;
@@ -2951,7 +3076,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Jual paket ke meja yang sedang jalan ───────────────────── */
     case "addPaket": {
-      if (!allow(s, "orderFnb") || !s.shift) return s;
+      if (!allow(s, "orderFnb") || !shiftAksi(s, a, now)) return s;
       const sess = s.sessions.find((x) => x.id === a.sessionId);
       const pk = paketOf(s, a.paketId);
       if (!sess || sess.status !== "running" || !pk || pk.aktif === false) return s;
@@ -3290,6 +3415,35 @@ function reduce(s: State, a: Action): State {
       };
     }
 
+    case "catatBiaya": {
+      if (!allow(s, "catatBiaya")) return s;
+      const keterangan = (a.keterangan ?? "").trim().slice(0, 80);
+      const nilai = Math.round(a.nilai);
+      if (!keterangan || !(nilai > 0) || nilai > 100_000_000) return s;
+      // Uang laci hanya bisa keluar dari shift venue itu yang sedang buka.
+      const laci = shiftDi(s, a.venue, now);
+      if (a.sumber === "laci" && !laci) return s;
+      const biaya: Biaya = {
+        id: nextId("by"), at: now, keterangan, nilai, sumber: a.sumber, oleh: s.me!.name,
+        venue: a.venue,
+        ...(a.sumber === "laci" ? { shiftId: laci!.id } : {}),
+      };
+      return {
+        ...s, biaya: [...(s.biaya ?? []), biaya],
+        log: note(s, `Biaya dicatat · ${keterangan} · ${a.sumber}`, nilai),
+      };
+    }
+
+    case "hapusBiaya": {
+      if (!allow(s, "hapusBiaya")) return s;
+      const b = s.biaya?.find((x) => x.id === a.id);
+      if (!b || b.dihapusOleh) return s;
+      return {
+        ...s, biaya: s.biaya!.map((x) => (x.id === a.id ? { ...x, dihapusOleh: s.me!.name } : x)),
+        log: note(s, `Biaya dihapus · ${b.keterangan} (dicatat ${b.oleh})`, b.nilai),
+      };
+    }
+
     case "toggleLight": {
       if (!allow(s, "kontrolLampu") || !punyaLampu(a.tableId) || !(a.tableId in s.lights)) return s;
       const next = !s.lights[a.tableId];
@@ -3327,7 +3481,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Pulihkan no-show yang ternyata datang — langsung check-in ── */
     case "restoreNoShow": {
-      if (!allow(s, "bukaMeja") || !s.shift || restoreProblem(s, a.id, now)) return s;
+      if (!allow(s, "bukaMeja") || !shiftAksi(s, a, now) || restoreProblem(s, a.id, now)) return s;
       const x = s.sessions.find((v) => v.id === a.id)!;
       // Pesanan pra-order dikembalikan ke bill; yang stoknya sudah terjual ke orang lain dikembalikan dananya.
       const f = fulfil(s, x.noShowFnb ?? []);
@@ -3359,7 +3513,7 @@ function reduce(s: State, a: Action): State {
 
     /* ── Takeaway diambil & dibayar di kasir ────────────────────── */
     case "settleOrder": {
-      if (!allow(s, "tutupTab") || !s.shift) return s;
+      if (!allow(s, "tutupTab") || !shiftAksi(s, a, now)) return s;
       const o = s.orders.find((x) => x.id === a.id);
       // Hanya pesanan takeaway yang belum dibayar. Pesanan yang menempel di meja
       // ikut ditagih saat tab mejanya ditutup.
@@ -3367,7 +3521,7 @@ function reduce(s: State, a: Action): State {
       const sisa = o.value - o.paidOnline;
       if (!(sisa > 0)) return s;
       const bayar: Payment = {
-        id: nextId("pay"), at: now, channel: a.channel, amount: sisa, shiftId: s.shift.id,
+        id: nextId("pay"), at: now, channel: a.channel, amount: sisa, shiftId: shiftAksi(s, a, now)!.id,
         ...(s.me ? { by: s.me.name } : {}),
         ...(mesinSah(s, a.channel, a.mesin) ? { mesin: mesinSah(s, a.channel, a.mesin) } : {}),
       };
@@ -4092,7 +4246,25 @@ export type RekapTigaJenis = {
   /** Sudah keluar dari dapur/bar tapi tabnya belum ditutup — bagian terakhir struk. */
   belumCheckout: BarisBarang[];
   totalBelumCheckout: number;
-  shift: { id: string; nama: string; openedAt: number; closedAt: number | null; sewaMeja: number; barang: number }[];
+  shift: { id: string; nama: string; openedAt: number; closedAt: number | null; sewaMeja: number; barang: number; omzet: number }[];
+  /** Venue laporan ini. Kosong = gabungan. */
+  venue?: Venue;
+  /** Nilai barang yang digratiskan. Sudah di luar total, ditampilkan supaya tidak hilang. */
+  compliment: number;
+  /** `totalSemua` dikurangi diskon. Di struk: pendapatan sebelum biaya. */
+  pendapatan: number;
+  biaya: Biaya[];
+  totalBiaya: number;
+  /** Pendapatan − Biaya, baris penutup struk. */
+  bersih: number;
+  /** Uang yang benar-benar masuk, untuk dicocokkan dengan pendapatan. */
+  uang: { tunai: number; qris: number; edc: number; edcPer: Record<string, number>; prabayar: number; total: number };
+  /** Khusus Smokehouse: nilai dapur & bar yang terjual di meja biliar. Sudah masuk rekap SPL. */
+  dapurMejaBiliar: number;
+  /** Angka hari ini tidak bisa dipisah per venue (arsip lama yang barisnya sudah dilepas). */
+  tercampur: boolean;
+  /** Hanya rekap rentang: nilai tiap hari, menggantikan baris shift. */
+  harian?: { bizDate: string; sewaMeja: number; barang: number; pendapatan: number }[];
 };
 
 function kumpulkanBarang(ember: Map<string, BarisBarang>, lines: CartLine[]) {
@@ -4112,12 +4284,33 @@ const urutBarang = (m: Map<string, BarisBarang>) =>
   [...m.values()].sort((x, y) => x.nama.localeCompare(y.nama, "id"));
 const jumlahBarang = (xs: BarisBarang[]) => xs.reduce((n, x) => n + x.total, 0);
 
-export function rekapTigaJenis(
-  a: State, bizDate = businessDateOf(clock()), venue?: Venue,
-): RekapTigaJenis {
-  const r = recap(a, bizDate, venue);
+type EmberBarang = Record<"billiard" | "kitchen" | "bar", BarisBarang[]>;
 
-  const ember: Record<"billiard" | "kitchen" | "bar", Map<string, BarisBarang>> = {
+/**
+ * Barang terjual satu hari, per jenis. null = rinciannya sudah tidak ada.
+ *
+ * Hari yang masih hidup dibaca dari pesanannya. Hari yang sudah tutup buku
+ * dibaca dari ringkasan produk yang dibekukan saat itu, karena baris
+ * pesanannya sudah dilepas supaya arsip tidak membengkak.
+ */
+function barangHari(a: State, r: ReturnType<typeof recap>, venue?: Venue): EmberBarang | null {
+  const arch = a.history.find((h) => h.bizDate === r.bizDate);
+  if (arch) {
+    if (!arch.produk) return null;
+    const ember: EmberBarang = { billiard: [], kitchen: [], bar: [] };
+    const peta = new Map<string, BarisBarang & { st: keyof EmberBarang }>();
+    for (const p of arch.produk) {
+      if (venue && p.venue !== venue) continue;
+      const k = `${p.station}|${p.itemId}`;
+      const b = peta.get(k) ?? { itemId: p.itemId, nama: p.nama, qty: 0, total: 0, st: p.station };
+      b.qty += p.qty; b.total += p.total;
+      peta.set(k, b);
+    }
+    for (const { st, ...b } of peta.values()) ember[st].push(b);
+    for (const k of ["billiard", "kitchen", "bar"] as const) ember[k].sort((x, y) => x.nama.localeCompare(y.nama, "id"));
+    return ember;
+  }
+  const peta: Record<keyof EmberBarang, Map<string, BarisBarang>> = {
     billiard: new Map(), kitchen: new Map(), bar: new Map(),
   };
   const taruh = (lines: CartLine[]) => {
@@ -4125,26 +4318,39 @@ export function rekapTigaJenis(
       // Station dari BARIS dulu — alasan yang sama dengan namanya.
       const st = l.station ?? findItem(l.itemId)?.station;
       if (!st) continue;
-      kumpulkanBarang(ember[st], [l]);
+      kumpulkanBarang(peta[st], [l]);
     }
   };
-
-  // Barisnya diambil dari sesi HIDUP, bukan dari arsip: arsip sengaja melepas
-  // rincian pesanan supaya tidak membengkak. Struk harian memang dicetak saat
-  // harinya belum tutup buku, jadi ini jalur yang sebenarnya dipakai.
-  const rincianTersedia = !r.archived;
   const idDone = new Set(r.done.map((x) => x.id));
   const idTake = new Set(r.takeaway.map((o) => o.id));
-  if (rincianTersedia) {
-    for (const x of a.sessions) if (idDone.has(x.id)) taruh(x.fnb ?? []);
-    for (const o of a.orders) {
-      if (!idTake.has(o.id)) continue;
-      // Sama persis dengan rekap uang: takeaway yang BELUM dibayar belum jadi
-      // penjualan. Kalau dihitung di sini, dua laporan jadi berbeda tanpa sebab.
-      if (o.paidOnline + (o.payment?.amount ?? 0) <= 0) continue;
-      taruh(o.lines ?? []);
-    }
+  for (const x of a.sessions) if (idDone.has(x.id)) taruh(x.fnb ?? []);
+  for (const o of a.orders) {
+    if (!idTake.has(o.id)) continue;
+    // Sama persis dengan rekap uang: takeaway yang BELUM dibayar belum jadi
+    // penjualan. Kalau dihitung di sini, dua laporan jadi berbeda tanpa sebab.
+    if (o.paidOnline + (o.payment?.amount ?? 0) <= 0) continue;
+    taruh(o.lines ?? []);
   }
+  return { billiard: urutBarang(peta.billiard), kitchen: urutBarang(peta.kitchen), bar: urutBarang(peta.bar) };
+}
+
+/** Biaya satu hari, hidup maupun arsip. Yang sudah dihapus tidak ikut. */
+export function biayaHari(a: Pick<State, "biaya" | "history">, bizDate: string, venue?: Venue): Biaya[] {
+  const arsip = a.history.find((h) => h.bizDate === bizDate)?.biaya ?? [];
+  return [...arsip, ...(a.biaya ?? [])]
+    .filter((b) => businessDateOf(b.at) === bizDate && !b.dihapusOleh && (!venue || b.venue === venue))
+    .sort((x, y) => x.at - y.at);
+}
+
+export function rekapTigaJenis(
+  a: State, bizDate = businessDateOf(clock()), venue?: Venue,
+): RekapTigaJenis {
+  const r = recap(a, bizDate, venue);
+  const ember = barangHari(a, r, venue);
+  const rincianTersedia = !!ember;
+  const billiard = ember?.billiard ?? [];
+  const resto = ember?.kitchen ?? [];
+  const bar = ember?.bar ?? [];
 
   // Tab yang masih terbuka: barangnya sudah keluar, uangnya belum diakui.
   const buka = new Map<string, BarisBarang>();
@@ -4155,56 +4361,321 @@ export function rekapTigaJenis(
     kumpulkanBarang(buka, s.fnb ?? []);
   }
 
-  const billiard = urutBarang(ember.billiard);
-  const resto = urutBarang(ember.kitchen);
-  const bar = urutBarang(ember.bar);
   const totalBilliard = jumlahBarang(billiard);
   const totalResto = jumlahBarang(resto);
   const totalBar = jumlahBarang(bar);
   const totalBarang = totalBilliard + totalResto + totalBar;
   const belumCheckout = urutBarang(buka);
 
+  /**
+   * Total diambil dari angka uang, bukan dari jumlah baris, kalau rincian
+   * barangnya sudah tidak ada. Dulu hari seperti itu menampilkan total yang
+   * hanya berisi sewa meja, dan terbaca seperti penjualan yang jatuh.
+   */
+  const totalSemua = rincianTersedia ? r.billiard + totalBarang : r.billiard + r.fnb;
+  const pendapatan = totalSemua - r.discount;
+  const os = omzetPerShift(a, bizDate, venue);
+  const adaBaris = r.rowsAvailable;
+  const uangDariKanal = () => ({
+    tunai: r.byChannel.cash?.gross ?? 0, qris: r.byChannel.qris_online?.gross ?? 0,
+    edc: r.byChannel.edc?.gross ?? 0, edcPer: {} as Record<string, number>, prabayar: r.prabayar,
+  });
+  const u = adaBaris
+    ? { tunai: os.semua.tunai, qris: os.semua.qris, edc: os.semua.edc, edcPer: os.semua.edcPer, prabayar: os.semua.prabayar }
+    : uangDariKanal();
+  const biaya = biayaHari(a, bizDate, venue);
+  const totalBiaya = biaya.reduce((n, b) => n + b.nilai, 0);
+
+  // Dapur Smokehouse juga memasak untuk meja biliar. Nilainya milik rekap SPL
+  // (uangnya masuk laci SPL), jadi di sini hanya dilaporkan, tidak dijumlahkan.
+  let dapurMejaBiliar = 0;
+  if (venue === "smh") {
+    const spl = barangHari(a, recap(a, bizDate, "spl"), "spl");
+    if (spl) dapurMejaBiliar = jumlahBarang(spl.kitchen) + jumlahBarang(spl.bar);
+  }
+
   // Sewa meja per shift: ditentukan dari KAPAN TAB DITUTUP, karena uangnya
   // masuk laci shift yang sedang jaga saat itu — bukan shift yang membukanya.
-  const semuaShift = shiftHariItu(a, bizDate, venue);
-  const shift = semuaShift.map((sh) => {
+  const shift = adaBaris ? shiftHariItu(a, bizDate, venue).map((sh) => {
     const habis = sh.closedAt ?? Infinity;
-    const punya = r.done.filter((x) => {
+    const sewaMeja = r.done.filter((x) => {
       const t = x.settledAt ?? x.endsAt;
       return t >= sh.openedAt && t < habis;
-    });
-    const emberShift = new Map<string, BarisBarang>();
-    if (rincianTersedia) {
-      const ids = new Set(punya.map((x) => x.id));
-      for (const x of a.sessions) if (ids.has(x.id)) kumpulkanBarang(emberShift, x.fnb ?? []);
-    }
+    }).reduce((n, x) => n + (x.settledBilliard ?? 0), 0);
+    const baris = os.shift.find((x) => x.id === sh.id);
+    const barang = baris?.barang ?? 0;
     return {
-      id: sh.id,
-      nama: sh.nama,
-      openedAt: sh.openedAt,
-      closedAt: sh.closedAt ?? null,
-      sewaMeja: punya.reduce((n, x) => n + (x.settledBilliard ?? 0), 0),
-      barang: jumlahBarang([...emberShift.values()]),
+      id: sh.id, nama: sh.nama, openedAt: sh.openedAt, closedAt: sh.closedAt ?? null,
+      sewaMeja, barang, omzet: sewaMeja + barang - (baris?.diskon ?? 0),
     };
-  });
+  }) : [];
 
   return {
     bizDate,
     billiard, resto, bar,
     totalBilliard, totalResto, totalBar, totalBarang,
     sewaMeja: r.billiard,
-    totalSemua: r.billiard + totalBarang,
+    totalSemua,
     diskon: r.discount,
     rincianTersedia,
     belumCheckout,
     totalBelumCheckout: jumlahBarang(belumCheckout),
     shift,
+    venue,
+    compliment: r.compliment ?? 0,
+    pendapatan,
+    biaya,
+    totalBiaya,
+    bersih: pendapatan - totalBiaya,
+    uang: { ...u, total: u.tunai + u.qris + u.edc + u.prabayar },
+    dapurMejaBiliar,
+    tercampur: r.venueTercampur,
+  };
+}
+
+/** Rekap format kertas untuk satu rentang: tiap hari dijumlah, baris shift diganti baris hari. */
+export function rekapJenisRentang(a: State, dari: string, sampai: string, venue?: Venue): RekapTigaJenis {
+  const hari: RekapTigaJenis[] = [];
+  for (let d = dari; d <= sampai; d = shiftDate(d, 1)) hari.push(rekapTigaJenis(a, d, venue));
+  const gabung = (xs: BarisBarang[]) => {
+    const peta = new Map<string, BarisBarang>();
+    for (const x of xs) {
+      const b = peta.get(x.itemId) ?? { ...x, qty: 0, total: 0 };
+      b.qty += x.qty; b.total += x.total;
+      peta.set(x.itemId, b);
+    }
+    return urutBarang(peta);
+  };
+  const jumlah = (f: (h: RekapTigaJenis) => number) => hari.reduce((n, h) => n + f(h), 0);
+  const billiard = gabung(hari.flatMap((h) => h.billiard));
+  const resto = gabung(hari.flatMap((h) => h.resto));
+  const bar = gabung(hari.flatMap((h) => h.bar));
+  const belumCheckout = gabung(hari.flatMap((h) => h.belumCheckout));
+  const edcPer: Record<string, number> = {};
+  for (const h of hari) for (const [k, v] of Object.entries(h.uang.edcPer)) edcPer[k] = (edcPer[k] ?? 0) + v;
+  const biaya = hari.flatMap((h) => h.biaya);
+  return {
+    bizDate: dari,
+    billiard, resto, bar,
+    totalBilliard: jumlahBarang(billiard), totalResto: jumlahBarang(resto), totalBar: jumlahBarang(bar),
+    totalBarang: jumlah((h) => h.totalBarang),
+    sewaMeja: jumlah((h) => h.sewaMeja),
+    totalSemua: jumlah((h) => h.totalSemua),
+    diskon: jumlah((h) => h.diskon),
+    // Hari tanpa penjualan tidak dihitung sebagai hari yang kehilangan rincian.
+    rincianTersedia: hari.every((h) => h.rincianTersedia || h.totalSemua === 0),
+    belumCheckout,
+    totalBelumCheckout: jumlahBarang(belumCheckout),
+    shift: [],
+    venue,
+    compliment: jumlah((h) => h.compliment),
+    pendapatan: jumlah((h) => h.pendapatan),
+    biaya,
+    totalBiaya: jumlah((h) => h.totalBiaya),
+    bersih: jumlah((h) => h.bersih),
+    uang: {
+      tunai: jumlah((h) => h.uang.tunai), qris: jumlah((h) => h.uang.qris), edc: jumlah((h) => h.uang.edc),
+      edcPer, prabayar: jumlah((h) => h.uang.prabayar), total: jumlah((h) => h.uang.total),
+    },
+    dapurMejaBiliar: jumlah((h) => h.dapurMejaBiliar),
+    tercampur: hari.some((h) => h.tercampur),
+    harian: hari.filter((h) => h.totalSemua > 0).map((h) => ({
+      bizDate: h.bizDate, sewaMeja: h.sewaMeja, barang: h.totalSemua - h.sewaMeja, pendapatan: h.pendapatan,
+    })),
   };
 }
 
 /** Venue sebuah pesanan. Tanpa penanda & tanpa meja = SPL (jejak lama). */
 export const venueOrder = (o: Pick<GuestOrder, "venue" | "tableId">): Venue =>
   o.venue ?? (o.tableId ? venueDari(o.tableId) : "spl");
+
+/** Uang dan hitungan satu hari. Bagian ringan dari `recap`, dipakai juga oleh tren. */
+function angkaHari(a: State, bizDate: string, venue?: Venue) {
+  // Hari yang sudah tutup buku memakai angka yang dibekukan saat diarsipkan.
+  const arch = a.history.find((h) => h.bizDate === bizDate);
+  // PRD KK-19: hari operasional ditentukan dari JAM MULAI (batas 02.00). Tab yang
+  // dibuka 20.00 dan ditutup 02.10 tetap omzet malam itu, bukan hari berikutnya.
+  // Dengan `venue`, uang dan hitungan ikut tersaring bersama.
+  const diVenue = (tableId?: string) => !venue || (!!tableId && venueDari(tableId) === venue);
+  const semua: ArchivedSession[] = arch
+    ? arch.sessions
+    : a.sessions.filter((s) => (s.status === "done" || s.status === "noshow") && businessDateOf(s.startsAt) === bizDate);
+  const closed = venue ? semua.filter((s) => diVenue(s.tableId)) : semua;
+  const semuaTa: ArchivedOrder[] = (arch ? arch.orders : a.orders)
+    .filter((o) => o.status === "diterima" && !o.sessionId && businessDateOf(o.at) === bizDate);
+  const takeaway = venue ? semuaTa.filter((o) => venueOrder(o) === venue) : semuaTa;
+  // Hari yang sudah tutup buku memakai angka beku. Untuk satu venue, urutannya:
+  // angka beku venue itu, lalu hitung ulang dari baris arsip, baru kalau
+  // keduanya tidak ada angka gabungan dengan penanda `tercampur`.
+  const beku = venue ? arch?.perVenue?.[venue] : undefined;
+  const dariBaris = !!venue && !!arch && !beku && !arch.rowsDropped;
+  const money = !arch ? dayMoney(closed, takeaway, a.orders, a)
+    : beku ? beku.money
+      : dariBaris ? dayMoney(closed, takeaway, arch.orders, a) : arch.money;
+  const counts = !arch ? dayCounts(closed, takeaway)
+    : beku ? beku.counts
+      : dariBaris ? dayCounts(closed, takeaway) : arch.counts;
+  return { arch, closed, takeaway, money, counts, tercampur: !!venue && !!arch && !beku && !dariBaris };
+}
+
+export type TitikTren = {
+  kunci: string;
+  /** Tulisan singkat di bawah batang. */
+  label: string;
+  /** Tulisan lengkap di tooltip dan tabel. */
+  judul: string;
+  nilai: number;
+  tab?: number;
+  /** Periode ini belum selesai, jadi batangnya belum bisa dibandingkan. */
+  berjalan?: boolean;
+};
+
+export type TrenBisnis = {
+  venue: Venue;
+  kosong: boolean;
+  harian: TitikTren[];
+  mingguan: TitikTren[];
+  bulanan: TitikTren[];
+  /** Rata-rata penjualan per hari dalam seminggu, Senin sampai Minggu. */
+  hariMinggu: TitikTren[];
+  /** Jumlah transaksi per jam buka, 28 hari terakhir. */
+  jam: TitikTren[];
+  /** Dibandingkan dengan periode lalu sampai hari yang sama, supaya adil. */
+  mingguIni: { nilai: number; lalu: number };
+  bulanIni: { nilai: number; lalu: number };
+  hariRamai: { nama: string; rata: number } | null;
+  hariTerbaik: { bizDate: string; nilai: number } | null;
+  jamRamai: { label: string; tab: number } | null;
+  rataHari: number;
+  rataTransaksi: number;
+  tercampur: boolean;
+};
+
+const NAMA_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+/** 0 = Senin. Tanggal dibaca sebagai tanggal, bukan jam, jadi zona waktu tidak ikut. */
+const urutanHari = (d: string) => {
+  const [y, m, t] = d.split("-").map(Number);
+  return (new Date(Date.UTC(y, m - 1, t)).getUTCDay() + 6) % 7;
+};
+const tglSingkat = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
+
+/**
+ * Tren satu bisnis. Hari yang tidak bisa dipisah per tempat tidak ikut:
+ * memasukkan angka gabungan ke grafik satu bisnis menghasilkan tren palsu.
+ */
+export function trenBisnis(a: State, hariIni: string, venue: Venue): TrenBisnis {
+  const batas = shiftDate(hariIni, -420);
+  const hari = new Map<string, { nilai: number; tab: number }>();
+  let tercampur = false;
+  for (const d of recapDates(a)) {
+    if (d < batas || d > hariIni) continue;
+    const x = angkaHari(a, d, venue);
+    if (x.tercampur) { tercampur = true; continue; }
+    hari.set(d, { nilai: x.money.gross, tab: x.counts.done + x.counts.takeaway });
+  }
+  const nilaiDi = (d: string) => hari.get(d)?.nilai ?? 0;
+  const tabDi = (d: string) => hari.get(d)?.tab ?? 0;
+  const rentang = (dari: string, sampai: string) => {
+    let nilai = 0, tab = 0;
+    for (let d = dari; d <= sampai; d = shiftDate(d, 1)) { nilai += nilaiDi(d); tab += tabDi(d); }
+    return { nilai, tab };
+  };
+
+  const harian: TitikTren[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = shiftDate(hariIni, -i);
+    harian.push({
+      kunci: d, label: tglSingkat(d), judul: `${NAMA_HARI[urutanHari(d)]}, ${tglSingkat(d)}`,
+      nilai: nilaiDi(d), tab: tabDi(d), berjalan: d === hariIni,
+    });
+  }
+
+  const seninIni = shiftDate(hariIni, -urutanHari(hariIni));
+  const mingguan: TitikTren[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const dari = shiftDate(seninIni, -7 * i);
+    const r = rentang(dari, shiftDate(dari, 6));
+    mingguan.push({
+      kunci: dari, label: tglSingkat(dari), judul: `Minggu ${tglSingkat(dari)} – ${tglSingkat(shiftDate(dari, 6))}`,
+      ...r, berjalan: i === 0,
+    });
+  }
+
+  const [yIni, mIni, tIni] = hariIni.split("-").map(Number);
+  const awalBulan = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}-01`;
+  const akhirBulan = (y: number, m: number) => shiftDate(m === 12 ? awalBulan(y + 1, 1) : awalBulan(y, m + 1), -1);
+  const bulanan: TitikTren[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const t = yIni * 12 + (mIni - 1) - i;
+    const y = Math.floor(t / 12), m = t % 12 + 1;
+    const r = rentang(awalBulan(y, m), akhirBulan(y, m));
+    bulanan.push({ kunci: awalBulan(y, m), label: NAMA_BULAN[m - 1], judul: `${NAMA_BULAN[m - 1]} ${y}`, ...r, berjalan: i === 0 });
+  }
+
+  // Hari ini belum selesai, jadi tidak ikut menentukan hari paling ramai.
+  const semuaHari = [...hari.keys()].sort();
+  const pertama = semuaHari[0] ?? hariIni;
+  const jumlah = Array<number>(7).fill(0), kali = Array<number>(7).fill(0);
+  for (let i = 1; i <= 56; i++) {
+    const d = shiftDate(hariIni, -i);
+    if (d < pertama) break;
+    jumlah[urutanHari(d)] += nilaiDi(d);
+    kali[urutanHari(d)] += 1;
+  }
+  const hariMinggu: TitikTren[] = NAMA_HARI.map((nama, i) => ({
+    kunci: nama, label: nama.slice(0, 3), judul: nama, nilai: kali[i] ? Math.round(jumlah[i] / kali[i]) : 0,
+  }));
+  const terbaikHari = hariMinggu.reduce<TitikTren | null>((m, x) => (x.nilai > (m?.nilai ?? 0) ? x : m), null);
+
+  const perJam = new Map<number, number>();
+  for (let i = 0; i < 28; i++) {
+    const d = shiftDate(hariIni, -i);
+    if (!hari.has(d)) continue;
+    const x = angkaHari(a, d, venue);
+    for (const s of x.closed) if (s.status === "done") perJam.set(hourIdx(s.startsAt), (perJam.get(hourIdx(s.startsAt)) ?? 0) + 1);
+    for (const o of x.takeaway) perJam.set(hourIdx(o.at), (perJam.get(hourIdx(o.at)) ?? 0) + 1);
+  }
+  const jam: TitikTren[] = [];
+  for (let h = OPEN_IDX; h < CLOSE_IDX; h++) {
+    const label = String(h % 24).padStart(2, "0");
+    jam.push({ kunci: String(h), label, judul: `${label}.00–${String((h + 1) % 24).padStart(2, "0")}.00`, nilai: perJam.get(h) ?? 0 });
+  }
+  const puncakJam = jam.reduce<TitikTren | null>((m, x) => (x.nilai > (m?.nilai ?? 0) ? x : m), null);
+
+  let terbaik: TrenBisnis["hariTerbaik"] = null;
+  for (let i = 0; i <= 90; i++) {
+    const d = shiftDate(hariIni, -i);
+    if (nilaiDi(d) > (terbaik?.nilai ?? 0)) terbaik = { bizDate: d, nilai: nilaiDi(d) };
+  }
+
+  const tiga = rentang(shiftDate(hariIni, -29), hariIni);
+  let hariJual = 0;
+  for (let i = 0; i < 30; i++) if (nilaiDi(shiftDate(hariIni, -i)) > 0) hariJual++;
+
+  // Dibandingkan sampai hari yang sama, supaya minggu berjalan tidak selalu terlihat turun.
+  const lewatHari = urutanHari(hariIni);
+  const akhirLalu = akhirBulan(mIni === 1 ? yIni - 1 : yIni, mIni === 1 ? 12 : mIni - 1);
+  const awalLalu = `${akhirLalu.slice(0, 8)}01`;
+  const tglLalu = `${akhirLalu.slice(0, 8)}${String(Math.min(tIni, Number(akhirLalu.slice(8)))).padStart(2, "0")}`;
+
+  return {
+    venue,
+    kosong: ![...hari.values()].some((x) => x.nilai > 0),
+    harian, mingguan, bulanan, hariMinggu, jam,
+    mingguIni: {
+      nilai: rentang(seninIni, hariIni).nilai,
+      lalu: rentang(shiftDate(seninIni, -7), shiftDate(seninIni, lewatHari - 7)).nilai,
+    },
+    bulanIni: { nilai: rentang(awalBulan(yIni, mIni), hariIni).nilai, lalu: rentang(awalLalu, tglLalu).nilai },
+    hariRamai: terbaikHari ? { nama: terbaikHari.judul, rata: terbaikHari.nilai } : null,
+    hariTerbaik: terbaik,
+    jamRamai: puncakJam ? { label: puncakJam.judul, tab: puncakJam.nilai } : null,
+    rataHari: hariJual ? Math.round(tiga.nilai / hariJual) : 0,
+    rataTransaksi: tiga.tab ? Math.round(tiga.nilai / tiga.tab) : 0,
+    tercampur,
+  };
+}
 
 /**
  * Rekap satu hari. `venue` kosong = GABUNGAN kedua venue.
@@ -4214,27 +4685,8 @@ export const venueOrder = (o: Pick<GuestOrder, "venue" | "tableId">): Venue =>
  * sebagai pilihan tambahan untuk pemilik, bukan bawaan.
  */
 export function recap(a: State, bizDate = businessDateOf(clock()), venue?: Venue) {
-  // Hari yang sudah tutup buku memakai angka yang dibekukan saat diarsipkan.
-  const arch = a.history.find((h) => h.bizDate === bizDate);
-  // PRD KK-19: hari operasional ditentukan dari JAM MULAI (batas 02.00). Tab yang
-  // dibuka 20.00 dan ditutup 02.10 tetap omzet malam itu, bukan hari berikutnya.
-  // Saringan venue. Tanpa `venue` = gabungan; dengan venue, SEMUA angka di
-  // bawah ikut tersaring — uang, hitungan, dan jumlah meja sekaligus. Kalau
-  // sebagian saja yang disaring, laporannya jadi campuran yang tidak ada
-  // artinya dan itu lebih berbahaya daripada tidak disaring sama sekali.
+  const { arch, closed, takeaway, money, counts, tercampur } = angkaHari(a, bizDate, venue);
   const diVenue = (tableId?: string) => !venue || (!!tableId && venueDari(tableId) === venue);
-  const semua: ArchivedSession[] = arch
-    ? arch.sessions
-    : a.sessions.filter((s) => (s.status === "done" || s.status === "noshow") && businessDateOf(s.startsAt) === bizDate);
-  const closed = venue ? semua.filter((s) => diVenue(s.tableId)) : semua;
-  const semuaTa: ArchivedOrder[] = (arch ? arch.orders : a.orders)
-    .filter((o) => o.status === "diterima" && !o.sessionId && businessDateOf(o.at) === bizDate);
-  const takeaway = venue ? semuaTa.filter((o) => venueOrder(o) === venue) : semuaTa;
-  // Hari yang sudah tutup buku memakai angka beku, dan angka itu GABUNGAN.
-  // Menyaringnya mustahil tanpa menghitung ulang dari baris yang sudah
-  // dilepas, jadi penandanya dikembalikan apa adanya lewat `venueTercampur`.
-  const money = arch ? arch.money : dayMoney(closed, takeaway, a.orders, a);
-  const counts = arch ? arch.counts : dayCounts(closed, takeaway);
 
   const perTable = floorByTable(a.sessions, clock());
   const vals = [...perTable.values()].filter((s) => diVenue(s.tableId));
@@ -4245,7 +4697,7 @@ export function recap(a: State, bizDate = businessDateOf(clock()), venue?: Venue
     bizDate, archived: !!arch, rowsAvailable: !arch?.rowsDropped, done: closed, takeaway, counts, ...money,
     venue,
     /** true = angka ini GABUNGAN dua venue walau venue diminta (hari beku). */
-    venueTercampur: !!venue && !!arch,
+    venueTercampur: tercampur,
     cashExpected: shiftCashExpected(a),
     noShow: counts.noShow,
     running: vals.filter((s) => s.status === "running").length,
@@ -4394,9 +4846,9 @@ function dayMoney(
  * shift yang lain di laporan sebelahnya — dan tidak ada yang akan sadar.
  */
 export function shiftHariItu(
-  a: Pick<State, "shift" | "shiftHistory">, bizDate: string, venue?: Venue,
+  a: Pick<State, "shift" | "shiftSmh" | "shiftHistory">, bizDate: string, venue?: Venue,
 ): (Shift & { nama: string })[] {
-  const semua = [...(a.shift ? [a.shift] : []), ...a.shiftHistory]
+  const semua = [...shiftTerbuka(a), ...a.shiftHistory]
     .filter((sh) => businessDateOf(sh.openedAt) === bizDate)
     // Shift lama tanpa penanda dianggap SPL — semua jejak lama memang SPL.
     .filter((sh) => !venue || (sh.venue ?? "spl") === venue)
@@ -4993,7 +5445,8 @@ export function validAction(a: unknown): a is Action {
   switch (a.t) {
     case "tick": return true;
     case "openShift": return isNum(a.openingCash) && (a.venue === undefined || oneOf(a.venue, ["spl", "smh"] as const));
-    case "closeShift": return isNum(a.countedCash) && (a.expected === undefined || isNum(a.expected));
+    case "closeShift": return isNum(a.countedCash) && (a.expected === undefined || isNum(a.expected)) &&
+      (a.venue === undefined || oneOf(a.venue, ["spl", "smh"] as const));
     case "walkin": return isStr(a.tableId) && isOptStr(a.guest) && (a.hours === undefined || isNum(a.hours)) &&
       isOptStr(a.paketId);
     case "checkin": return isStr(a.code);
@@ -5036,6 +5489,8 @@ export function validAction(a: unknown): a is Action {
       isStr(a.req.targetId) && isStr(a.req.reason) && isOptStr(a.req.label);
     case "decideVoid": return isStr(a.id) && typeof a.approve === "boolean";
     case "tarikVoid": return isStr(a.id);
+    case "catatBiaya": return oneOf(a.venue, ["spl", "smh"] as const) && isStr(a.keterangan) && isNum(a.nilai) && oneOf(a.sumber, ["laci", "rekening"] as const);
+    case "hapusBiaya": return isStr(a.id);
     case "toggleLight": return isStr(a.tableId);
     case "allLights": return typeof a.on === "boolean";
     case "hold":

@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { useAdmin, shiftCashExpected, omzetPerShift, businessDateOf } from "../../lib/adminStore";
+import { useAdmin, shiftCashExpected, biayaLaci, omzetPerShift, businessDateOf, shiftDi } from "../../lib/adminStore";
+import { PanelBiaya } from "./PanelBiaya";
 import { rupiah } from "../../lib/core";
 import { Button } from "../../components/UI";
 import { cetakStruk } from "../../lib/cetak";
-import { VENUE_LABEL } from "../../data/venue";
+import { VENUE_LABEL, type Venue } from "../../data/venue";
+import type { Shift } from "../../data/staff";
 import { useVenueAktif } from "../../lib/venueAktif";
 import { jam } from "./AdminShell";
 
@@ -13,6 +15,20 @@ import { jam } from "./AdminShell";
    selisih kecil wajar, selisih berulang dari orang yang sama tidak. */
 
 export default function ShiftScreen() {
+  const { a } = useAdmin();
+  const venue = useVenueAktif();
+  const shift = shiftDi(a, venue, Date.now());
+  if (!shift) {
+    return (
+      <div className="rounded-2xl border border-line bg-ink-2 px-4 py-10 text-center text-sm text-dim">
+        Shift {VENUE_LABEL[venue]} belum buka.
+      </div>
+    );
+  }
+  return <ShiftBerjalan shift={shift} venue={venue} />;
+}
+
+function ShiftBerjalan({ shift, venue }: { shift: Shift; venue: Venue }) {
   const { a, dispatchA } = useAdmin();
   const [hitung, setHitung] = useState("");
   const [konfirmasi, setKonfirmasi] = useState(false);
@@ -22,16 +38,15 @@ export default function ShiftScreen() {
   /** Alasan shift gagal ditutup. Dulu tidak ada: tombolnya ditekan, tidak
    *  terjadi apa-apa, dan kasir menekannya lagi (temuan audit 21 Okt 2026). */
   const [kabarTutup, setKabarTutup] = useState<string | null>(null);
-  const venue = useVenueAktif();
 
-  const shift = a.shift!;
   const serahTerima = !!a.me && shift.employeeId !== a.me.id;
   const tanggal = (ts: number) => new Date(ts).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
   const hariIni = new Date().toDateString();
   // Hanya tunai yang diterima DI SHIFT INI. Menjumlah semua shift membuat kasir
   // shift kedua terlihat kurang/lebih uang padahal hitungannya benar.
-  const seharusnya = shiftCashExpected(a);
-  const tunaiMasuk = seharusnya - shift.openingCash;
+  const seharusnya = shiftCashExpected(a, shift);
+  const keluarLaci = biayaLaci(a, shift.id);
+  const tunaiMasuk = seharusnya - shift.openingCash + keluarLaci;
   const dihitung = Number(hitung) || 0;
   const selisih = dihitung - seharusnya;
 
@@ -82,6 +97,7 @@ export default function ShiftScreen() {
             <Row k="Modal awal laci (shift lama)" v={rupiah(shift.openingCash)} />
           )}
           <Row k="Penjualan tunai" v={rupiah(tunaiMasuk)} />
+          {keluarLaci > 0 && <Row k="Biaya dari laci" v={`− ${rupiah(keluarLaci)}`} />}
           <div className="flex items-baseline justify-between bg-amber/10 px-4 py-3">
             <span className="font-semibold text-cream">Kas seharusnya</span>
             <span className="font-serif text-xl font-bold tabular-nums text-amber">
@@ -93,6 +109,13 @@ export default function ShiftScreen() {
           Hanya pembayaran <span className="text-mute">tunai</span> yang masuk hitungan laci.
           QRIS dan EDC tidak menambah uang fisik.
         </p>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+          Biaya hari ini
+        </h2>
+        <PanelBiaya bizDate={businessDateOf(Date.now())} venue={venue} bisaTambah />
       </section>
 
       <section>
@@ -153,7 +176,7 @@ export default function ShiftScreen() {
               </p>
               <Button full variant="brick"
                 onClick={() => {
-                  const tolak = dispatchA({ t: "closeShift", countedCash: dihitung });
+                  const tolak = dispatchA({ t: "closeShift", countedCash: dihitung, venue });
                   if (tolak) setKabarTutup(tolak);
                 }}>
                 Ya, Tutup Shift
