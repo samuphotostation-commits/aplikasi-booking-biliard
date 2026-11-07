@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "../../components/UI";
 import {
@@ -23,6 +23,7 @@ import { rupiah } from "../../lib/core";
 import { LayarTamu, PilihPrinter, PrinterDapur } from "./PilihPrinter";
 import { jam } from "./AdminShell";
 import QrisPanel from "./QrisPanel";
+import { TambahBanyakAkun } from "./TambahBanyakAkun";
 import {
   suaraNyala, setSuaraNyala, bunyikan, izinNotif, mintaIzinNotif, type IzinNotif,
 } from "../../lib/notifikasi";
@@ -863,6 +864,7 @@ const urutStaf = (list: Employee[]) =>
   [...list].sort((x, y) => (x.venue ?? "").localeCompare(y.venue ?? "") || x.name.localeCompare(y.name));
 
 function AkunStaf() {
+  const venueAktif = useVenueAktif();
   const { a, dispatchA, peek, sync } = useAdmin();
   // Mode server: PIN juga harus terdaftar di server supaya berlaku di perangkat lain.
   const store = venueStore() as ReturnType<typeof venueStore> & {
@@ -881,6 +883,17 @@ function AkunStaf() {
   const muatNip = () => { void store.daftarNip?.().then(setDataNip); };
   /** Akun yang PIN-nya sedang diatur ulang. */
   const [ulangPin, setUlangPin] = useState<{ id: string; pin: string } | null>(null);
+  const [banyak, setBanyak] = useState(false);
+  /**
+   * Simpanan ke server dikirim satu per satu. Kalau dikirim bersamaan, dua
+   * akun baru bisa mendapat nomor NIP yang sama dari server.
+   */
+  const rantai = useRef<Promise<unknown>>(Promise.resolve());
+  function antre<T>(kerja: () => Promise<T> | undefined): Promise<T | undefined> {
+    const hasil = rantai.current.then(() => kerja());
+    rantai.current = hasil.catch(() => undefined);
+    return hasil;
+  }
   const [pesan, setPesan] = useState<string | null>(null);
   /** Siapa yang Gmail-nya sudah terbukti lewat masuk Google. */
   const [terbukti, setTerbukti] = useState<Record<string, boolean>>({});
@@ -894,11 +907,11 @@ function AkunStaf() {
   /** Ganti PIN satu akun. Di server PIN tidak menyentuh jejak. */
   function simpanPin(e: Employee, pin: string) {
     if (sync.mode !== "server") return simpan({ ...e, pin }, pin);
-    void store.simpanPinStaf?.({
+    void antre(() => store.simpanPinStaf?.({
       id: e.id, name: e.name, role: e.role, active: e.active, pin,
       ...(dataNip[e.id]?.nip ?? e.nip ? { nip: (dataNip[e.id]?.nip ?? e.nip)! } : {}),
       ...(e.venue ? { venue: e.venue } : {}),
-    }).then((h) => {
+    })).then((h) => {
       flash(h?.alasan ? `PIN belum tersimpan: ${h.alasan}` : `PIN ${e.name} sudah diganti.`);
       muatNip();
     });
@@ -914,12 +927,15 @@ function AkunStaf() {
      * ganti venue, nonaktifkan superadmin terakhir) lewat tanpa suara: pesan
      * yang muncul justru "tersimpan", padahal mesin menolaknya.
      */
-    const sebelum = JSON.stringify(a.employees);
-    const lama = new Set(a.employees.map((x) => x.id));
+    // Dibaca dari mesin, bukan dari layar: saat beberapa akun dibuat beruntun,
+    // daftar di layar belum sempat diperbarui di antara dua simpanan.
+    const kini = peek().employees;
+    const sebelum = JSON.stringify(kini);
+    const lama = new Set(kini.map((x) => x.id));
     const server = sync.mode === "server";
     // Di server, PIN hanya disimpan teracak di tabel staf, tidak di jejak yang bisa dibaca.
     const nipAuto = !emp.nip && !server
-      ? `SPL${String(Math.max(0, ...a.employees.map((x) => Number(/^SPL(\d+)$/.exec(x.nip ?? "")?.[1] ?? 0))) + 1).padStart(3, "0")}`
+      ? `SPL${String(Math.max(0, ...kini.map((x) => Number(/^SPL(\d+)$/.exec(x.nip ?? "")?.[1] ?? 0))) + 1).padStart(3, "0")}`
       : emp.nip;
     dispatchA({ t: "saveEmployee", emp: { ...emp, pin: server ? (lama.has(emp.id) ? emp.pin : "") : (pinBaru ?? emp.pin), ...(nipAuto ? { nip: nipAuto } : {}) } });
     const sesudah = peek().employees;
@@ -928,13 +944,14 @@ function AkunStaf() {
       return false;
     }
     const tersimpan = sesudah.find((x) => (emp.id ? x.id === emp.id : !lama.has(x.id)))!;
+    const hasilId = tersimpan.id;
     if (server) {
-      void store.simpanPinStaf?.({
+      void antre(() => store.simpanPinStaf?.({
         id: tersimpan.id, name: tersimpan.name, role: tersimpan.role, active: tersimpan.active,
         ...(pinBaru ? { pin: pinBaru } : {}),
         ...(tersimpan.nip ? { nip: tersimpan.nip } : {}),
         ...(tersimpan.venue ? { venue: tersimpan.venue } : {}),
-      }).then(async (h) => {
+      })).then(async (h) => {
         if (!h) return;
         if (h.alasan) { flash(`Tersimpan di perangkat, TAPI server menolak: ${h.alasan}`); return; }
         if (h.nip && h.nip !== tersimpan.nip) dispatchA({ t: "saveEmployee", emp: { ...tersimpan, nip: h.nip } });
@@ -947,7 +964,7 @@ function AkunStaf() {
         if (e2) flash(`Akun tersimpan, tapi email ditolak server: ${e2}`);
       });
     }
-    return true;
+    return hasilId;
   }
 
   return (
@@ -1096,11 +1113,23 @@ function AkunStaf() {
             <button onClick={() => setBuka(false)} className="min-h-[44px] px-3 text-sm text-dim">Batal</button>
           </div>
         </div>
+      ) : banyak ? (
+        <div className="mt-2">
+          <TambahBanyakAkun venueAwal={venueAktif} simpan={(emp, pin) => simpan(emp, pin)}
+            nipDari={(id) => dataNip[id]?.nip ?? a.employees.find((x) => x.id === id)?.nip}
+            onTutup={() => setBanyak(false)} />
+        </div>
       ) : (
-        <button onClick={() => setBuka(true)}
-          className="mt-2 min-h-[44px] w-full rounded-xl border border-line bg-ink-2 text-[13px] text-cream">
-          + Tambah akun staf / superadmin
-        </button>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <button onClick={() => setBuka(true)}
+            className="min-h-[44px] w-full rounded-xl border border-line bg-ink-2 text-[13px] text-cream">
+            + Tambah akun staf / superadmin
+          </button>
+          <button onClick={() => setBanyak(true)}
+            className="min-h-[44px] w-full rounded-xl border border-line bg-ink-2 text-[13px] text-cream">
+            + Tambah banyak akun dari daftar
+          </button>
+        </div>
       )}
 
       <p className="mt-2 text-[11px] leading-relaxed text-dim">

@@ -29,12 +29,14 @@ export type Role =
   | "kru_kasir"
   | "kru_kitchen"
   | "kru_bar"
+  /** Pelayan: membuka meja, mencatat pesanan, mengantar. Tidak memegang uang. */
+  | "waiter"
   /** Peran lama sebelum 8 Okt 2026 — sama dengan `kru_kasir`. */
   | "karyawan";
 
 /** Urutan tampil di layar pemilihan peran. `karyawan` sengaja tidak ikut. */
 export const ROLES: Role[] = [
-  "superadmin", "manager", "finance", "kru_gudang", "kru_kasir", "kru_kitchen", "kru_bar",
+  "superadmin", "manager", "finance", "kru_gudang", "kru_kasir", "kru_kitchen", "kru_bar", "waiter",
 ];
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -45,13 +47,14 @@ export const ROLE_LABEL: Record<Role, string> = {
   kru_kasir: "Kru Kasir",
   kru_kitchen: "Kru Kitchen",
   kru_bar: "Kru Bar",
+  waiter: "Waiter",
   karyawan: "Kru Kasir (akun lama)",
 };
 
 /** Dipakai `validAction` memeriksa kejadian dari perangkat lain. `karyawan`
  *  ikut supaya jejak lama tetap bisa diputar ulang. */
 export const ROLES_SAH = [
-  "superadmin", "manager", "finance", "kru_gudang", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan",
+  "superadmin", "manager", "finance", "kru_gudang", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan", "waiter",
 ] as const;
 
 /** Peran yang boleh membuka seluruh aplikasi. */
@@ -158,13 +161,14 @@ export const CAN = {
   // ── Stok gudang ──────────────────────────────────────────
   kelolaStok: ["superadmin", "manager", "finance", "kru_gudang", "kru_kitchen", "kru_bar"],
   // ── Lantai: meja, kasir, dapur ───────────────────────────────
-  bukaMeja: ["superadmin", "manager", "kru_kasir", "karyawan"],
+  // Waiter membuka meja dan mencatat pesanan, tapi tidak pernah memegang uang.
+  bukaMeja: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter"],
   tutupTab: ["superadmin", "manager", "kru_kasir", "karyawan"],
-  orderFnb: ["superadmin", "manager", "kru_kasir", "karyawan"],
-  koreksiPesanan: ["superadmin", "manager", "kru_kasir", "karyawan"],
+  orderFnb: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter"],
+  koreksiPesanan: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter"],
   kontrolLampu: ["superadmin", "manager", "kru_kasir", "karyawan"],
-  tandaiHabis: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan"],
-  ajukanVoid: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan"],
+  tandaiHabis: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan", "waiter"],
+  ajukanVoid: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan", "waiter"],
   // ── Biaya harian ─────────────────────────────────────────
   // Kasir yang mengeluarkan uang dari laci, jadi kasir yang mencatat.
   // Menghapus dipegang atasan, karena tiap hapus menaikkan kas seharusnya.

@@ -269,6 +269,24 @@ console.log("-- NIP akun staf --");
   t("akun bisa disunting tanpa mengubah NIP", [baru?.role, baru?.nip], ["kru_gudang", "SPL010"]);
 }
 
+console.log("-- Waiter --");
+{
+  const d = dunia();
+  d.push(jam(1, 10), { t: "saveEmployee", emp: { id: "", name: "Wahyu", pin: "", nip: "SPL020", role: "waiter", active: true, venue: "smh" } });
+  const w = d.st().employees.find((e) => e.name === "Wahyu")!.id;
+  d.push(jam(1, 11), { t: "openShift", openingCash: 0 }, w);
+  t("waiter tidak bisa membuka shift", !!shiftDi(d.st(), "smh", jam(1, 12)), false);
+  d.push(jam(1, 11, 5), { t: "openShift", openingCash: 0 }, "u-dewi");
+  d.push(jam(1, 12), { t: "walkin", tableId: "S103", guest: "A" }, w);
+  const sesi = d.st().sessions.find((x) => x.tableId === "S103");
+  t("waiter bisa membuka meja resto", !!sesi, true);
+  const nasi = itemOf(d.st(), NASGOR)!;
+  d.push(jam(1, 12, 1), { t: "addFnb", sessionId: sesi!.id, name: nasi.name, station: nasi.station, line: { key: "w1", itemId: NASGOR, qty: 1, unitPrice: nasi.price, name: nasi.name, station: nasi.station } }, w);
+  t("waiter bisa mencatat pesanan", d.st().sessions.find((x) => x.id === sesi!.id)!.fnb.length, 1);
+  d.push(jam(1, 13), { t: "settle", id: sesi!.id, channel: "cash" }, w);
+  t("waiter tidak bisa menerima uang", d.st().sessions.find((x) => x.id === sesi!.id)!.status, "running");
+}
+
 console.log("-- Sebelum tanggal aturan: tetap satu shift --");
 {
   const nov = (h: number) => dariWib(2026, 11, 1, h);

@@ -2270,7 +2270,8 @@ function reduce(s: State, a: Action): State {
       return { ...s, me: null };
 
     case "openShift": {
-      if (!s.me) return s;
+      // Waiter tidak memegang laci, jadi tidak pernah membuka shift.
+      if (!s.me || s.me.role === "waiter") return s;
       // Venue staf yang terikat MENANG atas pilihan perangkat: kalau kasir
       // Smokehouse membuka shift di perangkat yang kebetulan sedang menampilkan
       // SPL, kasnya tetap kas Smokehouse.

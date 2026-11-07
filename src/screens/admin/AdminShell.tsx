@@ -70,11 +70,11 @@ const TABS: {
 }[] = [
   { to: "/admin", label: "Papan", end: true, izin: "bukaMeja" },
   { to: "/admin/kasir", label: "Kasir", izin: "tutupTab" },
-  { to: "/admin/dapur", label: "Dapur", roles: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan"] },
+  { to: "/admin/dapur", label: "Dapur", roles: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "waiter", "karyawan"] },
   // ANTAR duduk tepat sesudah Dapur, karena itu urutan kerjanya: dapur
   // menandai matang, pramusaji mengambil dan mengantar. Perannya sama dengan
   // Dapur — siapa pun yang di lantai boleh melihatnya.
-  { to: "/admin/antar", label: "Antar", roles: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan"] },
+  { to: "/admin/antar", label: "Antar", roles: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "waiter", "karyawan"] },
   { to: "/admin/menu", label: "Menu & Stok", izin: "kelolaStok" },
   { to: "/admin/gudang", label: "Gudang", izin: "kelolaStok" },
   { to: "/admin/void", label: "Void", izin: "ajukanVoid" },
@@ -434,10 +434,16 @@ export default function AdminShell() {
             <span className="text-cream"> seluruh tunai yang masuk di shift ini</span>.
           </p>
 
+          {role === "waiter" ? (
+            <p className="mt-4 rounded-xl border border-amber/50 bg-amber/10 px-4 py-3 text-center text-[13px] leading-snug text-amber">
+              Shift dibuka oleh kasir. Tunggu kasir {VENUE_LABEL[venue]} membuka shift, lalu masuk lagi.
+            </p>
+          ) : (
           <button
             onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}
             className="mt-4 min-h-[52px] w-full rounded-xl bg-amber font-semibold text-ink"
           >Mulai Shift</button>
+          )}
           <button
             onClick={() => { signOut(); dispatchA({ t: "logout" }); }}
             className="mt-2 min-h-[44px] w-full text-sm text-dim"

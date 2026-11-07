@@ -19,7 +19,7 @@ import type { State } from "./engine";
 import { kabarkan } from "./notifikasi";
 
 const DAPUR: Role[] = ["superadmin", "manager", "kru_kitchen", "kru_bar"];
-const LANTAI: Role[] = ["superadmin", "manager", "kru_kasir", "karyawan"];
+const LANTAI: Role[] = ["superadmin", "manager", "kru_kasir", "karyawan", "waiter"];
 
 /**
  * Yang BARU muncul sejak panggilan sebelumnya.

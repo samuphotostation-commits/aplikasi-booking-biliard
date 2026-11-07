@@ -47,6 +47,8 @@ const PETA: Record<Exclude<Role, "superadmin" | "manager">, Permission[]> = {
   // Dapur & bar: tiket + stok gudangnya sendiri.
   kru_kitchen: ["kelolaStok", "tandaiHabis", "ajukanVoid"],
   kru_bar: ["kelolaStok", "tandaiHabis", "ajukanVoid"],
+  // Waiter: buka meja, catat pesanan, antar. TIDAK memegang uang.
+  waiter: ["bukaMeja", "orderFnb", "koreksiPesanan", "tandaiHabis", "ajukanVoid"],
   // Peran lama yang DIPERTAHANKAN supaya jejak staf lama tetap bisa diputar
   // ulang. Haknya sama dengan kru kasir.
   karyawan: ["catatBiaya", "bukaMeja", "tutupTab", "orderFnb", "koreksiPesanan", "kontrolLampu", "tandaiHabis", "ajukanVoid",
@@ -58,7 +60,7 @@ const SEMUA_IZIN = Object.keys(CAN) as Permission[];
 console.log("-- Tujuh peran yang DITAWARKAN, plus satu peran lama yang masih SAH --");
 // Yang bisa dipilih pemilik saat membuat akun: tepat tujuh.
 t("peran yang ditawarkan", [...ROLES].sort(), [
-  "finance", "kru_bar", "kru_gudang", "kru_kasir", "kru_kitchen", "manager", "superadmin",
+  "finance", "kru_bar", "kru_gudang", "kru_kasir", "kru_kitchen", "manager", "superadmin", "waiter",
 ].sort());
 // `karyawan` SENGAJA tidak ditawarkan lagi, tapi tetap sah: jejak venue
 // menyimpan peran di dalam kejadiannya, jadi membuangnya membuat riwayat staf
@@ -98,7 +100,7 @@ console.log("\n-- Pagar yang mudah terlewat saat peta diubah --");
 // Uang & pengaturan: tidak boleh bocor ke lantai maupun gudang.
 for (const p of ["lihatLaporanKeuangan", "beriDiskonManual", "setujuiVoid", "kelolaPromo",
   "kelolaMeja", "kelolaKaryawan", "koreksiWaktu"] as Permission[]) {
-  const lantai = (["kru_kasir", "kru_kitchen", "kru_bar", "kru_gudang", "karyawan"] as Role[])
+  const lantai = (["kru_kasir", "kru_kitchen", "kru_bar", "kru_gudang", "karyawan", "waiter"] as Role[])
     .filter((r) => can(r, p));
   t(`${p} tidak dipegang kru lantai/gudang`, lantai, []);
 }
@@ -109,6 +111,8 @@ t("beriDiskonManual hanya superadmin & manager",
 // Finance mengatur harga tapi TIDAK boleh menyentuh meja & tab.
 t("finance tidak bisa membuka meja", can("finance", "bukaMeja"), false);
 t("finance tidak bisa menutup tab", can("finance", "tutupTab"), false);
+t("waiter tidak bisa menutup tab", can("waiter", "tutupTab"), false);
+t("waiter bisa mencatat pesanan", can("waiter", "orderFnb"), true);
 // Kru gudang tidak boleh ikut melayani lantai.
 t("kru gudang tidak bisa membuka meja", can("kru_gudang", "bukaMeja"), false);
 t("kru gudang tidak bisa order F&B", can("kru_gudang", "orderFnb"), false);
