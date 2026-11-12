@@ -1,0 +1,15 @@
+{
+  "id": "036",
+  "membeli": true,
+  "kali_bulan_pertama": 2,
+  "kode_alasan": "praktis",
+  "alasan": "Kalau malam sering penuh, enak bisa kunci meja dari HP tanpa chat-chat dulu. Kodenya juga bisa kusimpan di screenshot kayak biasa.",
+  "keberatan_utama": "Sudah bayar tapi nggak bisa dibatalkan, dan aku takut uang kepotong padahal mejanya nggak ada pas datang.",
+  "yang_bisa_mengubah_pikiran": "Kepastian kalau sudah bayar mejanya pasti terkunci, dan ada jalan jelas kalau ternyata bermasalah di tempat.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

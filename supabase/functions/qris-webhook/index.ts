@@ -158,6 +158,10 @@ Deno.serve(async (req) => {
     } else if (act.t === "guestOrder" && act.order && typeof act.order === "object") {
       (act.order as Record<string, unknown>).paidOnline = dibayar;
       (act.order as Record<string, unknown>).pay = "online";
+    } else if (act.t === "jadwalUlang") {
+      // Selisih jadwal ulang: nominal & penanda bayar ditulis server, bukan HP.
+      act.bayarTambah = dibayar;
+      act.bayarId = ref;
     }
   }
 

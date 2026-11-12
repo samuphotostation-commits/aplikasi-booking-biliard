@@ -1,0 +1,15 @@
+{
+  "id": "007",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Aku nggak punya Gmail yang aktif, lupa sandinya malah. Mau main biliar aja kok harus login Google dulu, mending langsung datang aja ke sana.",
+  "keberatan_utama": "Wajib masuk pakai akun Google dan nomor HP, padahal aku nggak ingat punya Gmail.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa daftar atau masuk cukup pakai nomor HP tanpa Gmail, dan nggak berat di kuota.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 42000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

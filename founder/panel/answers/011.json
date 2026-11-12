@@ -1,0 +1,15 @@
+{
+  "id": "011",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Aku main malam, biasanya langsung datang aja sama temen. Kalau mau mastiin meja kosong paling tanya kasir lewat WA, nggak perlu bayar duluan dan daftar akun segala.",
+  "keberatan_utama": "Bayar di muka tanpa bisa batal itu berisiko, apalagi kalau temen telat atau nggak jadi datang.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking boleh dijadwal ulang atau ada keringanan kalau batal, atau ada diskon jelas buat yang booking lewat aplikasi.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 42000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

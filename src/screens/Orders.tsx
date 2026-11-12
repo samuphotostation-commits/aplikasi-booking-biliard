@@ -10,12 +10,14 @@ import { SEMUA_MEJA } from "../data/venue";
 import { fmtDateLong, rupiah } from "../lib/core";
 import { TONE_CLASS, bookingMilikAkun, customerStatus, jamOf } from "../lib/customerStatus";
 import { memberSaya, type Member } from "../lib/member";
+import { JadwalUlang, alasanTidakBisa } from "./JadwalUlang";
 
 export default function Orders() {
   const nav = useNavigate();
   const { state } = useStore();
   const { a } = useAdmin();
   const [member, setMember] = useState<Member | null>(null);
+  const [ubahJadwal, setUbahJadwal] = useState<string | null>(null);
 
   useEffect(() => {
     let batal = false;
@@ -127,6 +129,24 @@ export default function Orders() {
                     </div>
                   </div>
                 </button>
+                {b.kind === "booking" && s && "fnb" in s && s.status === "booked" && (
+                  <div className="border-t border-line px-4 py-2.5">
+                    {ubahJadwal === s.id ? (
+                      <JadwalUlang sesi={s} onTutup={() => setUbahJadwal(null)} />
+                    ) : s.jadwalUlang ? (
+                      <p className="text-[11px] text-dim">Sudah dijadwal ulang sekali.</p>
+                    ) : alasanTidakBisa(s) ? (
+                      <p className="text-[11px] text-dim">{alasanTidakBisa(s)}</p>
+                    ) : !member ? (
+                      <p className="text-[11px] text-dim">Masuk ke akun member untuk menjadwal ulang booking ini.</p>
+                    ) : (
+                      <button onClick={() => setUbahJadwal(s.id)}
+                        className="min-h-[40px] w-full rounded-lg border border-amber/50 text-[13px] font-semibold text-amber hover:bg-amber/10">
+                        Berhalangan? Jadwal ulang gratis 1x
+                      </button>
+                    )}
+                  </div>
+                )}
               </Card>
             </motion.div>
           );

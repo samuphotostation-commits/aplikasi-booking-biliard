@@ -14,6 +14,9 @@ const USIA_MAKS = 100;
 
 /** Angka yang diketik jadi HH/BB/TTTT, supaya tanggal cukup diketik di papan angka. */
 export function rapikanTanggal(ketik: string): string {
+  // Isi otomatis browser memberi TTTT-BB-HH, bukan angka ketikan.
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ketik.trim());
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
   const a = ketik.replace(/\D/g, "").slice(0, 8);
   return [a.slice(0, 2), a.slice(2, 4), a.slice(4)].filter(Boolean).join("/");
 }
@@ -25,7 +28,9 @@ export function keIso(teks: string, kini = new Date()): string | null {
   const [h, b, t] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const d = new Date(Date.UTC(t, b - 1, h));
   if (d.getUTCFullYear() !== t || d.getUTCMonth() !== b - 1 || d.getUTCDate() !== h) return null;
-  const usia = kini.getFullYear() - t;
+  // Usia penuh, sama dengan hitungan server: yang belum berulang tahun tahun ini belum genap.
+  const belumUlangTahun = kini.getMonth() + 1 < b || (kini.getMonth() + 1 === b && kini.getDate() < h);
+  const usia = kini.getFullYear() - t - (belumUlangTahun ? 1 : 0);
   if (usia < USIA_MIN || usia > USIA_MAKS) return null;
   return `${m[3]}-${m[2]}-${m[1]}`;
 }

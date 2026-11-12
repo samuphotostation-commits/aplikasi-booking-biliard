@@ -60,5 +60,13 @@ uji("kecamatan Padang sah", domisiliLengkap("Padang Barat"));
 uji("luar Padang wajib menyebut kota", !domisiliLengkap("Luar Padang · ") && domisiliLengkap("Luar Padang · Solok"));
 uji("isian kosong ditolak", !domisiliLengkap(""));
 
+// Laporan 7 Nov 2026: hitungan usia harus sama dengan server (usia penuh).
+const kini7nov = new Date(2026, 10, 7);
+uji("genap 10 tahun hari ini diterima", keIso("07/11/2016", kini7nov) === "2016-11-07");
+uji("10 tahun kurang sehari ditolak seperti di server", keIso("08/11/2016", kini7nov) === null);
+uji("isi otomatis browser TTTT-BB-HH dirapikan", rapikanTanggal("1995-08-17") === "17/08/1995");
+
 console.log(gagal ? `\n${gagal} SALAH` : "\nSEMUA BENAR (cetak dapur & data member)");
+
 if (gagal) process.exit(1);
+

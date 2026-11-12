@@ -1,0 +1,15 @@
+{
+  "id": "086",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku biasanya cuma pesan makan buat dibawa dari HP, jarang main biliar. Booking meja harus bayar dimuka dan nggak bisa batal, jadi aku males ambil risiko kalau jadwal kerja geser.",
+  "keberatan_utama": "Bayar dimuka tanpa bisa batal, dan telat lebih dari 20 menit bookingnya hilang, padahal jadwal pulang kerjaku sering molor.",
+  "yang_bisa_mengubah_pikiran": "Kalau pesan makanan takeaway bisa langsung dipakai tanpa daftar ribet dan ada kepastian bisa diambil di kasir, atau booking boleh diundur sekali tanpa hangus.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 25000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 40000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

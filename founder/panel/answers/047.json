@@ -1,0 +1,15 @@
+{
+  "id": "047",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku biasanya ngatur acara kantor atau ulang tahun buat 2-3 meja, dan rencana teman-teman itu sering geser. Kalau sudah bayar di muka dan nggak bisa dibatalin atau dijadwal ulang, aku yang rugi dan jadi nggak enak sama panitia. Lebih aman aku datang langsung atau tanya-tanya dulu.",
+  "keberatan_utama": "Booking yang sudah dibayar tidak bisa dibatalkan atau dijadwal ulang, padahal rombongan sering berubah jadwal dan jumlah orang.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking bisa dijadwal ulang sekali tanpa denda, atau ada aturan jelas buat rombongan 2-3 meja, aku mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 32000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

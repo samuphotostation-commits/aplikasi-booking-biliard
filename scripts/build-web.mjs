@@ -104,6 +104,10 @@ const RINGKASAN = tamu
   ? "Booking meja biliar dan pesan makanan di SPL Sports Pool Lounge &amp; Smokehouse Resto, Jl. Batang Anai, Padang. Pilih jam dari HP, bayar QRIS, meja terkunci atas namamu. Buka 11.00&ndash;02.00 tiap hari."
   : "Panel kasir &amp; booking meja biliar SPL Sports Pool Lounge.";
 
+/** Nama badan usaha & alamat: harus sama dengan src/data/venue.ts dan public/*.html. */
+const BADAN_USAHA = "CV SMOKE HOUSE RESTO";
+const ALAMAT_USAHA = "Jl. Batang Anai No. 2, Rimbo Kaluang, Padang Barat, Kota Padang, Sumatera Barat";
+
 /**
  * Pratinjau tautan. Hanya untuk situs tamu — panel kasir tidak punya urusan
  * tampil cantik di linimasa siapa pun.
@@ -123,7 +127,40 @@ const kepalaSosial = tamu ? `
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${JUDUL}">
 <meta name="twitter:description" content="${RINGKASAN}">
-<meta name="twitter:image" content="${ALAMAT_SITUS}/og-spl.jpg">` : "";
+<meta name="twitter:image" content="${ALAMAT_SITUS}/og-spl.jpg">
+<script type="application/ld+json">${JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  name: "SPL Sports Pool Lounge & Smokehouse Resto",
+  legalName: BADAN_USAHA,
+  url: `${ALAMAT_SITUS}/`,
+  image: `${ALAMAT_SITUS}/og-spl.jpg`,
+  telephone: "+6285121180988",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Jl. Batang Anai No. 2, Rimbo Kaluang",
+    addressLocality: "Padang Barat, Kota Padang",
+    addressRegion: "Sumatera Barat",
+    addressCountry: "ID",
+  },
+  openingHours: "Mo-Su 11:00-02:00",
+  sameAs: ["https://www.instagram.com/sportspoollounge/"],
+})}</script>` : "";
+
+/**
+ * Teks cadangan untuk pemeriksa yang TIDAK menjalankan JavaScript (termasuk
+ * sebagian pemeriksa verifikasi bisnis): nama badan usaha, alamat, dan nomor
+ * yang bisa dihubungi tetap terbaca di HTML mentahnya.
+ */
+const tanpaSkrip = tamu ? `
+<noscript>
+<div style="max-width:40rem;margin:0 auto;padding:24px 20px;font:16px/1.6 system-ui,sans-serif;color:#f2e9dc;background:#0e0d0c">
+<h1 style="font-size:1.4rem">SPL Sports Pool Lounge &amp; Smokehouse Resto</h1>
+<p>Biliar dan resto di Padang. Buka 11.00&ndash;02.00 setiap hari.</p>
+<p>&copy; ${new Date().getFullYear()} ${BADAN_USAHA} &middot; ${ALAMAT_USAHA} &middot; WhatsApp 0851-2118-0988</p>
+<p><a href="/ketentuan.html" style="color:#f0a202">Ketentuan</a> &middot; <a href="/privasi.html" style="color:#f0a202">Privasi</a></p>
+</div>
+</noscript>` : "";
 
 /**
  * Alamat lama dan www diantar ke alamat resmi, dengan jalur dan kode login
@@ -169,7 +206,7 @@ const html = `<!doctype html>
 ${satuBerkas ? `<style>${css}</style>` : `<link rel="stylesheet" href="assets/${cssFile}">`}
 </head>
 <body>
-<div id="root"></div>
+<div id="root"></div>${tanpaSkrip}
 ${satuBerkas ? `<script type="module">${js}</script>` : `<script type="module" src="assets/${jsFile}"></script>`}
 <script>
   // Juru simpan: aplikasi tetap terbuka saat internet putus (papan tetap terbaca).

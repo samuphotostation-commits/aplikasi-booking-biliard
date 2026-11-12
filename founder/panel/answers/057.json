@@ -1,0 +1,15 @@
+{
+  "id": "057",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Saya ini jarang ingat Gmail, entah masih ada atau lupa sandinya. Biasanya saya tinggal chat WA atau langsung datang bareng keluarga, jadi kalau harus masuk pakai akun Google dulu, malas.",
+  "keberatan_utama": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail, ditambah bayar di muka dan tidak bisa dibatalkan.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa daftar cukup pakai nomor HP tanpa Gmail, atau tetap bisa booking lewat WhatsApp seperti biasa.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

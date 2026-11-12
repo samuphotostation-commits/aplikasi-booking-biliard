@@ -100,7 +100,7 @@ export default function MenuScreen() {
 
   return (
     <div className="pb-40">
-      <PageHeader kicker="Smokehouse" title="Menu" sub="Pesan dari meja, sekalian booking, atau takeaway." />
+      <PageHeader kicker="Smokehouse" title="Menu" sub="Pesan dari meja, sekalian booking, atau takeaway. Tanpa daftar akun." />
 
       <div className="safe-t sticky top-0 z-20 border-b border-line bg-ink/95 px-5 py-3 backdrop-blur-md">
         <div className="mx-auto max-w-lg">

@@ -1,0 +1,15 @@
+{
+  "id": "060",
+  "membeli": true,
+  "kali_bulan_pertama": 2,
+  "kode_alasan": "praktis",
+  "alasan": "Kalau lagi makan di Smokehouse sama keluarga, pesan lewat HP dari meja itu enak, nggak usah panggil-panggil pelayan, dan bisa bayar nanti di kasir jadi nggak ada risiko. Booking meja biliar buat anak main mungkin sekali-dua kali, tapi harus lihat dulu prosesnya gampang atau nggak.",
+  "keberatan_utama": "Bayar dimuka lewat QRIS dan nggak bisa dibatalkan, padahal saya takut uang sudah kepotong tapi meja tidak tersedia saat datang.",
+  "yang_bisa_mengubah_pikiran": "Kepastian jelas bahwa meja benar-benar terkunci begitu bayar (ada bukti dan kode check-in yang bisa saya screenshot) dan ada jaminan kalau mejanya ternyata bermasalah uang dikembalikan.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 32000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

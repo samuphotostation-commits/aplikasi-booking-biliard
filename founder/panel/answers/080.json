@@ -1,0 +1,15 @@
+{
+  "id": "080",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya biasanya booking lewat WA atau langsung datang. Kalau bawa keluarga, jadwal anak sering berubah, jadi bayar di muka yang tidak bisa dibatalkan atau dijadwal ulang itu bikin saya males.",
+  "keberatan_utama": "Sudah bayar tapi tidak bisa batal atau pindah jam, padahal rencana keluarga sering berubah dan telat 20 menit saja mejanya hangus.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking bisa dijadwal ulang sekali atau ada waktu toleransi yang lebih longgar, atau pesan makanan saja bisa bayar di kasir tanpa harus booking meja dulu.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

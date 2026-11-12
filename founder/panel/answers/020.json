@@ -1,0 +1,15 @@
+{
+  "id": "020",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Biasanya aku tinggal chat kasir lewat WA terus datang, gampang. Kalau harus login Google, isi nomor HP, tanggal lahir, domisili dulu, males, apalagi kuota sama sinyalku kadang pas-pasan.",
+  "keberatan_utama": "Daftar pakai Google plus isi data diri itu ribet, dan bayar di muka tanpa bisa batal bikin ragu kalau rencana main berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa booking tanpa daftar panjang, cukup nomor HP saja, dan ada kejelasan kalau telat atau rencana berubah.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 42000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

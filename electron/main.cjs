@@ -97,7 +97,7 @@ function buatJendela() {
     minWidth: 360,
     backgroundColor: "#0B0B0C",
     title: "SPL Kasir",
-    icon: path.join(AKAR, "ikon-1080.png"),
+    icon: path.join(__dirname, "..", "build", "icon.ico"),
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true, nodeIntegration: false, sandbox: true,

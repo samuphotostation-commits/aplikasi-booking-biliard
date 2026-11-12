@@ -14,9 +14,12 @@ import {
   rekapTigaJenis, recap, replay, priceOf, kategoriJual, itemOf,
   paketAktif, paketOf, slotProblem, omzetPerShift, penjualanProduk, complimentOf,
   grupSesi, tagihanGrup, settlementOf, validAction, persenLini, LINI, statusVoidBaris,
-  paketProblem, jamKejadian, MAKS_ANTRE_MS,
+  paketProblem, jamKejadian, MAKS_ANTRE_MS, jadwalUlangProblem,
   type Action, type Entry, type Genesis,
 } from "../src/lib/engine";
+import { applyAction } from "../src/lib/engine";
+import { publicVenue, sesiDariSlot } from "../src/lib/publicView";
+import { buangCerminanHold } from "../src/lib/customerStore";
 import { findItem } from "../src/data/menu";
 import { businessDateOf, dariWib, tanggalWib } from "../src/lib/occupancy";
 
@@ -1375,5 +1378,101 @@ console.log("\n-- Mode demo: membuka JAM saja (23 Okt 2026) --");
   t("bentuk aksinya dijaga", validAction({ t: "setJamBebas", on: true } as Action), true);
   t("tanpa nilai on: ditolak", validAction({ t: "setJamBebas" } as unknown as Action), false);
 }
+
+console.log("\n-- Hold tamu yang sudah terbit tidak boleh dianggap diambil orang lain (7 Nov 2026) --");
+{
+  /* Laporan pemilik: halaman bayar booking menampilkan "Slot tidak bisa ditahan"
+     sebelum QRIS muncul. Ringkasan publik sudah memuat hold tamu itu sendiri
+     (tanpa id aslinya), lalu hold yang diputar ulang di HP bertabrakan dengan
+     dirinya sendiri dan id aslinya hilang dari layar. */
+  const d = dunia();
+  const besok = jam(18) + 86_400_000;
+  const sesi = { id: "ol-9", tableId: "T06", startsAt: besok, endsAt: besok + 2 * 3_600_000, guest: "Tamu", fnb: [], paidOnline: 0 };
+  const e: Entry = { id: "h-tamu", at: jam(13), by: null, act: { t: "hold", session: sesi } as never };
+  const server = replay(d.genesis, [...d.entries, e]);
+  t("server menahan slotnya", server.sessions.find((x) => x.id === "ol-9")?.status, "hold");
+
+  // Yang dibaca HP tamu: ringkasan publik, tanpa id asli.
+  const ringkas = { ...server, sessions: sesiDariSlot(publicVenue(server, jam(13, 1)).slots) };
+  t("tanpa perbaikan: id hold hilang (penyebab laporan)",
+    applyAction(ringkas, e).sessions.some((x) => x.id === "ol-9"), false);
+  const hp = applyAction({ ...ringkas, sessions: buangCerminanHold(ringkas.sessions, e) }, e);
+  t("dengan perbaikan: hold milik tamu tetap terlihat", hp.sessions.find((x) => x.id === "ol-9")?.status, "hold");
+  t("slotnya tidak terhitung dua kali",
+    hp.sessions.filter((x) => x.tableId === "T06" && x.startsAt === besok).length, 1);
+
+  // Hold tamu LAIN di meja & jam yang sama (dibuat 10 menit lebih dulu) tetap dihormati.
+  const lain: Entry = { id: "h-lain", at: jam(12, 50), by: null, act: { t: "hold", session: { ...sesi, id: "ol-lain" } } as never };
+  const server2 = replay(d.genesis, [...d.entries, lain]);
+  const ringkas2 = { ...server2, sessions: sesiDariSlot(publicVenue(server2, jam(13, 1)).slots) };
+  const hp2 = applyAction({ ...ringkas2, sessions: buangCerminanHold(ringkas2.sessions, e) }, e);
+  t("hold orang lain tidak dibuang", hp2.sessions.some((x) => x.tableId === "T06" && x.startsAt === besok && x.id.startsWith("pub-")), true);
+  t("dan hold kita tetap ditolak", hp2.sessions.some((x) => x.id === "ol-9"), false);
+}
+
+
+console.log("\n-- Jadwal ulang gratis sekali (8 Nov 2026) --");
+{
+  /* Keputusan pemilik dari panel 100 pembeli: booking yang sudah dibayar boleh
+     dipindah SEKALI, paling lambat 3 jam sebelum main, ke jadwal dalam 14 hari.
+     Lebih mahal: bayar selisih lewat QRIS. Lebih murah: selisih tidak kembali. */
+  const d = dunia();
+  const besok = (h: number) => jam(h) + 86_400_000;
+  const kode = "SPL-JU0001";
+  const sesi = {
+    id: "o-ju1", tableId: "T06", startsAt: besok(14), endsAt: besok(15), guest: "Tamu JU", phone: "6281200001111",
+    fnb: [], paidOnline: 0, tableAmount: 0, source: "online", status: "hold", bookingCode: kode,
+  } as never;
+  d.entries.push({ id: "ju-h", at: jam(12), by: null, act: { t: "hold", session: sesi } });
+  const sesudahHold = replay(d.genesis, d.entries);
+  const harga = sesudahHold.sessions.find((x) => x.id === "o-ju1")!.tableAmount;
+  d.entries.push({ id: "ju-b", at: jam(12, 3), by: null, act: { t: "confirmOnline", session: { ...(sesi as object), status: "booked", checkin: "551100", paidOnline: harga } as never } });
+  const st0 = replay(d.genesis, d.entries);
+  t("booking terbayar", st0.sessions.find((x) => x.id === "o-ju1")?.status, "booked");
+
+  // Aturan yang dilihat layar tamu.
+  t("jam sama tarif sama: gratis", jadwalUlangProblem(st0, "o-ju1", { tableId: "T07", startsAt: besok(15) }, jam(13)).selisih, 0);
+  t("pindah ke malam: bayar selisih", jadwalUlangProblem(st0, "o-ju1", { tableId: "T06", startsAt: besok(20) }, jam(13)).selisih, 10_000);
+  t("kurang dari 3 jam sebelum main: ditolak",
+    jadwalUlangProblem(st0, "o-ju1", { tableId: "T07", startsAt: besok(16) }, besok(12)).masalah !== null, true);
+  t("lebih dari 14 hari: ditolak",
+    jadwalUlangProblem(st0, "o-ju1", { tableId: "T07", startsAt: jam(14) + 15 * 86_400_000 }, jam(13)).masalah !== null, true);
+
+  // Gratis tanpa bayar ke jam bertarif sama.
+  const e1 = { t: "jadwalUlang", id: "o-ju1", code: kode, tableId: "T07", startsAt: besok(16) } as const;
+  d.entries.push({ id: "ju-1", at: jam(13), by: null, act: e1 });
+  const st1 = replay(d.genesis, d.entries);
+  const s1 = st1.sessions.find((x) => x.id === "o-ju1")!;
+  t("pindah ke T07 jam 16.00", [s1.tableId, s1.startsAt, s1.endsAt - s1.startsAt], ["T07", besok(16), 3_600_000]);
+  t("kode check-in tetap", s1.checkin, "551100");
+  t("tercatat asal jadwalnya", s1.jadwalUlang?.dariMeja, "T06");
+  t("sesudah pindah, jatahnya habis", jadwalUlangProblem(st1, "o-ju1", { tableId: "T06", startsAt: besok(14) }, jam(13, 5)).masalah, "jatah jadwal ulang gratis sudah dipakai");
+
+  // Jatah kedua ditolak.
+  d.entries.push({ id: "ju-2", at: jam(13, 10), by: null, act: { ...e1, tableId: "T08" } });
+  t("jadwal ulang kedua ditolak", replay(d.genesis, d.entries).sessions.find((x) => x.id === "o-ju1")!.tableId, "T07");
+
+  // Booking kedua: pindah ke jam malam yang lebih mahal.
+  const d2 = dunia();
+  const k2 = "SPL-JU0002";
+  const sesi2 = { ...(sesi as object), id: "o-ju2", bookingCode: k2 } as never;
+  d2.entries.push({ id: "j2-h", at: jam(12), by: null, act: { t: "hold", session: sesi2 } });
+  d2.entries.push({ id: "j2-b", at: jam(12, 3), by: null, act: { t: "confirmOnline", session: { ...(sesi2 as object), status: "booked", checkin: "551122", paidOnline: harga } as never } });
+  const malam = { t: "jadwalUlang", id: "o-ju2", code: k2, tableId: "T06", startsAt: besok(20) } as const;
+  d2.entries.push({ id: "j2-1", at: jam(13), by: null, act: malam });
+  t("lebih mahal tanpa bayar: ditolak diam, tanpa refund",
+    [replay(d2.genesis, d2.entries).sessions.find((x) => x.id === "o-ju2")!.startsAt, replay(d2.genesis, d2.entries).refunds.length], [besok(14), 0]);
+  d2.entries.push({ id: "j2-2", at: jam(13, 5), by: null, act: { ...malam, bayarTambah: 7_000, bayarId: "byr-salah" } });
+  const st2 = replay(d2.genesis, d2.entries);
+  t("bayar selisih yang salah: ditolak & dananya dicatat kembali",
+    [st2.sessions.find((x) => x.id === "o-ju2")!.startsAt, st2.refunds[0]?.amount], [besok(14), 7_000]);
+  d2.entries.push({ id: "j2-3", at: jam(13, 10), by: null, act: { ...malam, bayarTambah: 10_000, bayarId: "byr-1" } });
+  d2.entries.push({ id: "j2-4", at: jam(13, 11), by: null, act: { ...malam, bayarTambah: 10_000, bayarId: "byr-1" } });
+  const st3 = replay(d2.genesis, d2.entries);
+  const s3 = st3.sessions.find((x) => x.id === "o-ju2")!;
+  t("selisih lunas: pindah ke 20.00, prabayar bertambah sekali saja",
+    [s3.startsAt, s3.paidOnline, s3.tableAmount, st3.refunds.length], [besok(20), harga + 10_000, harga + 10_000, 1]);
+}
+
 console.log(bad === 0 ? `\nSEMUA BENAR (${total} pemeriksaan)` : `\n${bad} DARI ${total} GAGAL`);
 if (bad > 0) process.exit(1);

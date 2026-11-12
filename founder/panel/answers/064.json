@@ -1,0 +1,15 @@
+{
+  "id": "064",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya bawa anak, rencana keluarga sering berubah di menit terakhir. Kalau sudah bayar tidak bisa batal dan telat 20 menit meja hangus, saya lebih pilih datang langsung atau tanya kasir lewat WhatsApp dulu.",
+  "keberatan_utama": "Uang sudah keluar di muka dan tidak bisa dibatalkan, padahal jadwal keluarga dengan anak sering molor.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada aturan bisa dijadwal ulang atau uang kembali bila telat karena alasan wajar, atau ada kontak kasir di WhatsApp untuk bertanya dulu.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 32000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

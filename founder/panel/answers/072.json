@@ -1,0 +1,15 @@
+{
+  "id": "072",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya sering telat 10-15 menit dan biasanya nanya dulu ke kasir lewat WA. Kalau sudah bayar tidak bisa dibatalkan dan batas telat 20 menit, saya takut kena, apalagi bawa anak-anak. Lebih tenang datang langsung saja.",
+  "keberatan_utama": "Bayar di muka tanpa bisa batal, sementara saya sering telat dan jadwal keluarga sering berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau boleh jadwal ulang atau toleransi telat lebih longgar (30 menit), dan pesan makanan lewat HP dengan bayar di kasir saja.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 75000
+  }
+}

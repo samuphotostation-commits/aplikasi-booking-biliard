@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { Mark } from "../components/UI";
 import { SmokeMark } from "../components/Smoke";
 import { perangkatLemah } from "../components/motion/Adegan";
-import { Aksi, Aksi2, ALAMAT, wa } from "../components/BagianVenue";
+import { Aksi, Aksi2, ALAMAT, KakiSitus, wa } from "../components/BagianVenue";
 import { Judul, LabelSandi, Muncul } from "../components/motion/Adegan";
 import { CLOSE_IDX, OPEN_IDX, classOf, hourIdx, mejaDijual, useAdmin } from "../lib/adminStore";
 import { rupiah } from "../lib/core";
@@ -187,9 +187,13 @@ export default function Gerbang() {
               <Aksi onClick={() => nav("/daftar")}>Daftar member</Aksi>
               <Aksi2 href={wa("Halo SPL, saya mau tanya.")}>WhatsApp {WA_VENUE_TAMPIL}</Aksi2>
             </div>
+            <p className="mt-3 text-[12.5px] leading-snug text-mute">
+              Akun member hanya untuk booking meja biliar. Pesan makanan dan takeaway bisa tanpa akun.
+            </p>
           </Muncul>
         </div>
       </section>
+      <KakiSitus />
     </div>
   );
 }

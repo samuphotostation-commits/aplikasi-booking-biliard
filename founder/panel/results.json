@@ -1,0 +1,790 @@
+{
+  "dijawab": 100,
+  "hilang": [],
+  "rusak": [],
+  "persenBeli": 10,
+  "rataKaliBulanPertama": 1.6,
+  "perSegmen": {
+    "Pemain reguler": {
+      "n": 40,
+      "beli": 4,
+      "kali": 8,
+      "persenBeli": 10,
+      "rataKali": 2
+    },
+    "Rombongan & kantor": {
+      "n": 15,
+      "beli": 1,
+      "kali": 1,
+      "persenBeli": 7,
+      "rataKali": 1
+    },
+    "Keluarga & makan Smokehouse": {
+      "n": 30,
+      "beli": 5,
+      "kali": 7,
+      "persenBeli": 17,
+      "rataKali": 1.4
+    },
+    "Takeaway pekerja sekitar": {
+      "n": 15,
+      "beli": 0,
+      "kali": 0,
+      "persenBeli": 0,
+      "rataKali": 0
+    }
+  },
+  "alasanTolak": [
+    {
+      "kode": "tidak_bisa_batal",
+      "n": 38,
+      "contoh": "Aku biasanya yang bayarin satu kelompok, dan kalau teman-teman molor atau batal, uangku hangus. Selama ini datang langsung juga biasanya kebagian meja, jadi belum terasa perlu bayar duluan.",
+      "dari": "Pemain reguler"
+    },
+    {
+      "kode": "ribet_daftar",
+      "n": 32,
+      "contoh": "Aku nggak ingat Gmail-ku yang mana, passwordnya apalagi. Kalau harus login Google dulu cuma buat booking meja, mending langsung datang aja atau tanya temen yang udah di sana.",
+      "dari": "Pemain reguler"
+    },
+    {
+      "kode": "lebih_suka_datang",
+      "n": 12,
+      "contoh": "Biasanya aku tanya kasir lewat WA lalu langsung datang, jarang penuh juga kalau malam biasa. Bayar di depan dan nggak bisa batal bikin males, apalagi kuota sama sinyalku kadang pas-pasan.",
+      "dari": "Pemain reguler"
+    },
+    {
+      "kode": "butuh_wa",
+      "n": 4,
+      "contoh": "Saya biasa tanya kasir lewat WA dulu sebelum bawa rombongan, soalnya butuh 2-3 meja sekaligus dan mau pastikan bisa. Gmail saya juga nggak ingat, dan bayar di muka tanpa bisa batal itu berisiko kalau teman-teman kantor ada yang mundur.",
+      "dari": "Rombongan & kantor"
+    },
+    {
+      "kode": "bayar_dimuka",
+      "n": 3,
+      "contoh": "Aku biasanya langsung datang aja terus bayar di tempat, jadi ngapain bayar dulu lewat HP. Apalagi kalau uang sudah kepotong dan nggak bisa dibatalkan, takut mejanya malah nggak ada pas aku sampai.",
+      "dari": "Pemain reguler"
+    },
+    {
+      "kode": "lainnya",
+      "n": 1,
+      "contoh": "Saya cuma butuh ambil makanan di kasir pas jam kerja, bukan main biliar. Harga menu Smokehouse nggak disebut, jadi saya nggak tahu worth it atau nggak, dan harus daftar Google plus nomor HP dulu cuma buat pesan makan.",
+      "dari": "Takeaway pekerja sekitar"
+    }
+  ],
+  "alasanBeli": [
+    {
+      "kode": "praktis",
+      "n": 10
+    }
+  ],
+  "hargaMedian": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  },
+  "terlaluMahalDi39rb": 0,
+  "keberatan": [
+    {
+      "id": "001",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Wajib masuk pakai akun Google, sedangkan aku nggak punya atau lupa akun Gmail-ku.",
+      "ubah": "Bisa daftar cukup pakai nomor HP dan kode OTP tanpa Google, dan jelas ada meja kosong di jam malam yang aku mau."
+    },
+    {
+      "id": "002",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar dimuka tanpa bisa batal, padahal tinggal datang dan main saja lebih gampang.",
+      "ubah": "Kalau booking bisa dibatalkan atau dijadwal ulang, dan ada bukti meja malam akhir pekan sering penuh sehingga booking benar-benar perlu."
+    },
+    {
+      "id": "003",
+      "segmen": "Pemain reguler",
+      "membeli": true,
+      "keberatan": "Udah bayar di depan tapi nggak bisa dibatalkan, jadi kalau teman batal atau telat aku yang rugi.",
+      "ubah": "Kalau ada kebijakan jelas buat reschedule atau ganti jam sebelum main, aku bakal lebih berani pakai rutin."
+    },
+    {
+      "id": "004",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Sudah bayar tidak bisa dibatalkan dan harus datang paling lambat 20 menit, padahal anak-anak sering telat.",
+      "ubah": "Kalau boleh jadwal ulang atau ganti jam sekali kalau ada yang telat, atau ada bukti meja malam akhir pekan sering penuh."
+    },
+    {
+      "id": "005",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus login akun Google yang aku nggak ingat, plus bayar dimuka tanpa bisa batal kalau temanku telat atau batal ikut.",
+      "ubah": "Bisa daftar cukup pakai nomor HP tanpa Gmail, atau ada keringanan kalau batal atau jadwal digeser sebelum jam main."
+    },
+    {
+      "id": "006",
+      "segmen": "Pemain reguler",
+      "membeli": true,
+      "keberatan": "Sudah bayar tidak bisa dibatalkan, jadi kalau teman batal atau aku telat lewat 20 menit, uangnya hangus.",
+      "ubah": "Kalau ada bukti bayar dan kode check-in yang jelas di HP, dan ada kejelasan apa yang terjadi kalau mejanya bermasalah saat aku datang."
+    },
+    {
+      "id": "007",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Wajib masuk pakai akun Google dan nomor HP, padahal aku nggak ingat punya Gmail.",
+      "ubah": "Kalau bisa daftar atau masuk cukup pakai nomor HP tanpa Gmail, dan nggak berat di kuota."
+    },
+    {
+      "id": "008",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka dan tidak bisa dibatalkan, padahal aku sering main dadakan dan rencana teman suka berubah.",
+      "ubah": "Kalau ada promo atau diskon khusus lewat aplikasi, atau jaminan meja malam akhir pekan pasti ada karena sering penuh kalau datang langsung."
+    },
+    {
+      "id": "009",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Uang sudah kebayar dan nggak bisa dibatalin, padahal aku takut meja nggak ada pas datang dan nggak tahu minta tolong ke siapa.",
+      "ubah": "Kalau ada jaminan jelas uang balik atau meja diganti kalau mejanya ternyata nggak tersedia, plus bisa reschedule sekali kalau temen batal."
+    },
+    {
+      "id": "010",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal aku tidak punya atau tidak ingat Gmail-ku, ditambah bayar di muka dan tidak bisa batal.",
+      "ubah": "Kalau bisa daftar cukup pakai nomor HP tanpa Gmail, dan ada cara tanya atau ubah jadwal kalau aku telat."
+    },
+    {
+      "id": "011",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka tanpa bisa batal itu berisiko, apalagi kalau temen telat atau nggak jadi datang.",
+      "ubah": "Kalau booking boleh dijadwal ulang atau ada keringanan kalau batal, atau ada diskon jelas buat yang booking lewat aplikasi."
+    },
+    {
+      "id": "012",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Sudah bayar tapi tidak bisa dibatalkan atau dijadwal ulang, dan telat 20 menit meja hangus.",
+      "ubah": "Kalau bisa jadwal ulang sekali dengan batas waktu yang jelas, atau ada tombol chat WA ke kasir buat tanya dulu."
+    },
+    {
+      "id": "013",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Uang sudah dibayar di depan dan tidak bisa dibatalkan, padahal jadwalku sering molor.",
+      "ubah": "Kalau ada pembatalan atau pindah jam sampai beberapa jam sebelum main, atau ada bukti dari teman yang sudah pernah booking di sana dan mejanya benar-benar siap."
+    },
+    {
+      "id": "014",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi booking tidak bisa dibatalkan atau dijadwal ulang, padahal jadwal temen-temen sering berubah.",
+      "ubah": "Kalau bisa jadwal ulang minimal beberapa jam sebelumnya, atau ada opsi bayar di tempat, aku mau coba."
+    },
+    {
+      "id": "015",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus login Google dan isi data diri panjang, plus bayar di muka yang nggak bisa dibatalkan, padahal biasanya aku cukup chat kasir dan datang.",
+      "ubah": "Kalau bisa booking tanpa daftar atau cukup isi nama dan nomor HP saja, dan ada aturan jelas kalau telat atau berhalangan."
+    },
+    {
+      "id": "016",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka dan ga bisa dibatalkan, padahal langsung datang biasanya juga dapat meja dan lebih fleksibel.",
+      "ubah": "Kalau ada bukti meja malam akhir pekan sering penuh, atau booking bisa diubah jam atau dibatalkan sebagian, aku mau coba."
+    },
+    {
+      "id": "017",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi booking tidak bisa dibatalkan dan tidak ada kabar soal jadwal ulang, padahal rencanaku sering berubah.",
+      "ubah": "Kalau boleh jadwal ulang sekali (misalnya sampai beberapa jam sebelum main) atau uangnya jadi kredit untuk main berikutnya."
+    },
+    {
+      "id": "018",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Sudah bayar tapi kalau temanku batal atau telat, uangnya hangus dan jamnya nggak bisa dipindah.",
+      "ubah": "Kalau bisa jadwal ulang minimal beberapa jam sebelum main, atau ada aturan jelas yang bikin uangnya nggak hangus begitu saja."
+    },
+    {
+      "id": "019",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal aku nggak punya atau nggak ingat akunnya, ditambah bayar dimuka dan nggak bisa dibatalkan.",
+      "ubah": "Kalau bisa daftar cuma pakai nomor HP tanpa Google, dan ada kelonggaran kalau telat atau bisa dijadwal ulang."
+    },
+    {
+      "id": "020",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Daftar pakai Google plus isi data diri itu ribet, dan bayar di muka tanpa bisa batal bikin ragu kalau rencana main berubah.",
+      "ubah": "Kalau bisa booking tanpa daftar panjang, cukup nomor HP saja, dan ada kejelasan kalau telat atau rencana berubah."
+    },
+    {
+      "id": "021",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus login akun Google padahal aku nggak punya atau nggak ingat akun Gmail-ku.",
+      "ubah": "Kalau bisa daftar cukup pakai nomor HP tanpa Google, dan ada kebijakan jelas kalau telat atau nggak jadi datang."
+    },
+    {
+      "id": "022",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Uang sudah kebayar dan nggak bisa dibatalin, dan aku nggak tau apa yang terjadi kalau mejanya ternyata bermasalah pas aku datang.",
+      "ubah": "Kalau ada jaminan jelas uang balik atau meja diganti kalau mejanya nggak tersedia, atau bisa reschedule sekali, aku mau coba."
+    },
+    {
+      "id": "023",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar dimuka tanpa bisa batal, ditambah harus daftar Google dan isi data, padahal biasanya aku tinggal datang dan bayar patungan di tempat.",
+      "ubah": "Kalau booking bisa tanpa daftar ribet (cukup nomor HP) dan ada kelonggaran ganti jam kalau temen telat atau batal."
+    },
+    {
+      "id": "024",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus login pakai akun Google padahal aku nggak punya atau nggak ingat Gmail-ku.",
+      "ubah": "Kalau bisa daftar cukup pakai nomor HP tanpa Google, dan ada kelonggaran kalau tiba-tiba batal."
+    },
+    {
+      "id": "025",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Uang sudah keluar tapi kalau batal atau telat lewat 20 menit hangus, padahal penghasilanku pas-pasan.",
+      "ubah": "Kalau booking bisa dijadwal ulang sekali atau saldonya jadi kredit untuk main berikutnya, aku mau coba."
+    },
+    {
+      "id": "026",
+      "segmen": "Pemain reguler",
+      "membeli": true,
+      "keberatan": "Sudah bayar nggak bisa dibatalkan dan telat 20 menit langsung hangus, padahal gue sering molor kalau nunggu temen atau kena macet.",
+      "ubah": "Kalau bisa reschedule jam sekali aja atau ada toleransi telat lebih lama, gue bakal lebih sering booking."
+    },
+    {
+      "id": "027",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, padahal rencana main malam sering berubah.",
+      "ubah": "Kalau booking yang sudah dibayar bisa dijadwal ulang ke hari lain, atau ada pilihan bayar di tempat."
+    },
+    {
+      "id": "028",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Wajib login Google dan nomor HP, sementara aku nggak punya atau lupa akun Gmail, dan bayar dimuka tanpa bisa batal.",
+      "ubah": "Kalau bisa daftar atau masuk cukup pakai nomor HP lewat kode OTP tanpa harus Google, dan ada promo atau kejelasan kalau meja bisa dijadwal ulang."
+    },
+    {
+      "id": "029",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, dan telat 20 menit mejaku hilang.",
+      "ubah": "Kalau booking bisa dijadwal ulang sekali (misalnya sampai beberapa jam sebelum main) atau uangnya jadi saldo, aku mau coba."
+    },
+    {
+      "id": "030",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus daftar pakai Google dan nomor HP, bayar duluan, dan nggak bisa batal, padahal tinggal datang aja biasanya sudah dapat meja.",
+      "ubah": "Kalau bisa booking tanpa daftar panjang dan ada jaminan meja untuk malam Sabtu yang ramai, atau ada promo dan bisa ubah jam kalau telat."
+    },
+    {
+      "id": "031",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Daftarnya ribet, ditambah bayar dimuka dan nggak bisa batal, padahal jadwal main malamku sering berubah.",
+      "ubah": "Kalau bisa booking tanpa daftar panjang, cukup nomor HP saja, dan ada kelonggaran kalau telat atau batal."
+    },
+    {
+      "id": "032",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Uang sudah dibayar tapi nggak bisa dibatalkan, dan kalau telat lewat 20 menit mejanya dilepas.",
+      "ubah": "Kalau boleh ganti jam atau batal sampai beberapa jam sebelum main, dan toleransi telatnya lebih longgar."
+    },
+    {
+      "id": "033",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar dimuka tanpa bisa batal, padahal rencana main sering molor atau berubah.",
+      "ubah": "Kalau bisa reschedule atau batal sebelum jam mulai, dan daftarnya cukup satu klik tanpa isi data banyak."
+    },
+    {
+      "id": "034",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus login Google, isi nomor HP dan data lain, plus bayar dimuka yang tidak bisa dibatalkan, padahal tinggal datang langsung juga bisa.",
+      "ubah": "Kalau tidak perlu isi banyak data dan ada promo atau diskon khusus yang cuma bisa didapat lewat booking di HP."
+    },
+    {
+      "id": "035",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka dan tidak bisa dibatalkan, padahal jadwal main bareng teman sering berubah.",
+      "ubah": "Kalau bisa ganti jam atau batal sampai beberapa jam sebelumnya, dan booking tanpa harus isi data banyak."
+    },
+    {
+      "id": "036",
+      "segmen": "Pemain reguler",
+      "membeli": true,
+      "keberatan": "Sudah bayar tapi nggak bisa dibatalkan, dan aku takut uang kepotong padahal mejanya nggak ada pas datang.",
+      "ubah": "Kepastian kalau sudah bayar mejanya pasti terkunci, dan ada jalan jelas kalau ternyata bermasalah di tempat."
+    },
+    {
+      "id": "037",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, padahal rencana main sering berubah.",
+      "ubah": "Boleh jadwal ulang minimal sekali atau batal dengan refund sebagian kalau kabari beberapa jam sebelumnya."
+    },
+    {
+      "id": "038",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Bayar di muka dan tidak bisa dibatalkan, sementara aku takut uang sudah terpotong tapi meja tidak tersedia.",
+      "ubah": "Kalau ada jaminan jelas uang dikembalikan penuh bila mejaku tidak tersedia, atau bisa booking dulu dan bayar di tempat."
+    },
+    {
+      "id": "039",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal aku nggak punya atau nggak ingat akun Gmail-ku.",
+      "ubah": "Kalau bisa daftar cukup pakai nomor HP dan kode OTP tanpa Google, dan bukti bayar QRIS tetap bisa aku screenshot."
+    },
+    {
+      "id": "040",
+      "segmen": "Pemain reguler",
+      "membeli": false,
+      "keberatan": "Harus login pakai akun Google padahal aku tidak punya atau tidak ingat akun Gmail-ku.",
+      "ubah": "Kalau bisa daftar cukup pakai nomor HP dan kode OTP tanpa Google, dan jelas apa yang terjadi kalau aku telat atau berhalangan."
+    },
+    {
+      "id": "041",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Bayar di muka untuk beberapa meja tapi tidak bisa dibatalkan atau digeser jamnya, padahal rombongan sering berubah rencana.",
+      "ubah": "Kalau booking bisa dijadwal ulang minimal sekali (misalnya sampai beberapa jam sebelum mulai), atau ada opsi bayar sebagian untuk booking banyak meja."
+    },
+    {
+      "id": "042",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail, dan bayar di muka tanpa bisa batal untuk rombongan.",
+      "ubah": "Bisa daftar cukup dengan nomor HP tanpa Gmail, dan ada kelonggaran telat atau ubah jadwal kalau rombongan saya molor."
+    },
+    {
+      "id": "043",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Bayar di muka dan tidak bisa dibatalkan, sementara saya belum tahu apa yang terjadi kalau meja tidak tersedia atau rombongan telat.",
+      "ubah": "Kalau ada jaminan jelas uang kembali kalau meja tidak tersedia, dan bisa booking beberapa meja sekaligus dengan opsi tanya atau konfirmasi dulu lewat WA."
+    },
+    {
+      "id": "044",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal aku nggak punya atau lupa Gmail, ditambah booking yang sudah dibayar nggak bisa dibatalkan.",
+      "ubah": "Bisa daftar cuma pakai nomor HP tanpa Gmail, dan ada kelonggaran ganti jadwal untuk booking rombongan."
+    },
+    {
+      "id": "045",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Sudah bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, padahal jumlah orang di rombongan sering berubah.",
+      "ubah": "Kalau booking bisa dijadwal ulang sekali atau ada batas waktu pembatalan, misalnya sampai beberapa jam sebelum main."
+    },
+    {
+      "id": "046",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Bayar penuh di muka tanpa bisa batal, padahal jumlah rombongan saya sering berubah dan saya juga belum tahu bisa tanya-tanya dulu atau tidak.",
+      "ubah": "Kalau booking rombongan boleh dijadwal ulang atau DP kecil saja, dan ada cara tanya langsung ke kasir untuk pesanan 2-3 meja."
+    },
+    {
+      "id": "047",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Booking yang sudah dibayar tidak bisa dibatalkan atau dijadwal ulang, padahal rombongan sering berubah jadwal dan jumlah orang.",
+      "ubah": "Kalau booking bisa dijadwal ulang sekali tanpa denda, atau ada aturan jelas buat rombongan 2-3 meja, aku mau coba."
+    },
+    {
+      "id": "048",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, padahal rencana acara kantor atau ulang tahun gampang berubah.",
+      "ubah": "Kalau booking bisa digeser jadwalnya, atau ada opsi booking beberapa meja sekaligus dengan jalur tanya kasir lewat WhatsApp."
+    },
+    {
+      "id": "049",
+      "segmen": "Rombongan & kantor",
+      "membeli": true,
+      "keberatan": "Sudah bayar tidak bisa dibatalkan, dan aku tidak tahu apa yang terjadi kalau mejanya ternyata tidak tersedia atau teman-teman telat lebih dari 20 menit.",
+      "ubah": "Kejelasan bahwa meja benar-benar terkunci dan dijamin begitu bayar, plus kemungkinan ganti jadwal kalau rombongan berhalangan."
+    },
+    {
+      "id": "050",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Harus login Google dan isi data dulu, plus bayar di muka tanpa bisa dibatalkan, padahal aku butuh 2-3 meja untuk acara yang jadwalnya bisa geser.",
+      "ubah": "Kalau booking bisa tanpa daftar ribet atau bisa ganti jadwal, dan jelas bisa pesan beberapa meja sekaligus dalam satu kali bayar."
+    },
+    {
+      "id": "051",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Wajib login Google, bayar di muka, dan tidak bisa batal, padahal rombongan sering berubah jumlah dan saya mau konfirmasi lewat WA dulu.",
+      "ubah": "Kalau bisa booking beberapa meja sekaligus tanpa akun Google (cukup nomor HP) dan ada cara tanya atau ubah jadwal lewat WA untuk acara rombongan."
+    },
+    {
+      "id": "052",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Bayar di muka tanpa bisa dibatalkan itu berisiko buat acara kantor atau ulang tahun yang jadwalnya sering geser.",
+      "ubah": "Kalau booking bisa dijadwal ulang atau ada kelonggaran waktu untuk rombongan, dan daftarnya tidak ribet selain login Google."
+    },
+    {
+      "id": "053",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Harus login Google, bayar penuh di muka dan nggak bisa batal, padahal booking rombongan biasanya masih berubah-ubah jumlah orangnya dan aku mau konfirmasi ke kasir dulu.",
+      "ubah": "Kalau ada cara booking tanpa Google (cukup nomor HP) dan jelas bisa booking beberapa meja sekaligus untuk rombongan, plus ada kontak WhatsApp untuk tanya atau ubah jadwal."
+    },
+    {
+      "id": "054",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi booking tidak bisa dibatalkan atau dijadwal ulang, padahal rencana rombongan sering berubah.",
+      "ubah": "Kalau booking bisa digeser jadwalnya sekali (minimal sehari sebelumnya) dan ada cara jelas booking beberapa meja sekaligus untuk rombongan."
+    },
+    {
+      "id": "055",
+      "segmen": "Rombongan & kantor",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail, dan booking yang sudah dibayar tidak bisa dibatalkan.",
+      "ubah": "Kalau bisa daftar cukup pakai nomor HP tanpa Gmail, dan ada kejelasan bisa booking 2-3 meja sekaligus untuk rombongan."
+    },
+    {
+      "id": "056",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Bayar di muka tanpa bisa batal dan batas telat cuma 20 menit, padahal bawa anak jadwalnya sering molor.",
+      "ubah": "Kalau ada kelonggaran telat atau bisa reschedule sekali, dan ada ulasan atau foto tempat yang meyakinkan di Instagram atau TikTok."
+    },
+    {
+      "id": "057",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail, ditambah bayar di muka dan tidak bisa dibatalkan.",
+      "ubah": "Kalau bisa daftar cukup pakai nomor HP tanpa Gmail, atau tetap bisa booking lewat WhatsApp seperti biasa."
+    },
+    {
+      "id": "058",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus login Google dan isi data diri dulu sebelum bisa pesan atau booking, padahal saya cuma mau makan.",
+      "ubah": "Kalau bisa pesan makanan dan bayar QRIS tanpa daftar akun, cukup scan dari meja."
+    },
+    {
+      "id": "059",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail, dan kuota serta sinyal saya kadang susah.",
+      "ubah": "Kalau bisa masuk cukup pakai nomor HP atau lewat WhatsApp tanpa Gmail, dan saya bisa pesan makanan dulu tanpa daftar ribet."
+    },
+    {
+      "id": "060",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": true,
+      "keberatan": "Bayar dimuka lewat QRIS dan nggak bisa dibatalkan, padahal saya takut uang sudah kepotong tapi meja tidak tersedia saat datang.",
+      "ubah": "Kepastian jelas bahwa meja benar-benar terkunci begitu bayar (ada bukti dan kode check-in yang bisa saya screenshot) dan ada jaminan kalau mejanya ternyata bermasalah uang dikembalikan."
+    },
+    {
+      "id": "061",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi booking tidak bisa dibatalkan atau dijadwal ulang, apalagi rencana keluarga sering berubah.",
+      "ubah": "Kalau bisa jadwal ulang minimal beberapa jam sebelumnya, atau pesan makanan bayar nanti di kasir tanpa wajib daftar dulu, saya mau coba."
+    },
+    {
+      "id": "062",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": true,
+      "keberatan": "Booking yang sudah dibayar tidak bisa dibatalkan, jadi saya takut uang hilang kalau anak sakit atau acara berubah, dan saya tidak tahu apa yang terjadi kalau mejanya ternyata bermasalah.",
+      "ubah": "Kalau ada jaminan jelas uang kembali atau meja diganti kalau meja tidak tersedia saat datang, dan bukti bayar plus kode check-in mudah disimpan sebagai screenshot."
+    },
+    {
+      "id": "063",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Sudah bayar tidak bisa dibatalkan dan telat 20 menit meja hangus, padahal bawa anak sering telat.",
+      "ubah": "Kalau ada ganti jadwal atau batal gratis sebelum jam mulai, dan pesan makanan bisa tanpa harus daftar akun dulu."
+    },
+    {
+      "id": "064",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Uang sudah keluar di muka dan tidak bisa dibatalkan, padahal jadwal keluarga dengan anak sering molor.",
+      "ubah": "Kalau ada aturan bisa dijadwal ulang atau uang kembali bila telat karena alasan wajar, atau ada kontak kasir di WhatsApp untuk bertanya dulu."
+    },
+    {
+      "id": "065",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Uang sudah terpotong, tidak bisa dibatalkan, dan aku nggak tahu apa yang terjadi kalau mejanya ternyata bermasalah waktu datang.",
+      "ubah": "Kalau ada jaminan jelas uang kembali kalau meja nggak tersedia, dan bisa dijadwal ulang atau dibatalkan beberapa jam sebelumnya."
+    },
+    {
+      "id": "066",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail.",
+      "ubah": "Kalau bisa masuk cukup pakai nomor HP tanpa akun Google, dan ada yang bilang keluarga lain sudah pernah coba dan lancar."
+    },
+    {
+      "id": "067",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Bayar dimuka dan tidak bisa dibatalkan, padahal rencana keluarga sering berubah, dan langsung datang jauh lebih praktis.",
+      "ubah": "Kalau booking bisa dibatalkan atau dijadwal ulang dan pesan makanan dari meja bisa bayar di kasir tanpa wajib daftar, mungkin saya coba."
+    },
+    {
+      "id": "068",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google dan nomor HP, sedangkan aku nggak punya atau lupa Gmail, dan booking yang sudah dibayar tidak bisa dibatalkan.",
+      "ubah": "Kalau bisa pesan makanan tanpa akun Google dan tetap bisa tanya lewat WhatsApp, atau booking boleh dijadwal ulang kalau anak tiba-tiba rewel."
+    },
+    {
+      "id": "069",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google yang saya tidak punya atau tidak ingat, dan booking yang sudah dibayar tidak bisa dibatalkan.",
+      "ubah": "Kalau bisa masuk cukup dengan nomor HP tanpa Google, atau pesan makanan dari meja bisa langsung tanpa daftar dulu."
+    },
+    {
+      "id": "070",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Bayar dimuka dan tidak bisa dibatalkan, padahal saya sering telat dan jadwal keluarga suka berubah.",
+      "ubah": "Kalau ada kelonggaran telat yang lebih lama atau bisa ganti jam, dan pesan makanan bisa bayar nanti di kasir tanpa wajib booking meja dulu."
+    },
+    {
+      "id": "071",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus bikin akun dan bayar di muka, padahal saya cuma mau makan dan anak main sebentar, dan yang sudah dibayar tidak bisa dibatalkan.",
+      "ubah": "Kalau bisa pesan makanan atau lihat meja tanpa login dulu, dan bayarnya boleh nanti di kasir."
+    },
+    {
+      "id": "072",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Bayar di muka tanpa bisa batal, sementara saya sering telat dan jadwal keluarga sering berubah.",
+      "ubah": "Kalau boleh jadwal ulang atau toleransi telat lebih longgar (30 menit), dan pesan makanan lewat HP dengan bayar di kasir saja."
+    },
+    {
+      "id": "073",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Sudah bayar QRIS tapi tidak bisa dibatalkan atau dijadwal ulang, padahal rencana keluarga sering berubah.",
+      "ubah": "Kalau booking bisa dijadwal ulang sekali atau ada kebijakan jelas kalau telat atau batal, dan pesan makanan bayar nanti di kasir saya mungkin coba."
+    },
+    {
+      "id": "074",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus punya akun Google dulu, padahal saya tidak punya atau tidak ingat Gmail saya.",
+      "ubah": "Bisa daftar atau masuk cukup pakai nomor HP, tanpa Gmail."
+    },
+    {
+      "id": "075",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus login Google dan isi data dulu, sementara booking yang sudah dibayar tidak bisa dibatalkan, padahal rencana keluarga sering berubah.",
+      "ubah": "Kalau pesan makanan bisa tanpa daftar dan bayarnya nanti di kasir, atau booking meja bisa dibatalkan atau dijadwal ulang kalau anak rewel."
+    },
+    {
+      "id": "076",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": true,
+      "keberatan": "Booking yang sudah dibayar tidak bisa dibatalkan dan telat 20 menit meja dilepas, padahal bawa anak sering molor.",
+      "ubah": "Kalau ada kelonggaran telat atau bisa pindah jam sekali kalau kabari sebelumnya, saya lebih berani booking meja."
+    },
+    {
+      "id": "077",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Untuk sekadar makan dan anak main sebentar, harus daftar dulu dan bayar di muka tanpa bisa batal itu berlebihan.",
+      "ubah": "Kalau pesan makanan bisa langsung tanpa daftar akun dan bayarnya di kasir, mungkin saya coba sekali."
+    },
+    {
+      "id": "078",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus masuk dengan akun Google padahal saya tidak punya atau tidak ingat akun Gmail saya.",
+      "ubah": "Kalau bisa daftar atau masuk cukup dengan nomor HP saja tanpa Gmail, dan pesan makanan bisa dibayar nanti di kasir."
+    },
+    {
+      "id": "079",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus daftar pakai Google dan isi data pribadi cuma buat pesan makan atau booking meja.",
+      "ubah": "Kalau pesan makanan dari meja bisa langsung tanpa daftar, cukup scan QR dan bayar QRIS."
+    },
+    {
+      "id": "080",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Sudah bayar tapi tidak bisa batal atau pindah jam, padahal rencana keluarga sering berubah dan telat 20 menit saja mejanya hangus.",
+      "ubah": "Kalau booking bisa dijadwal ulang sekali atau ada waktu toleransi yang lebih longgar, atau pesan makanan saja bisa bayar di kasir tanpa harus booking meja dulu."
+    },
+    {
+      "id": "081",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Bayar di muka tanpa bisa dibatalkan dan hangus kalau telat 20 menit, padahal rombongan keluarga susah tepat waktu.",
+      "ubah": "Kalau boleh ubah jam atau batal sampai beberapa jam sebelumnya, dan masih ada nomor WhatsApp kasir untuk bertanya."
+    },
+    {
+      "id": "082",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": true,
+      "keberatan": "Takut sudah bayar QRIS tapi pas datang meja tidak tersedia, dan booking yang sudah dibayar tidak bisa dibatalkan.",
+      "ubah": "Kalau ada jaminan jelas uang kembali kalau meja tidak ada waktu saya datang, atau cerita dari orang yang sudah pernah pakai."
+    },
+    {
+      "id": "083",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Harus masuk dengan Google dan isi data diri dulu sebelum bisa pesan, padahal saya cuma mau makan dan main sebentar.",
+      "ubah": "Kalau pesan makanan dan lihat tarif bisa langsung dari HP tanpa daftar atau login, dan booking bisa diubah jadwalnya kalau anak-anak telat."
+    },
+    {
+      "id": "084",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": false,
+      "keberatan": "Daftar pakai Google plus data pribadi terlalu ribet untuk keluarga yang cuma mau makan dan main sebentar, ditambah booking yang sudah dibayar tidak bisa dibatalkan.",
+      "ubah": "Kalau bisa booking atau pesan makanan tanpa daftar panjang, cukup nomor HP saja, dan ada kejelasan kalau anak telat atau rencana berubah."
+    },
+    {
+      "id": "085",
+      "segmen": "Keluarga & makan Smokehouse",
+      "membeli": true,
+      "keberatan": "Booking yang sudah dibayar tidak bisa dibatalkan, dan saya biasanya tanya kasir dulu lewat WhatsApp sebelum datang, jadi langsung datang terasa lebih praktis.",
+      "ubah": "Kalau ada keterangan jelas soal ketersediaan meja dan tarif siang vs malam yang gampang dibandingkan, plus ada keringanan kalau terlambat atau berhalangan datang."
+    },
+    {
+      "id": "086",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Bayar dimuka tanpa bisa batal, dan telat lebih dari 20 menit bookingnya hilang, padahal jadwal pulang kerjaku sering molor.",
+      "ubah": "Kalau pesan makanan takeaway bisa langsung dipakai tanpa daftar ribet dan ada kepastian bisa diambil di kasir, atau booking boleh diundur sekali tanpa hangus."
+    },
+    {
+      "id": "087",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Bayar dulu dan nggak bisa dibatalkan, padahal aku sering butuh konfirmasi ke kasir lewat WA dan jadwal kerjaku suka molor.",
+      "ubah": "Kalau pesan makanan takeaway bisa langsung tanpa daftar ribet dan ada cara nanya kasir sebelum bayar, aku mau coba."
+    },
+    {
+      "id": "088",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Sudah bayar tapi tidak bisa dibatalkan atau dijadwal ulang, padahal rencana rombongan sering berubah.",
+      "ubah": "Kalau bisa geser jam atau jadwal ulang minimal beberapa jam sebelum main tanpa uang hangus, saya mau coba."
+    },
+    {
+      "id": "089",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Sudah bayar tidak bisa batal dan telat 20 menit mejanya hilang, padahal teman-temanku sering telat.",
+      "ubah": "Kalau boleh geser jam atau ada toleransi telat lebih lama, dan menu serta harga makanan Smokehouse kelihatan jelas dulu."
+    },
+    {
+      "id": "090",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, padahal jam pulang kerjaku nggak pasti.",
+      "ubah": "Kalau booking bisa dijadwal ulang sekali, atau kalau pesan makanan bisa bayar di kasir tanpa wajib daftar akun dulu, aku mau coba."
+    },
+    {
+      "id": "091",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Harus login Google dan bayar di muka, kalau telat lebih dari 20 menit mejanya lepas dan nggak bisa dibatalkan.",
+      "ubah": "Kalau pesan makanan untuk diambil di kasir bisa tanpa daftar dan menunya jelas dengan harga murah, mungkin saya coba sekali."
+    },
+    {
+      "id": "092",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, sementara saya sering telat dan jadwal kerja bisa berubah.",
+      "ubah": "Kalau bisa ganti jam sekali atau ada toleransi telat lebih longgar, atau pesan makanan bayar di kasir yang jelas tanpa risiko hangus."
+    },
+    {
+      "id": "093",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Harus daftar pakai Google dan isi data pribadi dulu, padahal lewat WA atau datang langsung saja sudah bisa.",
+      "ubah": "Kalau pesan makanan bisa langsung tanpa daftar dan bayar di kasir, saya mau coba."
+    },
+    {
+      "id": "094",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Yang jelas buat saya cuma booking meja yang dibayar di muka dan tidak bisa dibatalkan, sedangkan harga menu dan cara ambil makanan di kasir tidak dijelaskan.",
+      "ubah": "Kalau daftar menu dan harga makanan kelihatan dulu tanpa login, dan ada pilihan pesan ambil di kasir bayar nanti, saya mau coba sekali."
+    },
+    {
+      "id": "095",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Bayar di muka tanpa bisa batal dan batas telat cuma 20 menit, padahal jam pulang kerja saya sering molor.",
+      "ubah": "Kalau booking bisa dijadwal ulang atau dibatalkan sebelum jam mulai, atau batas telatnya lebih longgar, saya mau coba."
+    },
+    {
+      "id": "096",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Harus masuk pakai akun Google padahal aku tidak punya atau tidak ingat Gmail-ku.",
+      "ubah": "Kalau bisa daftar cukup pakai nomor HP saja tanpa Google, dan ada WA kasir untuk nanya dulu."
+    },
+    {
+      "id": "097",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Masuk Google plus isi data dulu sebelum bisa pesan itu ribet, apalagi booking yang sudah dibayar tidak bisa dibatalkan.",
+      "ubah": "Kalau pesan makanan bisa langsung tanpa daftar dan bayar di kasir, saya mau coba."
+    },
+    {
+      "id": "098",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Booking yang sudah dibayar tidak bisa dibatalkan, jadi kalau ada masalah di meja, uangku sudah terlanjur keluar dan aku nggak tahu bisa balik atau nggak.",
+      "ubah": "Kalau ada jaminan jelas uang dikembalikan atau diganti kalau meja nggak tersedia saat aku datang, dan menu makanan bisa dipesan tanpa harus daftar dulu."
+    },
+    {
+      "id": "099",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Bayar di muka dan tidak bisa dibatalkan, sementara aku takut uang terpotong tapi mejanya tidak tersedia.",
+      "ubah": "Kalau ada jaminan jelas uang dikembalikan kalau meja tidak tersedia, atau boleh bayar di tempat untuk booking."
+    },
+    {
+      "id": "100",
+      "segmen": "Takeaway pekerja sekitar",
+      "membeli": false,
+      "keberatan": "Bayar dimuka dan tidak bisa dibatalkan, padahal langsung datang lebih praktis dan aku tidak tahu apakah mejanya memang sering penuh.",
+      "ubah": "Kalau terbukti mejanya sering penuh jam malam dan pesan makanan bisa bayar di kasir tanpa ribet daftar, mungkin aku coba sekali."
+    }
+  ]
+}

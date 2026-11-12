@@ -1,0 +1,15 @@
+{
+  "id": "008",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Biasanya aku tinggal chat WA atau langsung datang, gampang aja. Booking di aplikasi pakai akun Google, bayar dimuka, nggak bisa batal, jadi ribet buat main santai sama teman.",
+  "keberatan_utama": "Bayar di muka dan tidak bisa dibatalkan, padahal aku sering main dadakan dan rencana teman suka berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada promo atau diskon khusus lewat aplikasi, atau jaminan meja malam akhir pekan pasti ada karena sering penuh kalau datang langsung.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 25000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 40000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

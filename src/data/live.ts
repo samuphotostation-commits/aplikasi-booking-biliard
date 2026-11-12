@@ -95,6 +95,8 @@ export type LiveSession = {
   noShowFnb?: CartLine[];
   /** Hold: kapan slot dilepas bila pembayaran tidak masuk (T+19). */
   holdUntil?: number;
+  /** Booking ini sudah memakai jatah jadwal ulang gratis (sekali saja): dari mana dipindah dan kapan. */
+  jadwalUlang?: { dariMeja: string; dariMulai: number; at: number };
   /** Hold: pesanan yang harganya dibekukan saat QR dibuat — baru jadi `fnb` setelah lunas. */
   holdLines?: CartLine[];
   /** Open bill: tarif saat meja dibuka. Perubahan tarif tidak mengubah waktu yang sudah dimainkan. */

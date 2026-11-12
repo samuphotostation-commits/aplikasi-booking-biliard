@@ -12,7 +12,7 @@ import { SmokeMark } from "./Smoke";
 import { Judul, LabelSandi, Muncul } from "./motion/Adegan";
 import { BabTeks } from "./motion/Perjalanan";
 import { useTirai, type Tema } from "./motion/Tirai";
-import { CLOSE_HOUR, OPEN_HOUR, VENUE, WA_VENUE, WA_VENUE_TAMPIL, fmtHour } from "../data/venue";
+import { BADAN_USAHA, CLOSE_HOUR, OPEN_HOUR, VENUE, WA_VENUE, WA_VENUE_TAMPIL, fmtHour } from "../data/venue";
 
 export const ALAMAT = "Jl. Batang Anai No. 2, Rimbo Kaluang, Padang Barat, Kota Padang, Sumatera Barat";
 const PETA = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("SPL Sports Pool Lounge " + ALAMAT)}`;
@@ -124,6 +124,39 @@ export function AjakMember({ tema, teks }: { tema: Tema; teks: string }) {
   );
 }
 
+/**
+ * Baris badan usaha di kaki halaman: nama resmi, alamat, dan nomor yang bisa
+ * dihubungi. Tiga hal itulah yang dicocokkan Meta dengan dokumen usaha.
+ */
+export function BarisBadanUsaha({ className = "" }: { className?: string }) {
+  return (
+    <p className={`text-[12px] leading-relaxed text-dim ${className}`}>
+      <span className="text-cream/80">&copy; {new Date().getFullYear()} {BADAN_USAHA}</span>
+      <span className="mx-1.5" aria-hidden>&middot;</span>
+      {ALAMAT}
+      <span className="mx-1.5" aria-hidden>&middot;</span>
+      <a href={wa("Halo SPL, saya mau tanya.")} target="_blank" rel="noreferrer" className="hover:text-amber">
+        WhatsApp {WA_VENUE_TAMPIL}
+      </a>
+    </p>
+  );
+}
+
+/** Kaki halaman depan: badan usaha + tautan Privasi & Ketentuan. */
+export function KakiSitus() {
+  return (
+    <footer className="border-t border-line/70">
+      <div className="mx-auto w-full max-w-6xl px-5 pb-8 pt-5">
+        <nav className="flex flex-wrap gap-x-5 text-[12px] text-dim">
+          <a href="/privasi" className="inline-flex min-h-[40px] items-center hover:text-amber">Privasi</a>
+          <a href="/ketentuan" className="inline-flex min-h-[40px] items-center hover:text-amber">Ketentuan</a>
+        </nav>
+        <BarisBadanUsaha className="mt-1" />
+      </div>
+    </footer>
+  );
+}
+
 /** Penutup: lokasi, member, dan kaki halaman. Isinya mengikuti venue. */
 export function PenutupVenue({ tema }: { tema: Tema }) {
   const nav = useNavigate();
@@ -179,9 +212,10 @@ export function PenutupVenue({ tema }: { tema: Tema }) {
       </div>
 
       <footer className="border-t border-line/70">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 pb-24 pt-5 text-[12px] text-dim md:pb-5">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-5 pt-5 text-[12px] text-dim">
           <span>{sport ? "SPL Sports Pool Lounge" : "Smokehouse Resto"} &middot; Padang</span>
-          <nav className="flex flex-wrap gap-x-5 gap-y-2">
+          {/* Tautan kaki dibuat setinggi jari (40px): di HP sebelumnya cuma 18px. */}
+          <nav className="flex flex-wrap items-center gap-x-5 [&>*]:inline-flex [&>*]:min-h-[40px] [&>*]:items-center">
             <a href={wa("Halo SPL, saya mau melamar kerja. Posisi: ... Pengalaman: ... Domisili: ...")}
               target="_blank" rel="noreferrer" className="hover:text-amber">Kirim lamaran</a>
             <a href={wa("Halo SPL, saya mau menawarkan kerja sama. Bentuknya: ...")}
@@ -193,6 +227,9 @@ export function PenutupVenue({ tema }: { tema: Tema }) {
               Ke {NAMA[lain]} &rarr;
             </button>
           </nav>
+        </div>
+        <div className="mx-auto w-full max-w-6xl px-5 pb-24 pt-2 md:pb-5">
+          <BarisBadanUsaha />
         </div>
       </footer>
     </BabTeks>

@@ -1,0 +1,33 @@
+{
+  "business": "SPL Sports Pool Lounge & Smokehouse Resto, Padang. Biliar 40 meja reguler + VIP/VVIP (Rp 29.000/jam siang, Rp 39.000/jam malam, VIP Rp 50.000, VVIP Rp 60.000) dan Smokehouse Resto (menu Rp 18.000–95.000). Aplikasi sportspoollounge.com: booking meja + bayar QRIS di muka, pesan makanan dari meja, takeaway.",
+  "target": "Warga Padang usia 18–45 yang main biliar atau makan di Smokehouse, memakai HP Android dan e-wallet/m-banking.",
+  "status": "DRAF — disusun dari PRD (persona Andi & Dina) dan harga di aplikasi. Belum dicocokkan dengan data pelanggan asli. Pemilik perlu mengonfirmasi atau membetulkan pembagian segmen sebelum panel dijalankan.",
+  "segments": [
+    { "name": "Pemain reguler", "share": 0.40, "age": "18–30", "income_idr_per_month": "2.000.000–6.000.000", "note": "mahasiswa & pekerja muda, main 1–3× seminggu, kebanyakan malam" },
+    { "name": "Rombongan & kantor", "share": 0.15, "age": "25–40", "income_idr_per_month": "5.000.000–15.000.000", "note": "ulang tahun, acara kantor, butuh 2–3 meja sekaligus" },
+    { "name": "Keluarga & makan Smokehouse", "share": 0.30, "age": "28–50", "income_idr_per_month": "5.000.000–20.000.000", "note": "datang untuk makan, kadang sambil anak main biliar" },
+    { "name": "Takeaway pekerja sekitar", "share": 0.15, "age": "20–40", "income_idr_per_month": "3.000.000–8.000.000", "note": "pesan dari HP, ambil di kasir" }
+  ],
+  "behaviours": [
+    "Biasanya booking lewat chat WhatsApp atau langsung datang",
+    "Membayar dengan QRIS dari DANA, GoPay, OVO, atau m-banking",
+    "Memakai HP Android kelas menengah, kuota dan sinyal kadang terbatas",
+    "Main paling ramai pukul 19.00–24.00 dan akhir pekan",
+    "Membandingkan tarif siang dan malam sebelum memilih jam",
+    "Sering datang terlambat 10–15 menit dari jam booking",
+    "Datang berkelompok 2–4 orang, satu orang yang membayar"
+  ],
+  "objections": [
+    "Harus masuk dengan Google lalu mengisi nomor HP, tanggal lahir, dan domisili terasa ribet",
+    "Bayar di muka tetapi booking tidak bisa dibatalkan atau dijadwal ulang",
+    "Takut uang sudah terpotong tetapi mejanya tidak tersedia saat datang",
+    "Lebih praktis langsung datang daripada booking di aplikasi",
+    "Tidak punya atau tidak ingat akun Gmail",
+    "Kalau telat lebih dari 20 menit, booking dilepas"
+  ],
+  "habits": [
+    "Membuka Instagram dan TikTok untuk mencari tempat nongkrong",
+    "Menyimpan bukti bayar QRIS sebagai screenshot",
+    "Bertanya ke kasir lewat WhatsApp sebelum datang"
+  ]
+}

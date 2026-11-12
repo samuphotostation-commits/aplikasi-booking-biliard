@@ -1,13 +1,13 @@
 {
   "name": "aplikasi-booking-bliard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --host",
-    "test": "esbuild test/occupancy.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t1.mjs --log-level=error && node node_modules/.cache/t1.mjs && esbuild test/billing.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t2.mjs --log-level=error && node node_modules/.cache/t2.mjs && esbuild test/simulation.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t3.mjs --log-level=error && node node_modules/.cache/t3.mjs && esbuild test/sync.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t4.mjs --log-level=error && node node_modules/.cache/t4.mjs && esbuild test/soak.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t5.mjs --log-level=error && node node_modules/.cache/t5.mjs && esbuild test/remote.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t6.mjs --log-level=error && node node_modules/.cache/t6.mjs && esbuild test/tamu.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t7.mjs --log-level=error && node node_modules/.cache/t7.mjs && esbuild test/stok.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t8.mjs --log-level=error && node node_modules/.cache/t8.mjs && esbuild test/rekap.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t9.mjs --log-level=error && node node_modules/.cache/t9.mjs && esbuild test/excel.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t10.mjs --log-level=error --external:node:* && node node_modules/.cache/t10.mjs && esbuild test/kabar.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t11.mjs --log-level=error && node node_modules/.cache/t11.mjs && esbuild test/peran.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t12.mjs --log-level=error && node node_modules/.cache/t12.mjs && esbuild test/smokehouse.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t13.mjs --log-level=error && node node_modules/.cache/t13.mjs && esbuild test/venue.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t14.mjs --log-level=error && node node_modules/.cache/t14.mjs && esbuild test/pajak.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t15.mjs --log-level=error && node node_modules/.cache/t15.mjs && esbuild test/cetakdapur.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t16.mjs --log-level=error && node node_modules/.cache/t16.mjs && esbuild test/bayar.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t17.mjs --log-level=error && node node_modules/.cache/t17.mjs && esbuild test/rekapvenue.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t18.mjs --log-level=error && node node_modules/.cache/t18.mjs",
+    "test": "esbuild test/occupancy.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t1.mjs --log-level=error && node node_modules/.cache/t1.mjs && esbuild test/billing.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t2.mjs --log-level=error && node node_modules/.cache/t2.mjs && esbuild test/simulation.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t3.mjs --log-level=error && node node_modules/.cache/t3.mjs && esbuild test/sync.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t4.mjs --log-level=error && node node_modules/.cache/t4.mjs && esbuild test/soak.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t5.mjs --log-level=error && node node_modules/.cache/t5.mjs && esbuild test/remote.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t6.mjs --log-level=error && node node_modules/.cache/t6.mjs && esbuild test/tamu.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t7.mjs --log-level=error && node node_modules/.cache/t7.mjs && esbuild test/stok.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t8.mjs --log-level=error && node node_modules/.cache/t8.mjs && esbuild test/rekap.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t9.mjs --log-level=error && node node_modules/.cache/t9.mjs && esbuild test/excel.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t10.mjs --log-level=error --external:node:* && node node_modules/.cache/t10.mjs && esbuild test/kabar.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t11.mjs --log-level=error && node node_modules/.cache/t11.mjs && esbuild test/peran.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t12.mjs --log-level=error && node node_modules/.cache/t12.mjs && esbuild test/smokehouse.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t13.mjs --log-level=error && node node_modules/.cache/t13.mjs && esbuild test/venue.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t14.mjs --log-level=error && node node_modules/.cache/t14.mjs && esbuild test/pajak.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t15.mjs --log-level=error && node node_modules/.cache/t15.mjs && esbuild test/cetakdapur.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t16.mjs --log-level=error && node node_modules/.cache/t16.mjs && esbuild test/bayar.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t17.mjs --log-level=error && node node_modules/.cache/t17.mjs && esbuild test/rekapvenue.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t18.mjs --log-level=error && node node_modules/.cache/t18.mjs && esbuild test/lampu.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t20.mjs --log-level=error && node node_modules/.cache/t20.mjs",
     "test:types": "tsc --noEmit -p tsconfig.test.json",
     "test:utc": "node scripts/uji-utc.mjs",
     "test:pola": "node scripts/cek-pola-mutasi.mjs",
@@ -18,12 +18,13 @@
     "test:sync": "esbuild test/sync.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t4.mjs --log-level=error && node node_modules/.cache/t4.mjs",
     "test:sim": "esbuild test/simulation.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t3.mjs --log-level=error && node node_modules/.cache/t3.mjs",
     "app": "node scripts/build-app.mjs",
-    "app:win": "node scripts/build-app.mjs && electron-builder --win",
+    "app:win": "node scripts/build-app.mjs && node scripts/buat-ikon-win.mjs && electron-builder --win",
     "app:jalan": "node scripts/build-app.mjs && electron .",
     "apk": "node scripts/apk.mjs tamu",
     "apk:kasir": "node scripts/apk.mjs kasir",
     "terbitkan": "node scripts/terbitkan.mjs",
     "pasang-fungsi": "node scripts/pasang-fungsi.mjs",
+    "test:pelanggan": "esbuild test/pelanggan100.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t19.mjs --log-level=error --external:node:* && node node_modules/.cache/t19.mjs",
     "test:tamu": "esbuild test/tamu.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t7.mjs --log-level=error && node node_modules/.cache/t7.mjs",
     "test:stok": "esbuild test/stok.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t8.mjs --log-level=error && node node_modules/.cache/t8.mjs",
     "test:rekap": "esbuild test/rekap.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t9.mjs --log-level=error && node node_modules/.cache/t9.mjs",
@@ -32,7 +33,8 @@
     "test:peran": "esbuild test/peran.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t12.mjs --log-level=error && node node_modules/.cache/t12.mjs",
     "test:kabar": "esbuild test/kabar.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t11.mjs --log-level=error && node node_modules/.cache/t11.mjs",
     "test:excel": "esbuild test/excel.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t10.mjs --log-level=error --external:node:* && node node_modules/.cache/t10.mjs",
-    "test:pajak": "esbuild test/pajak.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t15.mjs --log-level=error && node node_modules/.cache/t15.mjs"
+    "test:pajak": "esbuild test/pajak.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t15.mjs --log-level=error && node node_modules/.cache/t15.mjs",
+    "test:lampu": "esbuild test/lampu.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/t20.mjs --log-level=error && node node_modules/.cache/t20.mjs"
   },
   "keywords": [],
   "author": "",
@@ -67,11 +69,12 @@
   "build": {
     "appId": "id.spl.kasir",
     "productName": "SPL Kasir",
-    "copyright": "SPL Sports Pool Lounge & Smokehouse",
+    "copyright": "CV SMOKE HOUSE RESTO",
     "files": [
       "electron/**/*",
       "web/**/*",
-      "package.json"
+      "package.json",
+      "build/icon.ico"
     ],
     "directories": {
       "output": "release"
@@ -81,15 +84,20 @@
         "nsis",
         "dir"
       ],
-      "icon": "web/ikon-1080.png",
-      "signAndEditExecutable": false
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "SPL Kasir",
-      "artifactName": "SPL-Kasir-Setup-${version}.${ext}"
+      "artifactName": "SPL-Kasir-Setup-${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true
     },
     "electronVersion": "40.10.2",
     "extraFiles": [

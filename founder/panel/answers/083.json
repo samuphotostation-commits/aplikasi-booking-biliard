@@ -1,0 +1,15 @@
+{
+  "id": "083",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Saya ke sana buat makan sama keluarga, anak main biliar sebentar. Kalau mau pesan harus login Google dulu terus isi nomor HP, itu ribet buat hal sekecil itu. Biasanya saya tanya kasir lewat WA dulu, langsung datang, beres.",
+  "keberatan_utama": "Harus masuk dengan Google dan isi data diri dulu sebelum bisa pesan, padahal saya cuma mau makan dan main sebentar.",
+  "yang_bisa_mengubah_pikiran": "Kalau pesan makanan dan lihat tarif bisa langsung dari HP tanpa daftar atau login, dan booking bisa diubah jadwalnya kalau anak-anak telat.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

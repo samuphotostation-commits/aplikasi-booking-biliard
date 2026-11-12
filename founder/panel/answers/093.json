@@ -1,0 +1,15 @@
+{
+  "id": "093",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Saya biasanya tinggal chat WA atau langsung datang, jadi kalau harus masuk Google, isi nomor HP, tanggal lahir, domisili dulu rasanya ribet buat sekadar pesan. Bayar di muka dan tidak bisa dibatalkan juga bikin saya mikir dua kali.",
+  "keberatan_utama": "Harus daftar pakai Google dan isi data pribadi dulu, padahal lewat WA atau datang langsung saja sudah bisa.",
+  "yang_bisa_mengubah_pikiran": "Kalau pesan makanan bisa langsung tanpa daftar dan bayar di kasir, saya mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

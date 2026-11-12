@@ -1,0 +1,15 @@
+{
+  "id": "042",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Saya nggak punya Gmail, atau lupa passwordnya, jadi sudah mentok di langkah masuk. Lagian saya sering telat 10-15 menit, bayar duluan nggak bisa batal, batas 20 menit itu bikin deg-degan buat acara kantor.",
+  "keberatan_utama": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail, dan bayar di muka tanpa bisa batal untuk rombongan.",
+  "yang_bisa_mengubah_pikiran": "Bisa daftar cukup dengan nomor HP tanpa Gmail, dan ada kelonggaran telat atau ubah jadwal kalau rombongan saya molor.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

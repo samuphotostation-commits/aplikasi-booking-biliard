@@ -90,10 +90,12 @@ export default function Home() {
 
   const TANYA = [
     { t: "Harus bayar di muka?", j: "Iya, lewat QRIS waktu booking. Begitu bayarnya masuk, mejanya terkunci atas namamu dan tidak bisa diambil orang lain." },
+    { t: "Kalau berhalangan datang?", j: "Booking yang sudah dibayar bisa dijadwal ulang gratis satu kali, paling lambat 3 jam sebelum jam main, ke jadwal dalam 14 hari. Caranya di menu Pesanan. Kalau jadwal barunya bertarif lebih mahal, cukup bayar selisihnya." },
     { t: "Hitungan jamnya mulai dari kapan?", j: "Dari saat kamu duduk dan kasir menyalakan lampu mejanya, bukan dari jam yang kamu pilih. Datang telat sedikit tidak memotong waktu mainmu." },
     { t: "Kalau mainnya lewat jam 18.00?", j: `Dihitung per jam dengan dua tarif: ${rupiah(R.regularDay)}/jam sebelum 18.00 dan ${rupiah(R.regularNight)}/jam sesudahnya. Rinciannya muncul sebelum kamu bayar.` },
     { t: "Bedanya VIP dan VVIP?", j: `Dua-duanya ruang tertutup. VIP ${rupiah(R.vip)}/jam, bebas asap rokok. VVIP ${rupiah(R.vvip)}/jam, merokok diperbolehkan.` },
-    { t: "Bisa pesan makanan sambil main?", j: "Bisa. Menunya dipesan dari HP dari meja mana pun, dan pesanannya diantar ke mejamu." },
+    { t: "Bisa pesan makanan sambil main?", j: "Bisa, tanpa daftar akun. Menunya dipesan dari HP dari meja mana pun, dan pesanannya diantar ke mejamu." },
+    { t: "Perlu akun untuk booking?", j: "Booking meja perlu akun member: cukup nomor HP dan PIN 6 angka, tanpa email. Pesan makanan dan takeaway tidak perlu akun." },
   ];
 
   return (

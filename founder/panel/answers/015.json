@@ -1,0 +1,15 @@
+{
+  "id": "015",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Aku biasanya tanya kasir lewat WA dulu terus tinggal datang. Disuruh masuk Google, isi nomor HP, tanggal lahir, domisili cuma buat main biliar, males banget. Udah bayar duluan nggak bisa batal juga bikin mikir.",
+  "keberatan_utama": "Harus login Google dan isi data diri panjang, plus bayar di muka yang nggak bisa dibatalkan, padahal biasanya aku cukup chat kasir dan datang.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa booking tanpa daftar atau cukup isi nama dan nomor HP saja, dan ada aturan jelas kalau telat atau berhalangan.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

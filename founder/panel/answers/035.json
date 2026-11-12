@@ -1,0 +1,15 @@
+{
+  "id": "035",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Biasanya aku main sama teman, jamnya sering molor atau batal dadakan. Kalau udah bayar nggak bisa dibatalin dan telat 20 menit hangus, males juga. Ditambah harus login Google, isi nomor HP segala, ribet buat sekadar main.",
+  "keberatan_utama": "Bayar di muka dan tidak bisa dibatalkan, padahal jadwal main bareng teman sering berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa ganti jam atau batal sampai beberapa jam sebelumnya, dan booking tanpa harus isi data banyak.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "061",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya biasanya datang sekeluarga buat makan, anak main biliar itu dadakan. Kalau udah bayar di muka terus anak rewel atau jadwal berubah dan nggak bisa dibatalkan atau dijadwal ulang, rugi. Langsung datang aja lebih aman.",
+  "keberatan_utama": "Bayar di muka tapi booking tidak bisa dibatalkan atau dijadwal ulang, apalagi rencana keluarga sering berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa jadwal ulang minimal beberapa jam sebelumnya, atau pesan makanan bayar nanti di kasir tanpa wajib daftar dulu, saya mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

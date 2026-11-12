@@ -1,0 +1,15 @@
+{
+  "id": "046",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya biasanya bawa rombongan 2-3 meja, jadi jumlah orang sering berubah sampai hari H. Bayar di muka dan tidak bisa batal itu berisiko, apalagi harus login Google dan isi data dulu. Lebih enak tanya kasir lewat WA dulu seperti biasa.",
+  "keberatan_utama": "Bayar penuh di muka tanpa bisa batal, padahal jumlah rombongan saya sering berubah dan saya juga belum tahu bisa tanya-tanya dulu atau tidak.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking rombongan boleh dijadwal ulang atau DP kecil saja, dan ada cara tanya langsung ke kasir untuk pesanan 2-3 meja.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

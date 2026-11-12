@@ -460,8 +460,9 @@ export default function Payment() {
                   )}
                   {booking && (
                     <p className="rounded-xl border border-line bg-ink-2 px-3 py-2 text-[11px] leading-snug text-dim">
-                      Dengan membayar, kamu setuju: booking yang sudah dibayar <span className="text-cream">tidak bisa dibatalkan</span>{" "}
-                      dan <span className="text-cream">tidak bisa diganti jadwalnya</span>. Datang maksimal 20 menit setelah jam mulai.
+                      Dengan membayar, kamu setuju: booking yang sudah dibayar <span className="text-cream">tidak bisa dibatalkan</span>,{" "}
+                      tapi <span className="text-cream">bisa dijadwal ulang gratis satu kali</span> paling lambat 3 jam sebelum jam main.
+                      Datang maksimal 20 menit setelah jam mulai.
                     </p>
                   )}
                   <button onClick={batal} className="min-h-[40px] w-full text-sm text-dim underline underline-offset-4">

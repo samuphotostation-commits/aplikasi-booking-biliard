@@ -1,0 +1,15 @@
+{
+  "id": "079",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Aku ke sana buat makan sama anak, biasanya langsung datang dan pesan di kasir. Kalau harus login Google dulu terus isi nomor HP, tanggal lahir, domisili, males banget, mending antre sebentar.",
+  "keberatan_utama": "Harus daftar pakai Google dan isi data pribadi cuma buat pesan makan atau booking meja.",
+  "yang_bisa_mengubah_pikiran": "Kalau pesan makanan dari meja bisa langsung tanpa daftar, cukup scan QR dan bayar QRIS.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

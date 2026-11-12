@@ -1,0 +1,15 @@
+{
+  "id": "030",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Mejanya ada 40, biasanya aku tinggal datang sama temen-temen juga kebagian, jadi ngapain ribet login Google plus isi nomor HP dulu. Bayar di muka dan nggak bisa batal juga bikin mikir kalau rencana temen suka berubah.",
+  "keberatan_utama": "Harus daftar pakai Google dan nomor HP, bayar duluan, dan nggak bisa batal, padahal tinggal datang aja biasanya sudah dapat meja.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa booking tanpa daftar panjang dan ada jaminan meja untuk malam Sabtu yang ramai, atau ada promo dan bisa ubah jam kalau telat.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

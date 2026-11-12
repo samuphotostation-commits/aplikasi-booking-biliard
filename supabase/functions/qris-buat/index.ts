@@ -46,7 +46,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 /** Aksi venue yang boleh dirilis lewat pembayaran. Selain ini ditolak. */
-const AKSI_BOLEH = new Set(["confirmOnline", "guestOrder"]);
+const AKSI_BOLEH = new Set(["confirmOnline", "guestOrder", "jadwalUlang"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -59,7 +59,9 @@ Deno.serve(async (req) => {
   if (!provider) return json({ belumAktif: true, pesan: "QRIS belum dikonfigurasi — pembayaran di kasir." });
 
   let body: {
-    kode?: string; amount?: number; ringkas?: string; act?: { t?: string };
+    kode?: string; amount?: number; ringkas?: string; act?: { t?: string; code?: string };
+    /** Token member: wajib untuk selisih jadwal ulang (hanya pemilik booking yang boleh). */
+    member?: string;
     uji?: boolean; kasir?: boolean; cek?: boolean; ref?: string;
   };
   try { body = await req.json(); } catch { return json({ error: "badan permintaan tidak sah" }, 400); }
@@ -138,6 +140,10 @@ Deno.serve(async (req) => {
         } else if (act.t === "guestOrder" && act.order && typeof act.order === "object") {
           (act.order as Record<string, unknown>).paidOnline = dibayar;
           (act.order as Record<string, unknown>).pay = "online";
+        } else if (act.t === "jadwalUlang") {
+          // Selisih jadwal ulang: nominal & penanda bayar ditulis server, bukan HP.
+          act.bayarTambah = dibayar;
+          act.bayarId = cekRef;
         }
         const eventId = `bayar:${cekRef}`;
         try {
@@ -210,6 +216,14 @@ Deno.serve(async (req) => {
   if (!(amount > 0) || amount > 50_000_000) return json({ error: "nominal tidak sah" }, 400);
   if (!uji && !kasir && (!act || typeof act !== "object" || !AKSI_BOLEH.has(String(act.t)))) {
     return json({ error: "aksi tidak diizinkan" }, 400);
+  }
+  // Selisih jadwal ulang hanya boleh ditagihkan untuk booking milik member yang meminta.
+  if (!uji && !kasir && act && act.t === "jadwalUlang") {
+    const { data: hp } = await db.rpc("member_of", { p_token: String(body.member ?? "") });
+    const { data: milik } = hp
+      ? await db.from("member_bookings").select("code").eq("phone", hp).eq("code", String(act.code ?? "")).maybeSingle()
+      : { data: null };
+    if (!milik) return json({ error: "booking ini bukan milik akunmu" }, 403);
   }
 
   // Satu kode = satu tagihan aktif. Kalau tamu membuka ulang halaman bayar,

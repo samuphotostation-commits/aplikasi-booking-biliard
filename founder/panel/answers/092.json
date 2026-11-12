@@ -1,0 +1,15 @@
+{
+  "id": "092",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya sering telat 10-15 menit, jadi mepet sama batas 20 menit. Sudah bayar di muka, kalau macet atau lembur ya hangus, tidak bisa dibatalkan atau diganti jam. Mending datang langsung saja, sayang uangnya.",
+  "keberatan_utama": "Bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, sementara saya sering telat dan jadwal kerja bisa berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa ganti jam sekali atau ada toleransi telat lebih longgar, atau pesan makanan bayar di kasir yang jelas tanpa risiko hangus.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "038",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "bayar_dimuka",
+  "alasan": "Aku biasanya langsung datang aja terus bayar di tempat, jadi ngapain bayar dulu lewat HP. Apalagi kalau uang sudah kepotong dan nggak bisa dibatalkan, takut mejanya malah nggak ada pas aku sampai.",
+  "keberatan_utama": "Bayar di muka dan tidak bisa dibatalkan, sementara aku takut uang sudah terpotong tapi meja tidak tersedia.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada jaminan jelas uang dikembalikan penuh bila mejaku tidak tersedia, atau bisa booking dulu dan bayar di tempat.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

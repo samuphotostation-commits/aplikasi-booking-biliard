@@ -102,10 +102,14 @@ export type VenueStoreOptions = {
     /** Daftar member (tamu yang mendaftar sendiri) untuk blast promo. */
     fetchMembers?: (cari?: string) => Promise<import("./supabaseRemote").MemberBaris[]>;
     forgetMember?: (phone: string) => Promise<number>;
+    resetPinMember?: (phone: string) => Promise<{ pin?: string; alasan?: string }>;
     /** Absensi karyawan. */
     absenCatat?: (jenis: "masuk" | "pulang", foto: string, catatan?: string) => Promise<import("./supabaseRemote").AbsenHasil>;
     absenDaftar?: (hari?: number) => Promise<import("./supabaseRemote").AbsenBaris[]>;
     absenFoto?: (id: number) => Promise<string | null>;
+    /** Alat ESP32 relay lampu di venue. */
+    lampuAlat?: () => Promise<import("./supabaseRemote").LampuInfo>;
+    lampuSetKunci?: (kunci: string) => Promise<string | null>;
     /** Tutup buku stok harian dari server (fakta hari lampau). */
     stokAmbil?: (dari: string, sampai: string) => Promise<import("./supabaseRemote").StokHarianBaris[]>;
     /** Antrean pesan ke tamu (WhatsApp) — layar Pesan di panel kasir. */
@@ -829,12 +833,21 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
     /** Daftar member yang mendaftar sendiri lewat aplikasi tamu (butuh sesi PIN). */
     member: (cari?: string) => (remote?.fetchMembers?.(cari) ?? Promise.resolve([])),
     lupakanMember: (phone: string) => (remote?.forgetMember?.(phone) ?? Promise.resolve(0)),
+    aturUlangPinMember: (phone: string) =>
+      (remote?.resetPinMember?.(phone) ?? Promise.resolve({ alasan: "Butuh sambungan ke server venue." } as { pin?: string; alasan?: string })),
     /** Absensi karyawan — butuh server: fotonya disimpan di sana, bukan di HP. */
     absenCatat: (jenis: "masuk" | "pulang", foto: string, catatan?: string) =>
       (remote?.absenCatat?.(jenis, foto, catatan) ??
         Promise.resolve({ ok: false as const, alasan: "Butuh sambungan ke server venue." })),
     absenDaftar: (hari?: number) => (remote?.absenDaftar?.(hari) ?? Promise.resolve([])),
     absenFoto: (id: number) => (remote?.absenFoto?.(id) ?? Promise.resolve(null)),
+    /** Alat lampu. Mode lokal (tanpa server): memang tidak ada jembatannya. */
+    lampuAlat: () => (remote?.lampuAlat?.() ?? Promise.resolve({
+      berkunci: false, versi: null, terbitMs: null, alat: [],
+      alasan: "Mode lokal — belum tersambung ke server venue.",
+    } as import("./supabaseRemote").LampuInfo)),
+    lampuSetKunci: (kunci: string) =>
+      (remote?.lampuSetKunci?.(kunci) ?? Promise.resolve("Butuh sambungan ke server venue.")),
     /** Tutup buku stok harian. Tanpa server: kosong — layar jatuh ke hitungan
      *  langsung dari jejak perangkat ini, dan mengatakannya apa adanya. */
     stokAmbil: (dari: string, sampai: string) => (remote?.stokAmbil?.(dari, sampai) ?? Promise.resolve([])),

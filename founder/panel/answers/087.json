@@ -1,0 +1,15 @@
+{
+  "id": "087",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "butuh_wa",
+  "alasan": "Aku biasanya tanya kasir dulu lewat WA sebelum datang, jadi masih ragu kalau langsung bayar di HP tanpa bisa nanya. Lagian aku pekerja sekitar, mau ambil makanan aja, nggak yakin harus daftar Google dulu cuma buat itu.",
+  "keberatan_utama": "Bayar dulu dan nggak bisa dibatalkan, padahal aku sering butuh konfirmasi ke kasir lewat WA dan jadwal kerjaku suka molor.",
+  "yang_bisa_mengubah_pikiran": "Kalau pesan makanan takeaway bisa langsung tanpa daftar ribet dan ada cara nanya kasir sebelum bayar, aku mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 42000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

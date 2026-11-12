@@ -1,0 +1,15 @@
+{
+  "id": "003",
+  "membeli": true,
+  "kali_bulan_pertama": 2,
+  "kode_alasan": "praktis",
+  "alasan": "Lumayan enak kalau meja udah kekunci dan harganya jelas, nggak perlu nanya-nanya kasir lewat WA dulu. Tapi aku bakal coba dulu satu-dua kali aja, itu pun kalau yakin teman-teman jadi datang.",
+  "keberatan_utama": "Udah bayar di depan tapi nggak bisa dibatalkan, jadi kalau teman batal atau telat aku yang rugi.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada kebijakan jelas buat reschedule atau ganti jam sebelum main, aku bakal lebih berani pakai rutin.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 32000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "055",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Saya nggak punya Gmail, atau lupa passwordnya, jadi masuk pakai akun Google itu sudah nyangkut di awal. Lagian buat acara 2-3 meja saya biasa tanya kasir dulu lewat WA, dan bayar di muka tanpa bisa batal bikin saya takut kalau rombongan ada yang telat atau batal.",
+  "keberatan_utama": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail, dan booking yang sudah dibayar tidak bisa dibatalkan.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa daftar cukup pakai nomor HP tanpa Gmail, dan ada kejelasan bisa booking 2-3 meja sekaligus untuk rombongan.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 35000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 55000,
+    "terlalu_mahal_tidak_akan_beli": 80000
+  }
+}

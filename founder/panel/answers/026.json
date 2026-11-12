@@ -1,0 +1,15 @@
+{
+  "id": "026",
+  "membeli": true,
+  "kali_bulan_pertama": 2,
+  "kode_alasan": "praktis",
+  "alasan": "Lumayan praktis, nggak perlu chat admin atau nunggu balasan, tinggal bayar QRIS meja langsung kekunci. Main malam Rp 39 ribu/jam masih oke buat gue, tapi paling cuma nyoba 1-2 kali dulu.",
+  "keberatan_utama": "Sudah bayar nggak bisa dibatalkan dan telat 20 menit langsung hangus, padahal gue sering molor kalau nunggu temen atau kena macet.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa reschedule jam sekali aja atau ada toleransi telat lebih lama, gue bakal lebih sering booking.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

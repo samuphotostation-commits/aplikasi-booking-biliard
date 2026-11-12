@@ -19,7 +19,7 @@ import { Countdown, Elapsed, jam, statusStyle } from "./AdminShell";
 import ClashAlert from "./ClashAlert";
 import OrderPicker from "./OrderPicker";
 import PesanTanpaMeja from "./PesanTanpaMeja";
-import { activeController } from "../../lib/lightController";
+import { useLampuAlat, type RingkasLampu } from "../../lib/lampuAlat";
 import { Button } from "../../components/UI";
 import type { LiveSession } from "../../data/live";
 import type { CartLine } from "../../lib/store";
@@ -53,6 +53,8 @@ const barisStruk = (l: CartLine) => {
 export default function Board() {
   const { a, dispatchA, byTable, tick, allow } = useAdmin();
   const venue = useVenueAktif();
+  // Denyut alat relay hanya ditanyakan di venue yang mejanya punya lampu.
+  const lampuAlat = useLampuAlat(venue !== "smh");
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "running" | "free" | "soon">("all");
   /** SPL-2 · lembar "Counter" dari papan: pesan tanpa meja tanpa pindah tab. */
@@ -109,11 +111,8 @@ export default function Board() {
       </div>
 
       {allow("kontrolLampu") && venue !== "smh" && (
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-[11px] text-dim">
-            Lampu meja
-            {!activeController.connected && <span className="text-amber/80"> · simulasi</span>}:
-          </span>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-dim">Lampu meja:</span>
           <button onClick={() => dispatchA({ t: "allLights", on: false })}
             className="min-h-[34px] rounded-lg border border-line bg-ink-2 px-3 text-[12px] text-mute">
             Matikan semua
@@ -122,6 +121,7 @@ export default function Board() {
             className="min-h-[34px] rounded-lg border border-line bg-ink-2 px-3 text-[12px] text-mute">
             Nyalakan semua
           </button>
+          <LampuAlatTanda ringkas={lampuAlat.ringkas} />
         </div>
       )}
 
@@ -378,6 +378,42 @@ function Stat({ n, label, tone, onClick, on }: {
       <div className={`font-display text-2xl leading-none ${tone}`}>{n}</div>
       <div className="mt-0.5 text-[10px] uppercase tracking-wider text-dim">{label}</div>
     </button>
+  );
+}
+
+/* ═════════════ Tanda alat relay lampu ═════════════
+   Kasir harus bisa membedakan "aplikasi tidak mengirim" dari "alat di
+   panel listrik mati". Tanpa tanda ini, dua gangguan yang sangat berbeda
+   terlihat sama persis di layar: tombol ditekan, lampu tidak menyala. */
+
+function LampuAlatTanda({ ringkas }: { ringkas: RingkasLampu }) {
+  if (ringkas.status === "memuat") return null;
+
+  const warna =
+    ringkas.status === "online"   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+    : ringkas.status === "tersendat" ? "border-amber/40 bg-amber/10 text-amber"
+    : ringkas.status === "mati"      ? "border-red-500/40 bg-red-500/10 text-red-300"
+    : "border-line bg-ink-2 text-dim";
+
+  const titik =
+    ringkas.status === "online"   ? "bg-emerald-400"
+    : ringkas.status === "tersendat" ? "bg-amber"
+    : ringkas.status === "mati"      ? "bg-red-400"
+    : "bg-dim";
+
+  // Rinciannya di title: satu baris di papan, selengkapnya saat disentuh.
+  const rinci = ringkas.info?.alat.length
+    ? ringkas.info.alat
+        .map((x) => `${x.alat}: ${x.nyala ?? 0}/${x.relay ?? 0} nyala · ${jam(Number(x.terakhir_ms))}`)
+        .join("\n")
+    : ringkas.info?.alasan ?? "";
+
+  return (
+    <span title={rinci}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] ${warna}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${titik}`} />
+      {ringkas.teks}
+    </span>
   );
 }
 

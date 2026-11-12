@@ -32,3 +32,6 @@ android/build/
 android/app/build/
 android/.gradle/
 android/local.properties
+
+# Halaman NIP dan PIN karyawan: rahasia, jangan masuk git
+docs/panduan/Kartu-NIP-PIN-*

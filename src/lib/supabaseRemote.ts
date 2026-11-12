@@ -76,10 +76,15 @@ export type StaffRemote = Remote & {
   fetchMembers(cari?: string): Promise<MemberBaris[]>;
   /** Tamu lupa PIN: kasir memberi PIN sementara. */
   forgetMember(phone: string): Promise<number>;
+  resetPinMember(phone: string): Promise<{ pin?: string; alasan?: string }>;
   /** Absensi karyawan: selfie + jam, identitas dari token PIN. */
   absenCatat(jenis: "masuk" | "pulang", foto: string, catatan?: string): Promise<AbsenHasil>;
   absenDaftar(hari?: number): Promise<AbsenBaris[]>;
   absenFoto(id: number): Promise<string | null>;
+  /** Alat ESP32 relay lampu: siapa yang hidup, kapan terakhir terlihat. */
+  lampuAlat(): Promise<LampuInfo>;
+  /** Pemilik memasang kunci alat lampu. null = berhasil. */
+  lampuSetKunci(kunci: string): Promise<string | null>;
   /** Tutup buku stok harian yang sudah disimpan server — fakta, bukan
    *  rekaan mundur dari sisa hari ini. Kosong kalau belum ada yang ditutup. */
   stokAmbil(dari: string, sampai: string): Promise<StokHarianBaris[]>;
@@ -132,6 +137,35 @@ export type PesanBaris = {
   ref: string | null;
   status: "antre" | "terkirim" | "gagal" | "batal";
   galat: string | null; created_ms: number; sent_ms: number | null;
+};
+
+/** Satu alat ESP32 relay lampu dan denyut nadinya. */
+export type LampuAlatBaris = {
+  alat: string;
+  terakhir_ms: number;
+  ip: string | null;
+  rssi: number | null;
+  fw: string | null;
+  nyala: number | null;
+  relay: number | null;
+  versi_lihat: number | null;
+};
+
+/**
+ * Keadaan jembatan lampu seperti yang dilihat panel kasir.
+ *
+ * `alasan` diisi kalau SERVER yang tidak bisa ditanya (schema-lampu.sql
+ * belum dijalankan, sesi PIN habis). Itu harus dibedakan dari "alat mati":
+ * yang pertama berarti panel tidak tahu apa-apa, yang kedua berarti panel
+ * tahu alatnya diam. Menyamakan keduanya membuat kasir mencari gangguan
+ * di panel listrik padahal yang kurang satu perintah SQL.
+ */
+export type LampuInfo = {
+  berkunci: boolean;
+  versi: number | null;
+  terbitMs: number | null;
+  alat: LampuAlatBaris[];
+  alasan: string | null;
 };
 
 export type SupabaseRemoteOptions = { url: string; anonKey: string };
@@ -330,6 +364,31 @@ export function supabaseRemote(opts: SupabaseRemoteOptions): StaffRemote {
       return (data as string | null) ?? null;
     },
 
+    /* ── Alat lampu (ESP32 relay di venue) ────────────────────────── */
+
+    async lampuAlat(): Promise<LampuInfo> {
+      if (!token) return { berkunci: false, versi: null, terbitMs: null, alat: [], alasan: "Belum masuk dengan PIN." };
+      const { data, error } = await client.rpc("lampu_alat_daftar", { p_token: token });
+      // Selama `schema-lampu.sql` belum dijalankan, fungsinya memang belum
+      // ada. Itu BUKAN "alat mati" — dan panel tidak boleh mengatakannya
+      // begitu, karena kasir akan mencari gangguan di tempat yang salah.
+      if (error) return { berkunci: false, versi: null, terbitMs: null, alat: [], alasan: error.message };
+      const baris = (data ?? []) as (LampuAlatBaris & { versi: number | null; terbit_ms: number | null; berkunci: boolean })[];
+      return {
+        berkunci: baris[0]?.berkunci === true,
+        versi: baris[0]?.versi ?? null,
+        terbitMs: baris[0]?.terbit_ms ?? null,
+        alat: baris.filter((r) => !!r.alat),
+        alasan: null,
+      };
+    },
+
+    async lampuSetKunci(kunci: string) {
+      if (!token) return "Belum masuk dengan PIN.";
+      const { error } = await client.rpc("lampu_set_kunci", { p_token: token, p_baru: kunci });
+      return error ? error.message : null;
+    },
+
     /* ── Antrean pesan ke tamu (WhatsApp) ─────────────────────────── */
 
     /** Tutup buku stok harian (fakta hari lampau, dihitung server). */
@@ -360,6 +419,15 @@ export function supabaseRemote(opts: SupabaseRemoteOptions): StaffRemote {
       const { data, error } = await client.rpc("pesan_blast", { p_token: token, p_teks: teks });
       if (error) throw new Error(error.message);
       return Number(data ?? 0);
+    },
+
+    /** Member lupa PIN: buat PIN baru acak (tampil sekali ke kasir). Sesi lama member diputus. */
+    async resetPinMember(phone: string): Promise<{ pin?: string; alasan?: string }> {
+      if (!token) return { alasan: "Masuk dulu sebagai staf." };
+      const { data, error } = await client.rpc("member_reset_pin", { p_token: token, p_hp: phone });
+      if (error) return { alasan: error.message };
+      const r = data as { ok?: boolean; pin?: string; alasan?: string };
+      return r?.ok && r.pin ? { pin: r.pin } : { alasan: r?.alasan ?? "PIN belum diatur ulang." };
     },
 
     async forgetMember(phone: string) {

@@ -20,7 +20,7 @@
    Sesudah mengubah berkas ini: bundel ulang, lalu pasang ulang Edge
    Function `terbit`.
    ═══════════════════════════════════════════════════════════════════ */
-import { applyEntry, businessDateOf, entryOrder, replay, tickState, type Entry, type Genesis } from "../../../src/lib/engine";
+import { applyEntry, businessDateOf, entryOrder, punyaLampu, replay, tickState, type Entry, type Genesis } from "../../../src/lib/engine";
 import { publicVenue } from "../../../src/lib/publicView";
 
 const AKTIF = new Set(["hold", "booked", "running", "maintenance"]);
@@ -96,12 +96,34 @@ export async function jalankan(db: Db, req?: Request): Promise<Response> {
   });
   if (error) return new Response(`gagal menerbitkan: ${error.message}`, { status: 500 });
 
+  /* ── Lampu meja → relay ESP32 di venue ──────────────────────────────
+     Status lampu adalah KESIMPULAN MESIN dari jejak, sama seperti angka
+     di papan kasir: buka meja menyalakan, tutup tab/void/no-show
+     mematikan, dan tombol lampu manual menimpanya. Diterbitkan di sini —
+     bukan oleh perangkat kasir — supaya lampu tetap benar walau tidak ada
+     tablet yang terbuka.
+
+     Kegagalannya SENGAJA tidak menjatuhkan penerbitan ringkasan publik:
+     selama `schema-lampu.sql` belum dijalankan di project ini, fungsinya
+     memang belum ada, dan ketersediaan meja di HP tamu tidak boleh ikut
+     mati karenanya. Alasannya tetap dilaporkan di `lampuGagal`. */
+  const lampu: Record<string, boolean> = {};
+  for (const [id, on] of Object.entries(st.lights)) {
+    if (punyaLampu(id)) lampu[id] = on === true;
+  }
+  const { error: eLampu } = await db.rpc("publish_lampu_server", {
+    p_lampu: lampu, p_genesis: genesis.at,
+  });
+
   return new Response(JSON.stringify({
     // Penanda versi mesin yang benar-benar terpasang — sekali waktu fungsi ini
     // sudah "berhasil dipasang" menurut dashboard tapi isinya masih yang lama.
     ok: true, versi: "wib-1", zonaMenit: new Date().getTimezoneOffset(),
     kejadian: entries.length, slot: ringkasan.slots.length,
     kode: status.length, ms: Date.now() - mulai,
+    lampu: Object.keys(lampu).length,
+    lampuNyala: Object.values(lampu).filter(Boolean).length,
+    ...(eLampu ? { lampuGagal: eLampu.message } : {}),
     // Angka pemeriksa: kalau ringkasan kosong padahal jejaknya panjang, di sinilah
     // kelihatan apakah mesin MENOLAK kejadiannya (dan yang mana).
     sesi: st.sessions.length, pesanan: st.orders.length, refund: st.refunds.length,

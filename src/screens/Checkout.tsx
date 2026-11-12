@@ -82,7 +82,8 @@ export default function Checkout() {
   const namaOk = nama.trim().length >= 2;
   // PRD AT-05: pesan dari meja cukup nama; takeaway perlu HP untuk dipanggil; booking lengkap.
   const formOk = totals.booking
-    ? namaOk && hpOk && emailOk
+    // Email tidak wajib lagi (8 Nov 2026): member bisa daftar cukup nomor HP + PIN.
+    ? namaOk && hpOk && (email === "" || emailOk)
     : mode === "takeaway"
       ? namaOk && hpOk && (email === "" || emailOk)
       : namaOk && (hp === "" || hpOk) && (email === "" || emailOk);
@@ -394,6 +395,9 @@ export default function Checkout() {
           <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
             {butuhMember && !member ? "Masuk dulu untuk booking" : "Data pemesan"}
           </h2>
+          {!totals.booking && (
+            <p className="-mt-1 mb-2 text-[12px] text-mute">Pesan makanan tidak perlu akun. Cukup isi data di bawah.</p>
+          )}
           {butuhMember && !member ? (
             <div className="space-y-2">
               {!cekMember ? (
@@ -437,7 +441,7 @@ export default function Checkout() {
               />
             )}
             <Field
-              label={totals.booking ? "Email" : "Email (opsional)"}
+              label="Email (opsional)"
               value={email} onChange={setEmail} placeholder="nama@email.com"
               type="email" ok={email === "" ? undefined : emailOk}
               hint={totals.booking ? "E-struk dan kode check-in dikirim ke sini." : "Untuk e-struk, kalau mau."}
@@ -498,7 +502,7 @@ export default function Checkout() {
             {butuhMember && !member
               ? "Masuk atau daftar member dulu — booking diproses atas nama member."
               : totals.booking
-                ? "Lengkapi nama, nomor HP, dan email dulu."
+                ? "Lengkapi nama dan nomor HP dulu."
                 : mode === "takeaway" ? "Lengkapi nama dan nomor HP dulu." : "Isi nama dulu."}
           </p>
         )}

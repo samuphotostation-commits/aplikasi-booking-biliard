@@ -1,0 +1,15 @@
+{
+  "id": "082",
+  "membeli": true,
+  "kali_bulan_pertama": 1,
+  "kode_alasan": "praktis",
+  "alasan": "Lumayan praktis, bisa pesan makanan dari meja atau dari rumah tanpa antre. Kalau lagi bawa keluarga makan, pasti saya coba sekali buat lihat enak atau tidaknya.",
+  "keberatan_utama": "Takut sudah bayar QRIS tapi pas datang meja tidak tersedia, dan booking yang sudah dibayar tidak bisa dibatalkan.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada jaminan jelas uang kembali kalau meja tidak ada waktu saya datang, atau cerita dari orang yang sudah pernah pakai.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

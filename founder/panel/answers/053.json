@@ -1,0 +1,15 @@
+{
+  "id": "053",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "butuh_wa",
+  "alasan": "Aku biasanya booking rombongan lewat WhatsApp, soalnya butuh 2-3 meja sekaligus dan mau tanya dulu ke kasir. Akun Gmail aja aku nggak ingat, jadi males kalau harus daftar, apalagi bayar di muka dan nggak bisa dibatalkan buat acara kantor.",
+  "keberatan_utama": "Harus login Google, bayar penuh di muka dan nggak bisa batal, padahal booking rombongan biasanya masih berubah-ubah jumlah orangnya dan aku mau konfirmasi ke kasir dulu.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada cara booking tanpa Google (cukup nomor HP) dan jelas bisa booking beberapa meja sekaligus untuk rombongan, plus ada kontak WhatsApp untuk tanya atau ubah jadwal.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

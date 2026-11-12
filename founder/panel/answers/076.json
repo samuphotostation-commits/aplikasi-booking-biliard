@@ -1,0 +1,15 @@
+{
+  "id": "076",
+  "membeli": true,
+  "kali_bulan_pertama": 2,
+  "kode_alasan": "praktis",
+  "alasan": "Saya sering bawa keluarga makan ke sana, jadi bisa pesan makanan dari meja lewat HP dan bayar nanti di kasir itu enak. Nggak perlu lagi WA kasir tanya meja kosong atau nggak, harga juga sudah jelas.",
+  "keberatan_utama": "Booking yang sudah dibayar tidak bisa dibatalkan dan telat 20 menit meja dilepas, padahal bawa anak sering molor.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada kelonggaran telat atau bisa pindah jam sekali kalau kabari sebelumnya, saya lebih berani booking meja.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "050",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Aku biasanya booking buat acara rombongan lewat WA, tinggal chat langsung beres. Disuruh login Google terus isi nomor HP segala, terus bayar di muka dan nggak bisa batal, ya males, apalagi buat acara kantor yang jadwalnya bisa berubah.",
+  "keberatan_utama": "Harus login Google dan isi data dulu, plus bayar di muka tanpa bisa dibatalkan, padahal aku butuh 2-3 meja untuk acara yang jadwalnya bisa geser.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking bisa tanpa daftar ribet atau bisa ganti jadwal, dan jelas bisa pesan beberapa meja sekaligus dalam satu kali bayar.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

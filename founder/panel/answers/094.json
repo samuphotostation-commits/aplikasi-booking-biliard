@@ -1,0 +1,15 @@
+{
+  "id": "094",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lainnya",
+  "alasan": "Saya cuma butuh ambil makanan di kasir pas jam kerja, bukan main biliar. Harga menu Smokehouse nggak disebut, jadi saya nggak tahu worth it atau nggak, dan harus daftar Google plus nomor HP dulu cuma buat pesan makan.",
+  "keberatan_utama": "Yang jelas buat saya cuma booking meja yang dibayar di muka dan tidak bisa dibatalkan, sedangkan harga menu dan cara ambil makanan di kasir tidak dijelaskan.",
+  "yang_bisa_mengubah_pikiran": "Kalau daftar menu dan harga makanan kelihatan dulu tanpa login, dan ada pilihan pesan ambil di kasir bayar nanti, saya mau coba sekali.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

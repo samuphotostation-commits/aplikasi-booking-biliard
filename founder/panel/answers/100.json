@@ -1,0 +1,15 @@
+{
+  "id": "100",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Biasanya aku tinggal datang aja, atau tanya dulu lewat WA ke kasir. Kuota juga pas-pasan, jadi males buka aplikasi, login Google, bayar di muka pula.",
+  "keberatan_utama": "Bayar dimuka dan tidak bisa dibatalkan, padahal langsung datang lebih praktis dan aku tidak tahu apakah mejanya memang sering penuh.",
+  "yang_bisa_mengubah_pikiran": "Kalau terbukti mejanya sering penuh jam malam dan pesan makanan bisa bayar di kasir tanpa ribet daftar, mungkin aku coba sekali.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "031",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Mau main biliar aja kok harus login Google, isi nomor HP, tanggal lahir, domisili. Kuota juga pas-pasan, males ribet. Biasanya aku tinggal datang aja langsung main.",
+  "keberatan_utama": "Daftarnya ribet, ditambah bayar dimuka dan nggak bisa batal, padahal jadwal main malamku sering berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa booking tanpa daftar panjang, cukup nomor HP saja, dan ada kelonggaran kalau telat atau batal.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 25000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 40000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

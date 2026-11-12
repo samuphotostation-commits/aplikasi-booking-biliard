@@ -1,0 +1,15 @@
+{
+  "id": "077",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Saya ke sana buat makan sama keluarga, anak main biliarnya cuma sambil lalu, jadi ngapain booking dari rumah. Lagian harus login Google plus isi nomor HP, sinyal saya kadang jelek, males ribet.",
+  "keberatan_utama": "Untuk sekadar makan dan anak main sebentar, harus daftar dulu dan bayar di muka tanpa bisa batal itu berlebihan.",
+  "yang_bisa_mengubah_pikiran": "Kalau pesan makanan bisa langsung tanpa daftar akun dan bayarnya di kasir, mungkin saya coba sekali.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

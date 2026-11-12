@@ -1,0 +1,15 @@
+{
+  "id": "065",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku bawa anak, jadwal sering berubah mendadak. Kalau sudah bayar di muka dan nggak bisa dibatalkan, terus ada apa-apa di jalan, uangnya hangus. Lebih enak langsung datang aja, makan dulu, anak main kalau mejanya kosong.",
+  "keberatan_utama": "Uang sudah terpotong, tidak bisa dibatalkan, dan aku nggak tahu apa yang terjadi kalau mejanya ternyata bermasalah waktu datang.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada jaminan jelas uang kembali kalau meja nggak tersedia, dan bisa dijadwal ulang atau dibatalkan beberapa jam sebelumnya.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

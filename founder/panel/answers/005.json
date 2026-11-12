@@ -1,0 +1,15 @@
+{
+  "id": "005",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Aku jarang ingat Gmail yang mana, nanti malah ribet lupa sandi pas mau booking. Biasanya juga tinggal WA kasir atau langsung datang, kuota pas-pasan, jadi males bayar dimuka yang nggak bisa dibatalkan.",
+  "keberatan_utama": "Harus login akun Google yang aku nggak ingat, plus bayar dimuka tanpa bisa batal kalau temanku telat atau batal ikut.",
+  "yang_bisa_mengubah_pikiran": "Bisa daftar cukup pakai nomor HP tanpa Gmail, atau ada keringanan kalau batal atau jadwal digeser sebelum jam main.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

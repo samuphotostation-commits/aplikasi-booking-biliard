@@ -206,7 +206,7 @@ export default function Success() {
               <li>• Check-in paling cepat 30 menit sebelum jam main.</li>
               <li>• Datang maksimal 20 menit setelah jam mulai, lewat itu meja dilepas dan pembayaran hangus.</li>
               <li>• Makanan pra-order disiapkan saat kamu check-in, bukan sebelumnya.</li>
-              <li className="text-amber/90">• Booking yang sudah dibayar <strong>tidak bisa dibatalkan</strong> dan <strong>tidak bisa diganti jadwalnya</strong>.</li>
+              <li className="text-amber/90">• Booking yang sudah dibayar <strong>tidak bisa dibatalkan</strong>, tapi <strong>bisa dijadwal ulang gratis satu kali</strong> paling lambat 3 jam sebelum main, lewat menu Pesanan.</li>
             </ul>
           </Card>
         )}

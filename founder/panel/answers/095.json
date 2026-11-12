@@ -1,0 +1,15 @@
+{
+  "id": "095",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya biasanya tanya kasir dulu lewat WA baru datang. Kalau sudah bayar di muka terus nggak bisa batal, dan telat 20 menit saja mejanya hangus, rugi kalau kerjaan molor. Lebih enak datang langsung, bayar di tempat.",
+  "keberatan_utama": "Bayar di muka tanpa bisa batal dan batas telat cuma 20 menit, padahal jam pulang kerja saya sering molor.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking bisa dijadwal ulang atau dibatalkan sebelum jam mulai, atau batas telatnya lebih longgar, saya mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

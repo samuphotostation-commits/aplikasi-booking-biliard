@@ -1,0 +1,15 @@
+{
+  "id": "091",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Saya biasanya langsung datang atau chat WA, jadi nggak perlu aplikasi. Makanan Smokehouse juga saya nggak tahu menu dan harganya, jadi belum tertarik pesan dari HP.",
+  "keberatan_utama": "Harus login Google dan bayar di muka, kalau telat lebih dari 20 menit mejanya lepas dan nggak bisa dibatalkan.",
+  "yang_bisa_mengubah_pikiran": "Kalau pesan makanan untuk diambil di kasir bisa tanpa daftar dan menunya jelas dengan harga murah, mungkin saya coba sekali.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

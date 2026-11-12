@@ -1,0 +1,15 @@
+{
+  "id": "089",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Kalau main bareng teman jadwalnya sering molor, jadi takut bayar dimuka tapi nggak bisa dibatalin dan meja dilepas kalau telat 20 menit. Biasanya aku cukup dateng aja, lagian harga makanannya juga belum kelihatan.",
+  "keberatan_utama": "Sudah bayar tidak bisa batal dan telat 20 menit mejanya hilang, padahal teman-temanku sering telat.",
+  "yang_bisa_mengubah_pikiran": "Kalau boleh geser jam atau ada toleransi telat lebih lama, dan menu serta harga makanan Smokehouse kelihatan jelas dulu.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 18000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

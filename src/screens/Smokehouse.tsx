@@ -91,8 +91,10 @@ export default function Smokehouse() {
 
   const TANYA = [
     { t: "Reservasi meja bayar juga?", j: `Mejanya gratis dan tidak dihitung per jam, ${mejaMakan} meja makan semuanya begitu. Hidangan dipilih saat mengisi reservasi, dan cuma itu yang kamu bayar di kasir waktu pulang.` },
-    { t: "Bisa pesan dari meja?", j: "Bisa. Scan QR di mejamu, dan pesanannya langsung masuk ke bill meja itu." },
-    { t: "Bisa pesan untuk dibawa pulang?", j: "Bisa. Pesan dari HP, lalu ambil di kasir saat sudah siap." },
+    // Panel 100 pembeli (8 Nov 2026): banyak yang mengira pesan makanan wajib daftar akun Google.
+    { t: "Perlu daftar akun untuk pesan makanan?", j: "Tidak. Pesan dari meja cukup isi nama, takeaway cukup nama dan nomor HP. Bayar di kasir atau QRIS. Akun member hanya dipakai untuk booking meja biliar." },
+    { t: "Bisa pesan dari meja?", j: "Bisa, tanpa daftar akun. Scan QR di mejamu, dan pesanannya langsung masuk ke bill meja itu." },
+    { t: "Bisa pesan untuk dibawa pulang?", j: "Bisa, tanpa daftar akun. Pesan dari HP, lalu ambil dan bayar di kasir saat sudah siap, atau bayar QRIS di muka." },
   ];
 
   return (
@@ -185,7 +187,7 @@ export default function Smokehouse() {
                 );
               })}
             </ul>
-            <AjakMember tema="smokehouse" teks="Riwayat pesananmu tersimpan di akun, dan info promo sampai lebih dulu. Daftarnya cuma dua langkah." />
+            <AjakMember tema="smokehouse" teks="Pesan makanan tetap bisa tanpa akun. Dengan akun, riwayat pesananmu tersimpan dan info promo sampai lebih dulu." />
           </Muncul>
         </div>
       </BabTeks>

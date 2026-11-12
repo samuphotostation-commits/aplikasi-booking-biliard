@@ -60,6 +60,18 @@ VITE_MODE_TAMU=1 WEB_OUT=web-tamu npm run app
 
 Folder `web/`, `web-tamu/`, `dist/`, dan `release/` adalah hasil build dan tidak ikut commit.
 
+## Lampu meja biliar (ESP32-S3)
+
+Tombol lampu di panel kasir menyalakan lampu meja yang sebenarnya lewat dua
+board ESP32-S3 di venue. Alat **menarik** status dari server tiap ±1 detik,
+jadi bisa dikendalikan dari perangkat mana pun — termasuk HP manajer di luar
+jaringan venue — dan lampu tidak pernah padam karena internet putus.
+
+- Firmware: [`perangkat/lampu-esp32/`](perangkat/lampu-esp32/)
+- Panduan pasang: [`docs/PANDUAN-LAMPU-ESP32.md`](docs/PANDUAN-LAMPU-ESP32.md)
+- Bagian server: `supabase/schema-lampu.sql` (jalankan di SQL Editor), lalu
+  pasang ulang Edge Function `terbit`.
+
 ## Catatan keamanan
 
 - `.env.local` tidak ikut Git.

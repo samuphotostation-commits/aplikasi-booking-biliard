@@ -1,0 +1,15 @@
+{
+  "id": "088",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya biasanya ajak 2-4 orang dan jadwalnya sering berubah, jadi bayar di muka tapi nggak bisa batal atau geser jam itu bikin males. Kalau ada teman yang batal, uangnya hangus, mending datang langsung saja.",
+  "keberatan_utama": "Sudah bayar tapi tidak bisa dibatalkan atau dijadwal ulang, padahal rencana rombongan sering berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa geser jam atau jadwal ulang minimal beberapa jam sebelum main tanpa uang hangus, saya mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

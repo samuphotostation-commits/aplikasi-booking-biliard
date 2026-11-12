@@ -1,0 +1,15 @@
+{
+  "id": "006",
+  "membeli": true,
+  "kali_bulan_pertama": 2,
+  "kode_alasan": "praktis",
+  "alasan": "Kalau malam Sabtu sering rebutan meja, jadi lumayan kalau bisa kunci meja dari HP dan langsung dapat kode. Aku coba dulu buat akhir pekan, hari biasa paling tetap datang langsung.",
+  "keberatan_utama": "Sudah bayar tidak bisa dibatalkan, jadi kalau teman batal atau aku telat lewat 20 menit, uangnya hangus.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada bukti bayar dan kode check-in yang jelas di HP, dan ada kejelasan apa yang terjadi kalau mejanya bermasalah saat aku datang.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

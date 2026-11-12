@@ -1,0 +1,15 @@
+{
+  "id": "071",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Saya biasanya datang buat makan, anak main biliar cuma sambil lalu. Disuruh masuk Google dulu terus isi nomor HP segala, males. Lebih enak tanya kasir lewat WA atau langsung datang saja.",
+  "keberatan_utama": "Harus bikin akun dan bayar di muka, padahal saya cuma mau makan dan anak main sebentar, dan yang sudah dibayar tidak bisa dibatalkan.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa pesan makanan atau lihat meja tanpa login dulu, dan bayarnya boleh nanti di kasir.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 80000
+  }
+}

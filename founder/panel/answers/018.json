@@ -1,0 +1,15 @@
+{
+  "id": "018",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku biasanya chat kasir dulu atau langsung datang, jadi nggak masalah. Tapi bayar di muka dan nggak bisa batal atau pindah jam itu bikin males, soalnya jadwal main malamku sering berubah.",
+  "keberatan_utama": "Sudah bayar tapi kalau temanku batal atau telat, uangnya hangus dan jamnya nggak bisa dipindah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa jadwal ulang minimal beberapa jam sebelum main, atau ada aturan jelas yang bikin uangnya nggak hangus begitu saja.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

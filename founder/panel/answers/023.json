@@ -1,0 +1,15 @@
+{
+  "id": "023",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Aku biasanya nanya dulu ke kasir lewat WA terus datang bareng temen, ga pake aplikasi. Harus login Google plus isi nomor HP segala buat main biliar rasanya ribet, apalagi bayar dimuka dan ga bisa dibatalin kalau temen ga jadi dateng.",
+  "keberatan_utama": "Bayar dimuka tanpa bisa batal, ditambah harus daftar Google dan isi data, padahal biasanya aku tinggal datang dan bayar patungan di tempat.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking bisa tanpa daftar ribet (cukup nomor HP) dan ada kelonggaran ganti jam kalau temen telat atau batal.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 42000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

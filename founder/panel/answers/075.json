@@ -1,0 +1,15 @@
+{
+  "id": "075",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Saya ke sana buat makan sama keluarga, biliarnya paling cuma sebentar kalau anak minta. Disuruh masuk Google dulu terus isi nomor HP, kayaknya ribet buat sekadar pesan makanan. Biasanya saya tanya kasir lewat WA terus langsung datang saja.",
+  "keberatan_utama": "Harus login Google dan isi data dulu, sementara booking yang sudah dibayar tidak bisa dibatalkan, padahal rencana keluarga sering berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau pesan makanan bisa tanpa daftar dan bayarnya nanti di kasir, atau booking meja bisa dibatalkan atau dijadwal ulang kalau anak rewel.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

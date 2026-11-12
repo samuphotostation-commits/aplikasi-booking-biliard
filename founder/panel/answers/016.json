@@ -1,0 +1,15 @@
+{
+  "id": "016",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Aku biasanya main malam sama temen dan tinggal dateng aja, ga pernah repot booking. Bayar di muka lewat aplikasi tapi ga bisa batal itu bikin males, apalagi kalau temen mendadak ga jadi.",
+  "keberatan_utama": "Bayar di muka dan ga bisa dibatalkan, padahal langsung datang biasanya juga dapat meja dan lebih fleksibel.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada bukti meja malam akhir pekan sering penuh, atau booking bisa diubah jam atau dibatalkan sebagian, aku mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 42000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "033",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku biasanya main malam dan jamnya sering berubah kalau temen telat, jadi bayar dimuka yang gak bisa dibatalin bikin males. Ditambah harus login Google terus isi nomor HP segala, mending chat kasir aja kayak biasa.",
+  "keberatan_utama": "Bayar dimuka tanpa bisa batal, padahal rencana main sering molor atau berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa reschedule atau batal sebelum jam mulai, dan daftarnya cukup satu klik tanpa isi data banyak.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 40000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

@@ -19,7 +19,9 @@
    ═══════════════════════════════════════════════════════════════════ */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { EMPLOYEES, type Employee } from "../data/staff";
-import { applyAction, init, tickState, type Action, type Entry, type Genesis, type State } from "./engine";
+import {
+  HOLD_GRACE_MIN, HOLD_MIN, applyAction, init, tickState, type Action, type Entry, type Genesis, type State,
+} from "./engine";
 import { sesiDariSlot, type PublicVenue } from "./publicView";
 import { tokenMember, riwayatMember } from "./member";
 import { EVENT_GANTI_AKUN, kodeTersimpan, simpanKode } from "./jejakTamu";
@@ -32,7 +34,7 @@ type Listener = () => void;
 const JEDA_MS = 20_000;
 
 /** Aksi yang boleh dikirim HP pelanggan — sama dengan daftar di server. */
-const AKSI_TAMU = new Set<Action["t"]>(["hold", "releaseHold", "guestOrder", "reserveResto"]);
+const AKSI_TAMU = new Set<Action["t"]>(["hold", "releaseHold", "guestOrder", "reserveResto", "jadwalUlang"]);
 
 
 
@@ -59,6 +61,24 @@ function stateDariRingkasan(pv: Partial<PublicVenue>, genesis: Genesis, milikSay
     me: null,
     employees: [] as Employee[],
   };
+}
+
+/**
+ * Buang salinan publik dari hold milik tamu ini sendiri. Hold tamu lain di meja
+ * dan jam yang sama tetap dipertahankan: batas hold-nya berbeda karena dibuat
+ * pada waktu yang berbeda.
+ */
+export function buangCerminanHold(sessions: LiveSession[], e: Entry): LiveSession[] {
+  if (e.act.t !== "hold") return sessions;
+  const h = e.act.session;
+  const batas = e.at + (HOLD_MIN + HOLD_GRACE_MIN) * 60_000;
+  // Jam HP tamu sering meleset beberapa menit dari jam server.
+  const TOLERANSI_MS = 5 * 60_000;
+  return sessions.filter((x) => !(
+    x.id.startsWith("pub-") && x.status === "hold"
+    && x.tableId === h.tableId && x.startsAt === h.startsAt
+    && x.holdUntil !== undefined && Math.abs(x.holdUntil - batas) <= TOLERANSI_MS
+  ));
 }
 
 export function createCustomerStore(opts: { url: string; anonKey: string }) {
@@ -91,6 +111,13 @@ export function createCustomerStore(opts: { url: string; anonKey: string }) {
     for (let i = sendiri.length - 1; i >= 0; i--) if (sendiri[i].sampai < kini) sendiri.splice(i, 1);
     let st = stateDariRingkasan(ringkasan, genesis, milikSaya);
     for (const { e } of sendiri) {
+      // Hold milik tamu ini yang SUDAH terbit di ringkasan publik muncul di sana
+      // tanpa id aslinya (`pub-…`). Kalau dibiarkan, hold yang diputar ulang
+      // bertabrakan dengan dirinya sendiri, id aslinya lenyap dari layar, dan
+      // halaman bayar memvonis "slot diambil orang lain" sebelum QRIS sempat
+      // tampil (laporan pemilik 7 Nov 2026, sesudah ringkasan terbit lebih cepat).
+      // Slot publik itu dikenali dari meja, jam mulai, dan batas hold-nya.
+      if (e.act.t === "hold") st = { ...st, sessions: buangCerminanHold(st.sessions, e) };
       // Kalau ringkasan sudah memuatnya, aksinya ditolak mesin (idempoten) dan
       // state tidak berubah — jadi aman diputar ulang berkali-kali.
       st = applyAction(st, e);

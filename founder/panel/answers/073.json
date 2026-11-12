@@ -1,0 +1,15 @@
+{
+  "id": "073",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya ke sana biasanya sama anak-anak untuk makan, biliarnya cuma kalau anak mau main. Jadi susah mastiin jam, kalau sudah bayar terus batal mendadak uangnya hangus, mending datang langsung saja.",
+  "keberatan_utama": "Sudah bayar QRIS tapi tidak bisa dibatalkan atau dijadwal ulang, padahal rencana keluarga sering berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking bisa dijadwal ulang sekali atau ada kebijakan jelas kalau telat atau batal, dan pesan makanan bayar nanti di kasir saya mungkin coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

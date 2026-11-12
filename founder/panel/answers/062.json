@@ -1,0 +1,15 @@
+{
+  "id": "062",
+  "membeli": true,
+  "kali_bulan_pertama": 1,
+  "kode_alasan": "praktis",
+  "alasan": "Kalau lagi makan di sana sambil anak main biliar, pesan makanan dari HP tanpa antre itu enak, apalagi bisa bayar nanti di kasir. Booking meja saya belum tentu, tapi pesan makan mungkin sekali coba.",
+  "keberatan_utama": "Booking yang sudah dibayar tidak bisa dibatalkan, jadi saya takut uang hilang kalau anak sakit atau acara berubah, dan saya tidak tahu apa yang terjadi kalau mejanya ternyata bermasalah.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada jaminan jelas uang kembali atau meja diganti kalau meja tidak tersedia saat datang, dan bukti bayar plus kode check-in mudah disimpan sebagai screenshot.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

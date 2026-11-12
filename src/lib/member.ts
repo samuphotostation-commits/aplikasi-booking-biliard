@@ -24,8 +24,12 @@ export type Member = {
   /** TTTT-BB-HH, kosong untuk member lama yang belum mengisi. */
   lahir: string;
   domisili: string;
+  /** Sudah punya PIN untuk masuk dengan nomor HP. Akun Google lama: belum. */
+  punyaPin?: boolean;
 };
 export type DataDaftar = { hp: string; lahir: string; domisili: string };
+/** Daftar tanpa Google: nomor HP + PIN 6 angka (keputusan pemilik 8 Nov 2026). */
+export type DataDaftarHp = DataDaftar & { nama: string; pin: string; setuju: boolean };
 export type HasilMember = { ok: true; member: Member } | { ok: false; alasan: string };
 
 const K_TOKEN = "spl:v1:member";
@@ -110,8 +114,14 @@ export async function adaSesiGoogle(): Promise<boolean> {
 
 export type HasilGoogle =
   | { ok: true; member: Member }
-  | { ok: false; perluHp: true; nama: string; email: string }
-  | { ok: false; alasan: string };
+  /** Isian belum lengkap. `alasan` menyebut isian mana yang ditolak server. */
+  | { ok: false; perluHp: true; nama: string; email: string; alasan?: string }
+  /** `sesiHabis`: sesi Google hilang, tamu harus memilih akun Google lagi. */
+  | { ok: false; alasan: string; sesiHabis?: boolean };
+
+/** Jawaban server yang berarti sesi Google sudah tidak berlaku. */
+const tandaSesiHabis = (pesan: string): boolean =>
+  /permission denied|jwt|token.*(expired|invalid)|not authenticated|sesi google/i.test(pesan);
 
 /**
  * Tukar sesi Google menjadi akun member SPL. Panggilan pertama bisa menjawab
@@ -120,17 +130,74 @@ export type HasilGoogle =
 export async function selesaikanGoogle(d?: DataDaftar): Promise<HasilGoogle> {
   const c = sb();
   if (!c) return { ok: false, alasan: "Butuh sambungan ke server venue." };
+  if (!(await adaSesiGoogle())) return { ok: false, sesiHabis: true, alasan: PESAN_SESI_HABIS };
   try {
     const { data, error } = await c.rpc("member_google", {
-      p_hp: d?.hp ?? null, p_lahir: d?.lahir ?? null, p_domisili: d?.domisili ?? null,
+      // Isian kosong dikirim null: string kosong untuk kolom tanggal ditolak server.
+      p_hp: d?.hp || null, p_lahir: d?.lahir || null, p_domisili: d?.domisili || null,
     });
-    if (error) return { ok: false, alasan: error.message };
-    const r = data as { ok?: boolean; perluHp?: boolean; alasan?: string; token?: string; profil?: unknown; nama?: string; email?: string };
-    if (r?.perluHp) return { ok: false, perluHp: true, nama: r.nama ?? "", email: r.email ?? "" };
+    if (error) {
+      return tandaSesiHabis(error.message)
+        ? { ok: false, sesiHabis: true, alasan: PESAN_SESI_HABIS }
+        : { ok: false, alasan: galat(error) };
+    }
+    const r = data as {
+      ok?: boolean; perluHp?: boolean; sesiHabis?: boolean; alasan?: string; token?: string;
+      profil?: unknown; nama?: string; email?: string;
+    };
+    if (r?.perluHp) return { ok: false, perluHp: true, nama: r.nama ?? "", email: r.email ?? "", alasan: r.alasan ?? undefined };
+    if (r?.sesiHabis || (!r?.ok && tandaSesiHabis(r?.alasan ?? ""))) {
+      return { ok: false, sesiHabis: true, alasan: PESAN_SESI_HABIS };
+    }
     const m = bacaProfilServer(r?.profil);
-    if (!r?.ok || !r.token || !m) return { ok: false, alasan: r?.alasan ?? "Masuk dengan Google gagal" };
+    if (!r?.ok || !r.token || !m) return { ok: false, alasan: r?.alasan ?? "Pendaftaran belum berhasil. Coba sekali lagi." };
     simpanToken(r.token);
     return { ok: true, member: pakai(m) };
+  } catch (e) { return { ok: false, alasan: galat(e) }; }
+}
+
+const PESAN_SESI_HABIS = 'Sesi Google sudah habis. Ketuk "Lanjut dengan Google" sekali lagi, isianmu tetap tersimpan.';
+
+/** Lepas akun Google yang sedang terpilih, lalu buka lagi layar pilih akun. */
+export async function gantiAkunGoogle(): Promise<{ ok: boolean; alasan?: string }> {
+  const c = sb();
+  if (c) { try { await c.auth.signOut(); } catch { /* sesi lokal tetap dilupakan */ } }
+  return masukDenganGoogle();
+}
+
+/** Hasil RPC member yang menjawab { ok, token, profil, alasan }. */
+async function terimaSesi(fn: string, args: Record<string, unknown>): Promise<HasilMember> {
+  const c = sb();
+  if (!c) return { ok: false, alasan: "Butuh sambungan ke server venue." };
+  try {
+    const { data, error } = await c.rpc(fn, args);
+    if (error) return { ok: false, alasan: galat(error) };
+    const r = data as { ok?: boolean; alasan?: string; token?: string; profil?: unknown };
+    const m = bacaProfilServer(r?.profil);
+    if (!r?.ok || !r.token || !m) return { ok: false, alasan: r?.alasan ?? "Belum berhasil. Coba sekali lagi." };
+    simpanToken(r.token);
+    return { ok: true, member: pakai(m) };
+  } catch (e) { return { ok: false, alasan: galat(e) }; }
+}
+
+/** Masuk dengan nomor HP + PIN 6 angka. */
+export const masukHp = (hp: string, pin: string) => terimaSesi("member_masuk", { p_hp: hp, p_pin: pin });
+
+/** Daftar member baru dengan nomor HP + PIN, tanpa Google. */
+export const daftarHp = (d: DataDaftarHp) => terimaSesi("member_daftar_hp", {
+  p_hp: d.hp, p_nama: d.nama, p_pin: d.pin, p_lahir: d.lahir || null, p_domisili: d.domisili || null, p_setuju: d.setuju,
+});
+
+/** Buat PIN (akun Google yang belum punya) atau ganti PIN. */
+export async function gantiPin(lama: string, baru: string): Promise<{ ok: boolean; alasan?: string }> {
+  const c = sb();
+  const t = tokenMember();
+  if (!c || !t) return { ok: false, alasan: "Silakan masuk dulu." };
+  try {
+    const { data, error } = await c.rpc("member_ganti_pin", { p_token: t, p_lama: lama || null, p_baru: baru });
+    if (error) return { ok: false, alasan: galat(error) };
+    const r = data as { ok?: boolean; alasan?: string };
+    return r?.ok ? { ok: true } : { ok: false, alasan: r?.alasan ?? "PIN belum tersimpan." };
   } catch (e) { return { ok: false, alasan: galat(e) }; }
 }
 
@@ -161,6 +228,7 @@ const bacaProfilServer = (x: unknown): Member | null => {
     sejak: typeof p.sejak === "number" ? p.sejak : 0,
     lahir: typeof p.lahir === "string" ? p.lahir : "",
     domisili: typeof p.domisili === "string" ? p.domisili : "",
+    punyaPin: (p as { punyaPin?: unknown }).punyaPin === true,
   };
 };
 
@@ -171,7 +239,8 @@ function pakai(m: Member) {
 }
 
 const galat = (e: unknown): string => {
-  const pesan = e instanceof Error ? e.message : String(e);
+  const pesan = e instanceof Error ? e.message
+    : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e);
   return /fetch|network|Failed/i.test(pesan) ? "Tidak tersambung — coba lagi setelah sinyal kembali." : pesan;
 };
 

@@ -340,6 +340,17 @@ export const HOURS: number[] = Array.from(
 /** 25 → "01.00", 11 → "11.00" */
 export const fmtHour = (h: number) => `${String(h % 24).padStart(2, "0")}.00`;
 
+/**
+ * NAMA BADAN USAHA (permintaan pemilik 11 Nov 2026).
+ *
+ * Meta memeriksa situs saat verifikasi bisnis: nama badan usaha di dokumen
+ * harus tampil di situsnya. Karena itu nama ini ada di kaki SEMUA halaman
+ * tamu, di Ketentuan & Privasi, dan di data terstruktur index.html.
+ * Ejaannya harus SAMA PERSIS dengan dokumen (NIB/NPWP/akta) — kalau di
+ * dokumen tertulis lain, ubah di sini, di index.html, dan di public/*.html.
+ */
+export const BADAN_USAHA = "CV SMOKE HOUSE RESTO";
+
 export const VENUE = {
   name: "SPL — Sports Pool Lounge",
   resto: "Smokehouse Resto",
@@ -349,7 +360,7 @@ export const VENUE = {
 
 /** Ketentuan booking yang ditampilkan ke tamu (permintaan pemilik). */
 export const BOOKING_TERMS = [
-  "Booking yang sudah dibayar tidak bisa dibatalkan dan tidak bisa diganti jadwalnya.",
+  "Booking yang sudah dibayar tidak bisa dibatalkan, tapi bisa dijadwal ulang gratis satu kali, paling lambat 3 jam sebelum jam main.",
   "Datang paling lambat 20 menit setelah jam mulai — lewat itu meja dilepas untuk tamu lain dan pembayaran hangus.",
   "Waktu main dihitung dari jam booking, bukan dari jam kedatangan.",
 ];

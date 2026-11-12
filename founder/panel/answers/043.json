@@ -1,0 +1,15 @@
+{
+  "id": "043",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "bayar_dimuka",
+  "alasan": "Saya biasanya tanya kasir lewat WA dulu sebelum datang, apalagi kalau butuh 2-3 meja buat acara. Kalau harus bayar duluan dan nggak bisa dibatalkan, saya takut uang sudah keluar tapi mejanya nggak ada pas saya datang.",
+  "keberatan_utama": "Bayar di muka dan tidak bisa dibatalkan, sementara saya belum tahu apa yang terjadi kalau meja tidak tersedia atau rombongan telat.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada jaminan jelas uang kembali kalau meja tidak tersedia, dan bisa booking beberapa meja sekaligus dengan opsi tanya atau konfirmasi dulu lewat WA.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 32000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 48000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

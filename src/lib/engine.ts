@@ -63,6 +63,14 @@ export const MIN_LEAD_MIN = 30;
 export const GATEWAY_EXPIRY_MIN = 15;
 export const HOLD_MIN = 17;
 export const HOLD_GRACE_MIN = 2;
+/**
+ * JADWAL ULANG GRATIS SEKALI (keputusan pemilik 8 Nov 2026, dari panel 100 pembeli).
+ * Booking yang sudah dibayar boleh dipindah satu kali, paling lambat 3 jam
+ * sebelum jam main, ke jadwal dalam 14 hari ke depan. Jadwal baru lebih mahal:
+ * selisihnya dibayar QRIS. Lebih murah: selisih tidak dikembalikan.
+ */
+export const JADWAL_ULANG_BATAS_JAM = 3;
+export const JADWAL_ULANG_HARI = 14;
 /** Jatah minuman Paket Siang bawaan — paket lain membawa angkanya sendiri. */
 export const PAKET_FREE_DRINKS = PAKET_SIANG.freeDrinks;
 
@@ -774,6 +782,9 @@ export type Action =
   | { t: "releaseHold"; id: string }
   /** Pembayaran booking online masuk (setara webhook). */
   | { t: "confirmOnline"; session: LiveSession }
+  /** Tamu memindah booking yang sudah dibayar (gratis sekali). `bayarTambah`
+   *  hanya diisi server pembayaran, sesudah selisih harga benar-benar lunas. */
+  | { t: "jadwalUlang"; id: string; code: string; tableId: string; startsAt: number; bayarTambah?: number; bayarId?: string }
   | { t: "guestOrder"; order: GuestOrderRequest }
   /** Booking yang terlanjur dilepas sebagai no-show dipulihkan (PRD BK-80). */
   | { t: "restoreNoShow"; id: string }
@@ -2102,7 +2113,7 @@ function rapikanLampu(s: State): State {
  * sama untuk menaruh tiap baris di venue yang benar.
  */
 const AKSI_LUAR_PAGAR = new Set<Action["t"]>([
-  "hold", "confirmOnline", "guestOrder", "reserveResto", "releaseHold", "openShift",
+  "hold", "confirmOnline", "guestOrder", "reserveResto", "releaseHold", "openShift", "jadwalUlang",
 ]);
 
 /** Shift tempat aksi ini terjadi, ditentukan dari meja atau pesanan yang disentuhnya. */
@@ -2159,6 +2170,8 @@ function venueAksi(s: State, a: Action): Venue[] {
     // sendiri melewatinya — lihat `AKSI_LUAR_PAGAR`.
     case "hold": case "confirmOnline":
       return dariMeja(a.session.tableId);
+    case "jadwalUlang":
+      return [...dariSesi(a.id), ...dariMeja(a.tableId)];
     case "releaseHold":
       return dariSesi(a.id);
     case "guestOrder":
@@ -3468,6 +3481,9 @@ function reduce(s: State, a: Action): State {
     case "hold":
       return holdSlot(s, a.session, now);
 
+    case "jadwalUlang":
+      return jadwalUlang(s, a, now);
+
     case "releaseHold": {
       const h = s.sessions.find((x) => x.id === a.id && x.status === "hold");
       if (!h) return s;
@@ -3580,6 +3596,65 @@ function holdSlot(s: State, sent: LiveSession, now: number): State {
   return {
     ...s, sessions: [...s.sessions, hold],
     log: note(s, `Slot ditahan · ${table.name} · ${hold.guest} · menunggu pembayaran`, tableAmount + priced.total, "sistem"),
+  };
+}
+
+/**
+ * Boleh dipindah ke meja & jam ini? Dipakai layar tamu (sebelum menekan) dan
+ * mesin (saat kejadiannya diterima) — satu aturan, dua tempat.
+ * `selisih` = yang harus dibayar tamu; 0 kalau jadwal baru sama atau lebih murah.
+ */
+export function jadwalUlangProblem(
+  s: Pick<State, "sessions" | "tableTypes" | "packages" | "mejaPakai" | "jamBebas" | "rates">,
+  id: string, ke: { tableId: string; startsAt: number }, now = clock(),
+): { masalah: string | null; selisih: number; hargaBaru: number } {
+  const gagal = (masalah: string) => ({ masalah, selisih: 0, hargaBaru: 0 });
+  const x = s.sessions.find((v) => v.id === id);
+  if (!x) return gagal("booking tidak ditemukan");
+  if (x.source !== "online" || x.status !== "booked") return gagal("hanya booking online yang sudah dibayar dan belum check-in");
+  if (x.jadwalUlang) return gagal("jatah jadwal ulang gratis sudah dipakai");
+  if (now > x.startsAt - JADWAL_ULANG_BATAS_JAM * HOUR_MS) {
+    return gagal(`jadwal ulang paling lambat ${JADWAL_ULANG_BATAS_JAM} jam sebelum jam main`);
+  }
+  if (ke.startsAt > now + JADWAL_ULANG_HARI * 24 * HOUR_MS) return gagal(`jadwal baru paling jauh ${JADWAL_ULANG_HARI} hari ke depan`);
+  if (ke.tableId === x.tableId && ke.startsAt === x.startsAt) return gagal("jadwalnya sama dengan yang sekarang");
+  const hours = Math.round((x.endsAt - x.startsAt) / HOUR_MS);
+  const masalah = slotProblem(s, { tableId: ke.tableId, startsAt: ke.startsAt, hours, paket: x.paket }, now, true, x.id);
+  if (masalah) return gagal(masalah);
+  const pk = paketOf(s, x.paket);
+  const hargaBaru = x.paket && pk ? pk.price : priceWith(s.rates, classOf(s, ke.tableId), hourIdx(ke.startsAt), hours);
+  return { masalah: null, selisih: Math.max(0, hargaBaru - x.tableAmount), hargaBaru };
+}
+
+function jadwalUlang(s: State, a: Extract<Action, { t: "jadwalUlang" }>, now: number): State {
+  if (a.bayarId && s.paymentIds.includes(a.bayarId)) return s;           // notifikasi ganda
+  const bayar = a.bayarTambah ?? 0;
+  const x = s.sessions.find((v) => v.id === a.id && v.bookingCode === a.code);
+  const cek = x ? jadwalUlangProblem(s, a.id, a, now) : { masalah: "booking tidak ditemukan", selisih: 0, hargaBaru: 0 };
+  const masalah = cek.masalah ?? (cek.selisih !== bayar ? `selisih harga Rp ${cek.selisih}, dibayar Rp ${bayar}` : null);
+  if (masalah) {
+    // Tamu tidak membayar apa-apa: cukup ditolak. Sudah membayar selisih: dananya dicatat untuk dikembalikan.
+    if (bayar <= 0) return s;
+    return {
+      ...s,
+      paymentIds: a.bayarId ? [...s.paymentIds, a.bayarId] : s.paymentIds,
+      refunds: [{ id: nextId("rf"), at: now, bookingCode: a.code, guest: x?.guest ?? "Tamu", amount: bayar, reason: `jadwal ulang ditolak: ${masalah}` }, ...s.refunds],
+      log: note(s, `Jadwal ulang DITOLAK · ${a.code} · ${masalah} · selisih dikembalikan`, bayar, "sistem"),
+    };
+  }
+  const lama = x!;
+  const dur = lama.endsAt - lama.startsAt;
+  const baru: LiveSession = {
+    ...lama, tableId: a.tableId, startsAt: a.startsAt, endsAt: a.startsAt + dur,
+    tableType: classOf(s, a.tableId),
+    tableAmount: lama.tableAmount + bayar, paidOnline: lama.paidOnline + bayar,
+    jadwalUlang: { dariMeja: lama.tableId, dariMulai: lama.startsAt, at: now },
+  };
+  return {
+    ...s,
+    sessions: s.sessions.map((v) => (v.id === lama.id ? baru : v)),
+    paymentIds: a.bayarId ? [...s.paymentIds, a.bayarId] : s.paymentIds,
+    log: note(s, `Booking dijadwal ulang · ${a.code} · ${namaMeja(s, lama.tableId)} → ${namaMeja(s, a.tableId)}${bayar ? ` · selisih ${bayar}` : ""}`, bayar, "sistem"),
   };
 }
 
@@ -5502,6 +5577,8 @@ export function validAction(a: unknown): a is Action {
     case "hold":
     case "confirmOnline": return validSessionPayload(a.session);
     case "releaseHold": return isStr(a.id);
+    case "jadwalUlang": return isStr(a.id) && isStr(a.code) && isStr(a.tableId) && isNum(a.startsAt) &&
+      (a.bayarTambah === undefined || (isNum(a.bayarTambah) && a.bayarTambah >= 0)) && isOptStr(a.bayarId);
     case "guestOrder": return isObj(a.order) && isStr(a.order.id) && isStr(a.order.code) && isOptStr(a.order.guest) &&
       isOptStr(a.order.phone) && oneOf(a.order.mode, ["meja", "takeaway"] as const) && isOptStr(a.order.tableId) &&
       oneOf(a.order.pay, ["online", "kasir"] as const) && validLines(a.order.lines) && isNum(a.order.paidOnline) &&

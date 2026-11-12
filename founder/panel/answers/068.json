@@ -1,0 +1,15 @@
+{
+  "id": "068",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "butuh_wa",
+  "alasan": "Aku ke sana buat makan, anak main biliar cuma sesekali. Biasanya aku tanya kasir lewat WA dulu sebelum datang, jadi harus daftar pakai Google segala terasa ribet, apalagi aku nggak ingat Gmail-ku yang mana.",
+  "keberatan_utama": "Harus masuk pakai akun Google dan nomor HP, sedangkan aku nggak punya atau lupa Gmail, dan booking yang sudah dibayar tidak bisa dibatalkan.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa pesan makanan tanpa akun Google dan tetap bisa tanya lewat WhatsApp, atau booking boleh dijadwal ulang kalau anak tiba-tiba rewel.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "052",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku biasanya urus acara rombongan, 2-3 meja, dan jumlah orangnya sering berubah di menit terakhir. Kalau sudah bayar tidak bisa batal dan telat 20 menit meja hangus, aku takut rugi, mending datang langsung atau tanya dulu.",
+  "keberatan_utama": "Bayar di muka tanpa bisa dibatalkan itu berisiko buat acara kantor atau ulang tahun yang jadwalnya sering geser.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking bisa dijadwal ulang atau ada kelonggaran waktu untuk rombongan, dan daftarnya tidak ribet selain login Google.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

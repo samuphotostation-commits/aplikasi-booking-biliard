@@ -1,0 +1,15 @@
+{
+  "id": "069",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Biasanya saya langsung datang atau chat WA aja, soalnya ke sana buat makan sama anak-anak, bukan mau booking meja jauh-jauh hari. Masuk pakai akun Google juga saya nggak yakin punya atau ingat, jadi males ribet.",
+  "keberatan_utama": "Harus masuk pakai akun Google yang saya tidak punya atau tidak ingat, dan booking yang sudah dibayar tidak bisa dibatalkan.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa masuk cukup dengan nomor HP tanpa Google, atau pesan makanan dari meja bisa langsung tanpa daftar dulu.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 32000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 48000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

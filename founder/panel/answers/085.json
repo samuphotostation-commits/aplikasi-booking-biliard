@@ -1,0 +1,15 @@
+{
+  "id": "085",
+  "membeli": true,
+  "kali_bulan_pertama": 1,
+  "kode_alasan": "praktis",
+  "alasan": "Kalau lagi sama anak-anak, enak bisa pesan makanan dari meja tanpa antre, apalagi bisa bayar nanti di kasir. Booking meja saya masih lebih milih tanya kasir dulu lewat WA, tapi coba pesan makan lewat HP sekali boleh lah.",
+  "keberatan_utama": "Booking yang sudah dibayar tidak bisa dibatalkan, dan saya biasanya tanya kasir dulu lewat WhatsApp sebelum datang, jadi langsung datang terasa lebih praktis.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada keterangan jelas soal ketersediaan meja dan tarif siang vs malam yang gampang dibandingkan, plus ada keringanan kalau terlambat atau berhalangan datang.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 32000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}

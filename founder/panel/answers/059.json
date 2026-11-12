@@ -1,0 +1,15 @@
+{
+  "id": "059",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Saya nggak punya Gmail, atau lupa sandinya, jadi masuk pakai akun Google itu sudah bikin males. Kalau mau makan sama anak main biliar saya biasanya langsung datang saja, nggak pakai daftar-daftar di HP.",
+  "keberatan_utama": "Harus masuk pakai akun Google padahal saya tidak punya atau tidak ingat Gmail, dan kuota serta sinyal saya kadang susah.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa masuk cukup pakai nomor HP atau lewat WhatsApp tanpa Gmail, dan saya bisa pesan makanan dulu tanpa daftar ribet.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 35000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 75000
+  }
+}

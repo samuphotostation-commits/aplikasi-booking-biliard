@@ -6,7 +6,7 @@
  * daftar member + izin promonya + tombol salin nomor / unduh CSV.
  *
  * Izin promo ditegakkan di sini: tombol "Salin nomor" HANYA mengambil yang
- * mencentang izin (UU PDP). Semua member masuk lewat akun Google.
+ * mencentang izin (UU PDP). Member masuk dengan nomor HP + PIN, atau Google.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useAdmin } from "../../lib/adminStore";
@@ -24,7 +24,10 @@ export default function DaftarMember() {
   const store = venueStore() as ReturnType<typeof venueStore> & {
     member?: (cari?: string) => Promise<MemberBaris[]>;
     lupakanMember?: (phone: string) => Promise<number>;
+    aturUlangPinMember?: (phone: string) => Promise<{ pin?: string; alasan?: string }>;
   };
+  // PIN baru hasil atur ulang: tampil SEKALI di baris member itu, untuk dibacakan ke tamunya.
+  const [pinBaru, setPinBaru] = useState<{ phone: string; teks: string } | null>(null);
 
   const [cari, setCari] = useState("");
   const [hanyaSetuju, setHanyaSetuju] = useState(false);
@@ -165,6 +168,21 @@ export default function DaftarMember() {
               </div>
             </div>
 
+            {pinBaru?.phone === m.phone && (
+              <p className="mt-2 rounded-lg border border-amber/50 bg-amber/10 px-3 py-2 text-[12px] text-amber">{pinBaru.teks}</p>
+            )}
+            {allow("bukaMeja") && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Atur ulang PIN ${m.nama} (${nomorTampil(m.phone)})?\n\nPastikan yang meminta benar pemilik nomor ini (cocokkan nama atau minta dia menelepon dari nomor itu).`)) return;
+                    const r = await store.aturUlangPinMember?.(m.phone);
+                    setPinBaru({ phone: m.phone, teks: r?.pin ? `PIN baru: ${r.pin} — bacakan ke tamu, lalu minta dia menggantinya di menu Akun.` : (r?.alasan ?? "Gagal") });
+                  }}
+                  className="min-h-[36px] rounded-lg border border-line px-3 text-xs text-cream"
+                >Atur ulang PIN</button>
+              </div>
+            )}
             {allow("lihatLaporanKeuangan") && (
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
@@ -183,8 +201,8 @@ export default function DaftarMember() {
 
       <p className="text-[11px] leading-snug text-dim">
         Blast promo hanya boleh ke member yang mencentang izin promo (UU PDP) — tombol "Salin nomor"
-        sudah membuang yang tidak mengizinkan. Semua member masuk lewat akun Google,
-        jadi tidak ada PIN yang perlu direset.
+        sudah membuang yang tidak mengizinkan. Member masuk dengan nomor HP + PIN (atau Google).
+        Kalau lupa PIN, pakai tombol Atur ulang PIN di barisnya.
       </p>
     </div>
   );

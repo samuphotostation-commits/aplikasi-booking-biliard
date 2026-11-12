@@ -1,0 +1,15 @@
+{
+  "id": "017",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku main malam, jadwalnya sering berubah gara-gara kerjaan atau teman batal. Kalau sudah bayar di muka dan nggak bisa dibatalkan atau dijadwal ulang, mending aku datang langsung atau tanya kasir lewat WA dulu.",
+  "keberatan_utama": "Bayar di muka tapi booking tidak bisa dibatalkan dan tidak ada kabar soal jadwal ulang, padahal rencanaku sering berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau boleh jadwal ulang sekali (misalnya sampai beberapa jam sebelum main) atau uangnya jadi kredit untuk main berikutnya.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "034",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Meja 40 buah, biasanya tinggal datang aja juga dapat, ngapain bayar duluan. Apalagi aku sering telat 10-15 menit, kalau kebablasan terus uangnya hangus, sayang.",
+  "keberatan_utama": "Harus login Google, isi nomor HP dan data lain, plus bayar dimuka yang tidak bisa dibatalkan, padahal tinggal datang langsung juga bisa.",
+  "yang_bisa_mengubah_pikiran": "Kalau tidak perlu isi banyak data dan ada promo atau diskon khusus yang cuma bisa didapat lewat booking di HP.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 25000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 40000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

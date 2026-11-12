@@ -1,0 +1,15 @@
+{
+  "id": "019",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Aku nggak punya Gmail yang aktif, lupa passwordnya malah. Disuruh login Google dulu baru bisa booking, males banget. Biasanya aku langsung datang aja, kalau telat 10-15 menit juga kan masih aman, ini malah ada batas 20 menit dan nggak bisa batal.",
+  "keberatan_utama": "Harus masuk pakai akun Google padahal aku nggak punya atau nggak ingat akunnya, ditambah bayar dimuka dan nggak bisa dibatalkan.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa daftar cuma pakai nomor HP tanpa Google, dan ada kelonggaran kalau telat atau bisa dijadwal ulang.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 42000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

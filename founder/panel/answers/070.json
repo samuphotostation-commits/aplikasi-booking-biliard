@@ -1,0 +1,15 @@
+{
+  "id": "070",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "lebih_suka_datang",
+  "alasan": "Saya ke sana buat makan sama keluarga, anak main biliar itu sambil lalu. Biasanya langsung datang aja, ngapain bayar dimuka lewat HP. Apalagi saya sering telat 10-15 menit, takut mepet batas 20 menit terus hangus.",
+  "keberatan_utama": "Bayar dimuka dan tidak bisa dibatalkan, padahal saya sering telat dan jadwal keluarga suka berubah.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada kelonggaran telat yang lebih lama atau bisa ganti jam, dan pesan makanan bisa bayar nanti di kasir tanpa wajib booking meja dulu.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 70000
+  }
+}

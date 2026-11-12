@@ -1,0 +1,15 @@
+{
+  "id": "021",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "ribet_daftar",
+  "alasan": "Aku jarang pakai Gmail, lupa malah akunnya yang mana, jadi disuruh masuk pakai Google bikin males duluan. Biasanya juga tinggal datang bareng teman, yang bayar satu orang, ya langsung bayar di tempat aja.",
+  "keberatan_utama": "Harus login akun Google padahal aku nggak punya atau nggak ingat akun Gmail-ku.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa daftar cukup pakai nomor HP tanpa Google, dan ada kebijakan jelas kalau telat atau nggak jadi datang.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 40000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

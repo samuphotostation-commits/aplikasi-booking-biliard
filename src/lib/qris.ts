@@ -52,6 +52,8 @@ export async function buatQris(input: {
   amount: number;
   ringkas: string;
   act: unknown;
+  /** Token member — wajib untuk selisih jadwal ulang (server memeriksa pemilik booking). */
+  member?: string;
 }): Promise<QrisHasil> {
   if (!qrisMungkin()) return { ok: false, belumAktif: true };
   try {

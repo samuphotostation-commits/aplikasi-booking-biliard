@@ -1,0 +1,15 @@
+{
+  "id": "004",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku biasanya yang bayarin satu kelompok, dan kalau teman-teman molor atau batal, uangku hangus. Selama ini datang langsung juga biasanya kebagian meja, jadi belum terasa perlu bayar duluan.",
+  "keberatan_utama": "Sudah bayar tidak bisa dibatalkan dan harus datang paling lambat 20 menit, padahal anak-anak sering telat.",
+  "yang_bisa_mengubah_pikiran": "Kalau boleh jadwal ulang atau ganti jam sekali kalau ada yang telat, atau ada bukti meja malam akhir pekan sering penuh.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

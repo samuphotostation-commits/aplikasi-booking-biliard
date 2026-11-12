@@ -1,0 +1,15 @@
+{
+  "id": "090",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku kerja, jadwal pulang sering molor. Kalau udah bayar terus telat lebih dari 20 menit atau mendadak lembur, uangnya hilang. Mending aku langsung datang aja kalau pas ada waktu.",
+  "keberatan_utama": "Bayar di muka tapi tidak bisa dibatalkan atau dijadwal ulang, padahal jam pulang kerjaku nggak pasti.",
+  "yang_bisa_mengubah_pikiran": "Kalau booking bisa dijadwal ulang sekali, atau kalau pesan makanan bisa bayar di kasir tanpa wajib daftar akun dulu, aku mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "056",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Saya datang bawa keluarga, anak-anak itu susah ditebak. Kalau sudah bayar dimuka dan tidak bisa dibatalkan, terus telat 20 menit meja hangus, rasanya rugi. Biasanya saya langsung datang saja, makan dulu baru anak main.",
+  "keberatan_utama": "Bayar di muka tanpa bisa batal dan batas telat cuma 20 menit, padahal bawa anak jadwalnya sering molor.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada kelonggaran telat atau bisa reschedule sekali, dan ada ulasan atau foto tempat yang meyakinkan di Instagram atau TikTok.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 50000,
+    "terlalu_mahal_tidak_akan_beli": 75000
+  }
+}

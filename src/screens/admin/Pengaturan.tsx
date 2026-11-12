@@ -24,9 +24,11 @@ import { LayarTamu, PilihPrinter, PrinterDapur } from "./PilihPrinter";
 import { jam } from "./AdminShell";
 import QrisPanel from "./QrisPanel";
 import { TambahBanyakAkun } from "./TambahBanyakAkun";
+import { PinMassal } from "./PinMassal";
 import {
   suaraNyala, setSuaraNyala, bunyikan, izinNotif, mintaIzinNotif, type IzinNotif,
 } from "../../lib/notifikasi";
+import { buatKunciAlat, useLampuAlat } from "../../lib/lampuAlat";
 
 /* Pengaturan tarif, kelas meja, akun staf & data — hanya manajer/owner (PRD §7.5).
    Perubahan tarif TIDAK mengubah booking yang sudah dibuat: harga
@@ -152,6 +154,112 @@ function BunyiNotif() {
   );
 }
 
+/* ═════════════ Lampu meja — alat relay ESP32 ═════════════
+
+   Satu-satunya tempat kunci alat dibuat dan dipasang. Kuncinya TIDAK
+   pernah bisa dibaca lagi sesudah disimpan (server hanya menyimpan
+   hash-nya), jadi layar ini menampilkannya sekali, besar-besar, dengan
+   peringatan untuk menyalinnya dulu. Kunci yang hilang bukan bencana —
+   tinggal buat yang baru — tapi harus dimasukkan ulang ke tiap alat. */
+
+function LampuMeja() {
+  const { ringkas, info, muatUlang, setKunci } = useLampuAlat(true, 15_000);
+  const [kunciBaru, setKunciBaru] = useState<string | null>(null);
+  const [sibuk, setSibuk] = useState(false);
+  const [kabar, setKabar] = useState<{ ok: boolean; teks: string } | null>(null);
+
+  const pasang = async () => {
+    const k = kunciBaru ?? buatKunciAlat();
+    setKunciBaru(k);
+    setSibuk(true);
+    const alasan = await setKunci(k);
+    setSibuk(false);
+    setKabar(alasan ? { ok: false, teks: alasan } : { ok: true, teks: "Kunci alat terpasang di server." });
+    if (!alasan) void muatUlang();
+  };
+
+  const nada =
+    ringkas.status === "online" ? "text-emerald-400"
+    : ringkas.status === "tersendat" ? "text-amber"
+    : ringkas.status === "mati" ? "text-red-300" : "text-dim";
+
+  return (
+    <section>
+      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        Lampu meja — alat relay di venue
+      </h2>
+      <div className="rounded-xl border border-line bg-ink-2 p-3.5">
+        <div className="text-[13px] text-cream">
+          Status: <span className={nada}>{ringkas.teks}</span>
+        </div>
+
+        {info?.alat.length ? (
+          <div className="mt-2 space-y-1">
+            {info.alat.map((x) => (
+              <div key={x.alat} className="flex items-center justify-between gap-3 text-[12px]">
+                <span className="text-mute">{x.alat}</span>
+                <span className="text-dim">
+                  {(x.nyala ?? 0)}/{(x.relay ?? 0)} nyala · {x.ip ?? "?"} · {x.rssi ?? "?"} dBm · {jam(Number(x.terakhir_ms))}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {info?.alasan && (
+          <p className="mt-2 text-[11px] leading-relaxed text-amber/90">
+            Server belum bisa ditanya soal alat lampu: {info.alasan}. Kalau ini baru dipasang,
+            jalankan dulu <code>supabase/schema-lampu.sql</code> di SQL Editor project venue.
+          </p>
+        )}
+
+        <div className="mt-3 border-t border-line pt-3">
+          <div className="text-[12px] text-cream">
+            Kunci alat: {info?.berkunci
+              ? <span className="text-emerald-400">sudah dipasang</span>
+              : <span className="text-amber">belum dipasang</span>}
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-dim">
+            Kunci ini yang dimasukkan ke halaman pengaturan tiap ESP32. Tanpa kunci yang benar,
+            alat tidak bisa membaca status lampu sama sekali.
+          </p>
+
+          {kunciBaru && (
+            <div className="mt-2 rounded-lg border border-amber/40 bg-amber/10 p-2.5">
+              <div className="text-[10px] uppercase tracking-wider text-amber">Salin sekarang — tidak bisa dilihat lagi</div>
+              <div className="mt-1 select-all break-all font-mono text-[13px] text-cream">{kunciBaru}</div>
+              <button type="button"
+                onClick={() => { void navigator.clipboard?.writeText(kunciBaru).catch(() => { /* tanpa izin papan klip: salin manual */ }); }}
+                className="mt-2 rounded-full border border-line bg-ink px-2.5 py-1 text-[11px] text-mute hover:border-amber hover:text-amber">
+                Salin
+              </button>
+            </div>
+          )}
+
+          <button type="button" disabled={sibuk} onClick={() => { setKunciBaru(buatKunciAlat()); setKabar(null); }}
+            className="mt-2 min-h-[42px] w-full rounded-xl border border-line bg-ink text-[13px] text-mute disabled:opacity-50">
+            Buat kunci baru
+          </button>
+          {kunciBaru && (
+            <button type="button" disabled={sibuk} onClick={() => { void pasang(); }}
+              className="mt-2 min-h-[42px] w-full rounded-xl border border-amber/50 bg-amber/10 text-[13px] font-semibold text-amber disabled:opacity-50">
+              {sibuk ? "Memasang…" : "Pasang kunci ini di server"}
+            </button>
+          )}
+          {kabar && (
+            <div className={`mt-2 text-[12px] ${kabar.ok ? "text-emerald-400" : "text-red-300"}`}>{kabar.teks}</div>
+          )}
+          <p className="mt-2 text-[11px] leading-relaxed text-dim">
+            Memasang kunci baru membuat alat yang masih memakai kunci lama berhenti menerima status —
+            lampunya TIDAK padam, tetap pada keadaan terakhir sampai kuncinya diperbarui di alat.
+            Panduan lengkap: <code>docs/PANDUAN-LAMPU-ESP32.md</code>.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Pengaturan() {
   const { a, dispatchA, byTable, sync, resetData, peek, terbitkanSekarang, allow } = useAdmin();
   const venue = useVenueAktif();
@@ -260,6 +368,8 @@ export default function Pengaturan() {
       <BunyiNotif />
 
       {allow("ubahTarif") && <MesinEdc />}
+
+      {allow("kontrolLampu") && <LampuMeja />}
 
       {allow("ubahTarif") && (<>
       {/* ── Tarif ────────────────────────────────────────── */}
@@ -1130,6 +1240,18 @@ function AkunStaf() {
             + Tambah banyak akun dari daftar
           </button>
         </div>
+      )}
+
+      {a.me?.role === "superadmin" && sync.mode === "server" && !buka && !banyak && (
+        <PinMassal
+          karyawan={a.employees.filter((e) => e.active && e.id !== a.me?.id)}
+          simpan={(e, pin) => antre(() => store.simpanPinStaf?.({
+            id: e.id, name: e.name, role: e.role, active: e.active, pin,
+            ...((dataNip[e.id]?.nip ?? e.nip) ? { nip: (dataNip[e.id]?.nip ?? e.nip)! } : {}),
+            ...(e.venue ? { venue: e.venue } : {}),
+          }))}
+          onSelesai={muatNip}
+        />
       )}
 
       <p className="mt-2 text-[11px] leading-relaxed text-dim">

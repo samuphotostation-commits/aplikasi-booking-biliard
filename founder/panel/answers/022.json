@@ -1,0 +1,15 @@
+{
+  "id": "022",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "tidak_bisa_batal",
+  "alasan": "Aku udah biasa bayar QRIS terus simpan screenshot, tapi di sini bayar dimuka dan nggak bisa dibatalin. Kalau telat dari 20 menit mejanya hangus, padahal aku sering kejebak macet atau kelas molor.",
+  "keberatan_utama": "Uang sudah kebayar dan nggak bisa dibatalin, dan aku nggak tau apa yang terjadi kalau mejanya ternyata bermasalah pas aku datang.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada jaminan jelas uang balik atau meja diganti kalau mejanya nggak tersedia, atau bisa reschedule sekali, aku mau coba.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 25000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 40000,
+    "terlalu_mahal_tidak_akan_beli": 55000
+  }
+}

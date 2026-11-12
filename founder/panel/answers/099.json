@@ -1,0 +1,15 @@
+{
+  "id": "099",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "bayar_dimuka",
+  "alasan": "Aku biasanya cuma chat WA atau langsung datang, jadi bayar duluan lewat web itu agak asing. Takut uang sudah kepotong terus pas datang mejanya ada masalah, apalagi katanya yang sudah dibayar nggak bisa dibatalkan.",
+  "keberatan_utama": "Bayar di muka dan tidak bisa dibatalkan, sementara aku takut uang terpotong tapi mejanya tidak tersedia.",
+  "yang_bisa_mengubah_pikiran": "Kalau ada jaminan jelas uang dikembalikan kalau meja tidak tersedia, atau boleh bayar di tempat untuk booking.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 20000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 60000
+  }
+}

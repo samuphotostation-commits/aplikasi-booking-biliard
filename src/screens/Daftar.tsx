@@ -68,10 +68,9 @@ export default function Daftar() {
                 </li>
               ))}
             </ul>
-            <PanelMasuk ringkas labelGoogle="Daftar dengan Google" onMasuk={setMember} />
+            <PanelMasuk ringkas onMasuk={setMember} />
             <p className="text-center text-[11.5px] leading-snug text-dim">
-              Dua langkah saja: pilih akun Google, lalu isi nomor HP aktif. Sudah pernah daftar?
-              Tombolnya sama, kamu langsung masuk.
+              Cukup nomor HP dan PIN 6 angka, tanpa email. Lebih suka pakai Google? Tombolnya ada di bawah.
             </p>
           </>
         )}

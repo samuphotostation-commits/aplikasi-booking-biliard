@@ -1,0 +1,15 @@
+{
+  "id": "051",
+  "membeli": false,
+  "kali_bulan_pertama": 0,
+  "kode_alasan": "butuh_wa",
+  "alasan": "Saya biasa tanya kasir lewat WA dulu sebelum bawa rombongan, soalnya butuh 2-3 meja sekaligus dan mau pastikan bisa. Gmail saya juga nggak ingat, dan bayar di muka tanpa bisa batal itu berisiko kalau teman-teman kantor ada yang mundur.",
+  "keberatan_utama": "Wajib login Google, bayar di muka, dan tidak bisa batal, padahal rombongan sering berubah jumlah dan saya mau konfirmasi lewat WA dulu.",
+  "yang_bisa_mengubah_pikiran": "Kalau bisa booking beberapa meja sekaligus tanpa akun Google (cukup nomor HP) dan ada cara tanya atau ubah jadwal lewat WA untuk acara rombongan.",
+  "harga_meja_malam_per_jam": {
+    "terlalu_murah_sampai_ragu_kualitas": 15000,
+    "murah_menguntungkan": 30000,
+    "mulai_mahal_tapi_masih_dipertimbangkan": 45000,
+    "terlalu_mahal_tidak_akan_beli": 65000
+  }
+}
