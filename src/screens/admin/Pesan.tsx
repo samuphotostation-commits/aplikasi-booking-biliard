@@ -17,7 +17,8 @@
  * tetap dibuat walau tidak ada satu pun perangkat kasir yang menyala.
  */
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, PageHeader } from "../../components/UI";
+import { Button, Card } from "../../components/UI";
+import { KepalaHalaman } from "./Tata";
 import { useAdmin } from "../../lib/adminStore";
 import { venueStore } from "../../lib/venueStore";
 import type { PesanBaris } from "../../lib/supabaseRemote";
@@ -93,11 +94,12 @@ export default function PesanScreen() {
   }
 
   return (
-    <div className="pb-24">
-      <PageHeader kicker="Pemberitahuan" title="Pesan ke Tamu"
-        sub={baris === null ? undefined : antre.length + " menunggu dikirim"} />
+    <div className="space-y-4 pb-24">
+      <KepalaHalaman judul="Pesan ke tamu"
+        ket="Pemberitahuan booking dan blast promo lewat WhatsApp/email."
+        angka={baris === null ? undefined : [{ label: "Menunggu dikirim", nilai: antre.length, nada: antre.length ? "amber" : undefined }]} />
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 pt-4">
+      <div className="mx-auto max-w-3xl space-y-4">
         {galat && (
           <Card className="p-4">
             <p className="text-sm text-amber">{galat}</p>

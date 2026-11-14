@@ -9,6 +9,7 @@ import { TABLES, fmtHour } from "../data/venue";
 import { useStore } from "../lib/store";
 import { useAdmin, priceOf, runningOn, kategoriJual, cariMeja } from "../lib/adminStore";
 import { rupiah } from "../lib/core";
+import { useVenueTamu } from "../lib/venueAktif";
 
 export default function MenuScreen() {
   const nav = useNavigate();
@@ -16,7 +17,11 @@ export default function MenuScreen() {
   const { a: venue } = useAdmin();
   /** Kategori `staffOnly` (rokok counter) sengaja tidak ikut: tidak ada
    *  yang memeriksa umur pembeli lewat HP. Barang tambahan pemilik ikut. */
-  const MENU = kategoriJual(venue);
+  // Menu per venue: meja yang dipilih/di-scan menentukan venuenya; tanpa meja
+  // (takeaway, delivery) ikut venue yang sedang dibuka tamu.
+  const vTamu = useVenueTamu();
+  const mejaDipilih = state.draft.tableId ?? (state.draft.fnbMode === "meja" ? state.draft.fnbTable : null);
+  const MENU = kategoriJual(venue, { venue: (mejaDipilih ? cariMeja(mejaDipilih)?.venue : undefined) ?? vTamu });
   const [params] = useSearchParams();
   const [q, setQ] = useState("");
   const [sheet, setSheet] = useState<MenuItem | null>(null);

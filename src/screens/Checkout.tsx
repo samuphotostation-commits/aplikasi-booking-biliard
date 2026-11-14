@@ -5,7 +5,7 @@ import { Button, Card, PageHeader } from "../components/UI";
 import { Ball } from "../components/motion/Billiard";
 import { useStore, type CartLine } from "../lib/store";
 import {
-  useAdmin, cartProblem, guestOrderProblem, lineValue, runningOn, slotProblem, classOf, paketOf,
+  useAdmin, cartProblem, guestOrderProblem, complimentMeja, lineValue, runningOn, slotProblem, classOf, paketOf,
   mejaDijual, cariMeja,
 } from "../lib/adminStore";
 import { slotStart } from "../lib/occupancy";
@@ -73,6 +73,7 @@ export default function Checkout() {
       ? guestOrderProblem(venue, {
           mode, tableId: draft.fnbTable ?? undefined, pay: draft.fnbPay, lines: cart,
           sessionId: mode === "meja" ? draft.fnbSessionId ?? undefined : undefined,
+          venue: venueTamu(),
         }, Date.now())
       : null;
 
@@ -237,7 +238,8 @@ export default function Checkout() {
                   </span>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5">
-                  {mejaDijual(venue).filter((t) => t.venue === venueIni).map((t) => {
+                  {/* Meja Owner / Entertain tidak ditawarkan ke tamu — pesanannya lewat kasir. */}
+                  {mejaDijual(venue).filter((t) => t.venue === venueIni && !complimentMeja(venue, t.id)).map((t) => {
                     const on = draft.fnbTable === t.id;
                     const run = runningOn(venue, t.id);
                     const main = !!run;

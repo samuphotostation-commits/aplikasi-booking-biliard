@@ -948,8 +948,25 @@ const MUTATIONS = [
     name: "Paket meja reguler boleh dipakai di meja VIP",
     test: "rekap",
     expect: ["REKAP"],
-    from: `  if (r.kelas !== "regular") return \`\${pk.name} hanya untuk meja reguler\`;`,
-    to: ``,
+    from: `  if (r.kelas !== kelas) return`,
+    to: `  if (false) return`,
+  },
+  {
+    // Harga weekend diabaikan: tamu hari Sabtu membayar harga weekday
+    // (permintaan pemilik 14 Nov 2026 — Paket VIP 65/75, Regular 50/55).
+    name: "Paket memakai harga weekday di hari weekend",
+    test: "paket",
+    expect: ["PAKET"],
+    from: `  if (weekendPaket(pk, ts)) {`,
+    to: `  if (false) {`,
+  },
+  {
+    // Hari aktif tidak dijaga: paket Senin–Jumat bisa dipakai hari Sabtu.
+    name: "Paket dipakai di luar hari aktifnya",
+    test: "paket",
+    expect: ["PAKET"],
+    from: `  if (!paketHariIni(pk, r.startsAt)) return`,
+    to: `  if (false) return`,
   },
   {
     // Cap venue dicabut dari jejak: panel jejak Smokehouse ikut menampilkan
@@ -1036,6 +1053,7 @@ const TESTS = {
   smh: { src: "test/smokehouse.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["SMH"] : []) },
   // Rekap tiga jenis, omzet per shift, pajak per lini, dan paket berisi barang.
   rekap: { src: "test/rekap.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["REKAP"] : []) },
+  paket: { src: "test/paket.test.ts", env: {}, parse: (out) => (/^FAIL /m.test(out) || /Error/.test(out) ? ["PAKET"] : []) },
 };
 
 const only = process.env.ONLY ? new Set(process.env.ONLY.split(",").map(Number)) : null;

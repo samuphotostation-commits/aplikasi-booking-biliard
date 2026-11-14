@@ -17,10 +17,45 @@
  */
 const { app, BrowserWindow, Menu, ipcMain, net, protocol, shell } = require("electron");
 const path = require("node:path");
+const fs = require("node:fs");
+const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
 
-const AKAR = path.join(__dirname, "..", "web");
+/** Salinan situs kasir yang ikut di dalam installer. */
+const AKAR_BAWAAN = path.join(__dirname, "..", "web");
 const AWAL = "spl://app/index.html";
+
+/* ── PEMBARUAN MANDIRI (permintaan pemilik 14 Nov 2026) ─────────────
+   Dulu tiap perbaikan di situs kasir berarti memasang ulang installer di
+   tiap PC. Sekarang aplikasi mengunduh versi terbaru situs kasir sendiri
+   dari ASAL ke folder data pengguna, memeriksa sidik jari SHA-256 tiap
+   berkas terhadap versi.json, lalu memakainya. Yang ikut berganti hanya isi
+   halaman; jendela & jembatan cetak (berkas di folder electron/) tetap
+   butuh installer baru — itu jarang sekali.
+
+   Pengamannya:
+   - Hanya dari ASAL (situs kasir sendiri, https), bukan alamat dari luar.
+   - Satu berkas saja yang sidik jarinya tidak cocok → seluruh pembaruan
+     dibuang; versi yang sedang dipakai tidak tersentuh.
+   - Installer yang lebih baru dari unduhan selalu menang (lihat akarAktif). */
+// SPL_ASAL_PEMBARUAN hanya untuk menguji di komputer pengembang (server tiruan).
+const ASAL = process.env.SPL_ASAL_PEMBARUAN || "https://kasir.sportspoollounge.com";
+const folderPembaruan = () => path.join(app.getPath("userData"), "pembaruan");
+const bacaJson = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } };
+
+function akarAktif() {
+  const bawaan = bacaJson(path.join(AKAR_BAWAAN, "versi.json"));
+  const penunjuk = bacaJson(path.join(folderPembaruan(), "aktif.json"));
+  if (penunjuk && typeof penunjuk.folder === "string" && /^[\w.-]+$/.test(penunjuk.folder)) {
+    const dir = path.join(folderPembaruan(), penunjuk.folder);
+    const v = bacaJson(path.join(dir, "versi.json"));
+    if (v && fs.existsSync(path.join(dir, "index.html")) && (!bawaan || v.dibuat > bawaan.dibuat)) {
+      return { akar: dir, versi: v, sumber: "pembaruan" };
+    }
+  }
+  return { akar: AKAR_BAWAAN, versi: bawaan, sumber: "bawaan" };
+}
+let aktif = { akar: AKAR_BAWAAN, versi: null, sumber: "bawaan" };
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -33,8 +68,9 @@ protocol.registerSchemesAsPrivileged([
 function layaniBerkas(req) {
   const { pathname } = new URL(req.url);
   const diminta = decodeURIComponent(pathname).replace(/^\/+/, "") || "index.html";
-  const penuh = path.join(AKAR, diminta);
-  if (!penuh.startsWith(AKAR)) return new Response("Tidak ditemukan", { status: 404 });
+  const akar = aktif.akar;
+  const penuh = path.join(akar, diminta);
+  if (!penuh.startsWith(akar + path.sep)) return new Response("Tidak ditemukan", { status: 404 });
   return net.fetch(pathToFileURL(penuh).toString());
 }
 
@@ -90,6 +126,81 @@ ipcMain.handle("spl:cetak", async (e, printer) => {
   }
 });
 
+/** Versi yang sedang dipakai aplikasi ini. */
+ipcMain.handle("spl:versi", () => ({
+  build: aktif.versi ? aktif.versi.build : null,
+  dibuat: aktif.versi ? aktif.versi.dibuat : null,
+  aplikasi: app.getVersion(),
+  sumber: aktif.sumber,
+}));
+
+async function versiTerbaru() {
+  const r = await net.fetch(`${ASAL}/versi.json?t=${Date.now()}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`server menjawab ${r.status}`);
+  const v = await r.json();
+  if (!v || typeof v.build !== "string" || !Array.isArray(v.berkas)) throw new Error("versi.json tidak dikenali");
+  return v;
+}
+
+/** Versi terbaru di server — tanpa daftar berkasnya. */
+ipcMain.handle("spl:cek-pembaruan", async () => {
+  try {
+    const v = await versiTerbaru();
+    return { ok: true, build: v.build, dibuat: v.dibuat, aplikasi: v.aplikasi, android: v.android ?? null };
+  } catch (err) {
+    return { ok: false, alasan: String(err && err.message ? err.message : err) };
+  }
+});
+
+let sedangMemperbarui = false;
+ipcMain.handle("spl:perbarui", async () => {
+  if (sedangMemperbarui) return { ok: false, alasan: "pembaruan sedang berjalan" };
+  sedangMemperbarui = true;
+  const akar = folderPembaruan();
+  let sementara = null;
+  try {
+    const v = await versiTerbaru();
+    if (aktif.versi && v.build === aktif.versi.build) return { ok: true, sama: true };
+    if (!v.berkas.some((b) => b && b.p === "index.html")) throw new Error("versi.json tanpa index.html");
+    const nama = `b-${String(v.dibuat).replace(/\D/g, "")}-${crypto.randomBytes(3).toString("hex")}`;
+    sementara = path.join(akar, `${nama}.unduh`);
+    fs.mkdirSync(sementara, { recursive: true });
+    for (const b of v.berkas) {
+      // Jalur hanya huruf/angka biasa, tanpa ".." — berkas tidak boleh keluar folder.
+      if (!b || typeof b.p !== "string" || !/^[\w.-]+(\/[\w.-]+)*$/.test(b.p) || b.p.split("/").includes("..")) {
+        throw new Error(`jalur berkas tidak sah: ${b && b.p}`);
+      }
+      // `u` = alamat unduh lain untuk berkas yang sama (index.html → salinan .txt,
+      // karena Cloudflare menyisipkan skrip ke HTML yang dilayani).
+      const dari = typeof b.u === "string" && /^[\w.-]+(\/[\w.-]+)*$/.test(b.u) && !b.u.split("/").includes("..") ? b.u : b.p;
+      const r = await net.fetch(`${ASAL}/${dari}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`${b.p}: server menjawab ${r.status}`);
+      const isi = Buffer.from(await r.arrayBuffer());
+      const sidik = crypto.createHash("sha256").update(isi).digest("hex");
+      if (sidik !== b.h) throw new Error(`${b.p}: sidik jari tidak cocok`);
+      const tujuan = path.join(sementara, ...b.p.split("/"));
+      fs.mkdirSync(path.dirname(tujuan), { recursive: true });
+      fs.writeFileSync(tujuan, isi);
+    }
+    fs.writeFileSync(path.join(sementara, "versi.json"), JSON.stringify(v));
+    const jadi = path.join(akar, nama);
+    fs.renameSync(sementara, jadi);
+    sementara = null;
+    fs.writeFileSync(path.join(akar, "aktif.json"), JSON.stringify({ folder: nama }));
+    aktif = akarAktif();
+    // Versi-versi lama dibuang; yang sedang dipakai tidak.
+    for (const f of fs.readdirSync(akar)) {
+      if (f !== nama && f !== "aktif.json") fs.rmSync(path.join(akar, f), { recursive: true, force: true });
+    }
+    return { ok: true, build: v.build };
+  } catch (err) {
+    return { ok: false, alasan: String(err && err.message ? err.message : err) };
+  } finally {
+    if (sementara) fs.rmSync(sementara, { recursive: true, force: true });
+    sedangMemperbarui = false;
+  }
+});
+
 function buatJendela() {
   const win = new BrowserWindow({
     width: 1280,
@@ -136,6 +247,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    aktif = akarAktif();
     protocol.handle("spl", layaniBerkas);
     Menu.setApplicationMenu(null);
     buatJendela();

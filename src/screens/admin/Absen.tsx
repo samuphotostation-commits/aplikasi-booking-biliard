@@ -11,7 +11,8 @@
  * sesudah 90 hari — jamnya tetap tinggal untuk rekap.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, Card, PageHeader } from "../../components/UI";
+import { Button, Card } from "../../components/UI";
+import { KepalaHalaman } from "./Tata";
 import { useAdmin } from "../../lib/adminStore";
 import { venueStore } from "../../lib/venueStore";
 import type { AbsenBaris, AbsenHasil } from "../../lib/supabaseRemote";
@@ -110,11 +111,11 @@ export default function AbsenScreen() {
   const sudahMasuk = terakhir?.jenis === "masuk";
 
   return (
-    <div className="pb-24">
-      <PageHeader kicker="Kehadiran" title="Absen Karyawan"
-        sub={a.me ? `${a.me.name} · ${hariIni(Date.now())}` : undefined} />
+    <div className="space-y-4 pb-24">
+      <KepalaHalaman judul="Absen karyawan"
+        ket={<>{a.me ? `${a.me.name} · ${hariIni(Date.now())}` : ""} — ambil selfie untuk absen masuk & pulang.</>} />
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 pt-4 lg:max-w-5xl lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
         <Card className="space-y-3 p-4">
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
             {sudahMasuk ? "Sedang bertugas" : "Belum absen masuk"}

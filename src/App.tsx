@@ -58,7 +58,6 @@ const ShiftScreen = lazy(() => import("./screens/admin/Shift"));
 const PromoScreen = lazy(() => import("./screens/admin/Promo"));
 const Rekap = lazy(() => import("./screens/admin/Rekap"));
 const Jejak = lazy(() => import("./screens/admin/Jejak"));
-const Antar = lazy(() => import("./screens/admin/Antar"));
 const Pengaturan = lazy(() => import("./screens/admin/Pengaturan"));
 const PelangganScreen = lazy(() => import("./screens/admin/Pelanggan"));
 const PesanScreen = lazy(() => import("./screens/admin/Pesan"));
@@ -156,7 +155,7 @@ function Shell() {
               <Route path="absen" element={<AbsenScreen />} />
               <Route path="rekap" element={<Rekap />} />
               <Route path="jejak" element={<Jejak />} />
-              <Route path="antar" element={<Antar />} />
+              <Route path="antar" element={<Navigate to="/admin/dapur" replace />} />
               <Route path="atur" element={<Pengaturan />} />
             </Route>}
             <Route path="*" element={<Navigate to="/" replace />} />

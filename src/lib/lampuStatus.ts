@@ -75,12 +75,20 @@ export function jamTerakhir(info: LampuInfo, kini = Date.now()): string {
     : `terakhir terlihat ${d.getDate()}/${d.getMonth() + 1} ${jam}`;
 }
 
-/** Kunci alat 32 huruf acak — dibuat di perangkat, tidak pernah ditebak server.
- *  Huruf yang gampang tertukar saat diketik ulang (0/O, 1/l/I) dibuang: kunci
- *  ini diketik manusia ke halaman pengaturan alat, bukan ditempel. */
+/** Kunci alat 20 huruf acak (huruf kecil + angka, ±100 bit) — dibuat di
+ *  perangkat, tidak pernah ditebak server. Huruf kecil saja dan tanpa yang
+ *  gampang tertukar (0/o, 1/l/i): kunci ini DIKETIK manusia di HP ke halaman
+ *  pengaturan alat. Kunci lama 32 huruf campur besar-kecil terbukti gagal
+ *  diketik benar di lokasi. */
 export function buatKunciAlat(): string {
-  const huruf = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  const acak = new Uint32Array(32);
+  const huruf = "abcdefghjkmnpqrstuvwxyz23456789";
+  const acak = new Uint32Array(20);
   crypto.getRandomValues(acak);
   return Array.from(acak, (n) => huruf[n % huruf.length]).join("");
+}
+
+/** Tampilan berkelompok empat ("abcd-efgh-…") supaya mudah dibaca dan diketik.
+ *  Tanda pisahnya bukan bagian dari kunci; alat membuangnya sendiri. */
+export function tampilKunciAlat(k: string): string {
+  return k.match(/.{1,4}/g)?.join("-") ?? k;
 }

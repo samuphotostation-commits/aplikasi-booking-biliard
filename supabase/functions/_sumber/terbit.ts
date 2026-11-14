@@ -30,18 +30,33 @@ const AKTIF = new Set(["hold", "booked", "running", "maintenance"]);
  * per jenis aksi. Dipakai untuk memeriksa: ringkasan kosong padahal jejaknya
  * panjang biasanya berarti mesin menolak, bukan datanya tidak terbaca.
  */
-function hitungDitolak(genesis: Genesis, entries: Entry[]): Record<string, number> {
+function hitungDitolak(genesis: Genesis, entries: Entry[]): { jumlah: Record<string, number>; contoh: unknown[] } {
   const n: Record<string, number> = {};
+  // CONTOH kejadian yang ditolak, selain hitungannya: angka saja tidak bisa
+  // menjawab "kenapa". Pelaku (`by`) disertakan karena penyebab tersering
+  // adalah akun yang tidak dikenal daftar staf mesin — dan meja yang
+  // disentuh, karena aksi meja paling sering dilaporkan. Tanpa nama/HP tamu.
+  const contoh: unknown[] = [];
   let st = replay(genesis, []);
   for (const e of [...entries].sort(entryOrder)) {
     const next = applyEntry(st, e);
     if (next === st) {
-      const t = String((e.act as { t?: string })?.t ?? "?");
+      const act = e.act as { t?: string; tableId?: string; dipakai?: boolean; name?: string };
+      const t = String(act?.t ?? "?");
       n[t] = (n[t] ?? 0) + 1;
+      if (contoh.length < 40 && t !== "tick" && t !== "ticket") {
+        const dikenal = !!e.by && !!(st.employees ?? []).some((x) => x.id === e.by);
+        contoh.push({
+          t, at: e.at, by: e.by, pelakuDikenal: dikenal,
+          ...(act.tableId ? { tableId: act.tableId } : {}),
+          ...(act.dipakai !== undefined ? { dipakai: act.dipakai } : {}),
+          ...(t === "setTableName" ? { name: act.name } : {}),
+        });
+      }
     }
     st = next;
   }
-  return n;
+  return { jumlah: n, contoh };
 }
 
 /** Klien Supabase apa adanya — hanya bagian yang dipakai di sini. */

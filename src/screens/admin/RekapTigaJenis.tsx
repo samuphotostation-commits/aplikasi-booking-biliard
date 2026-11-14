@@ -14,12 +14,12 @@
  * angkanya 14.697.000, sedangkan totalnya 25.797.500 setelah barang ditambahkan.
  */
 import { useMemo, useState } from "react";
-import { useAdmin, rekapTigaJenis, rekapJenisRentang, businessDateOf, type BarisBarang, type RekapTigaJenis as Rekap } from "../../lib/adminStore";
+import { useAdmin, rekapTigaJenis, rekapJenisRentang, businessDateOf, shiftHariItu, type BarisBarang, type RekapTigaJenis as Rekap } from "../../lib/adminStore";
 import { fmtDateLong, rupiah } from "../../lib/core";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
-import { cetakSenyapMungkin, cetakStruk } from "../../lib/cetak";
 import { unduhExcel } from "../../lib/excel";
 import { PanelBiaya } from "./PanelBiaya";
+import CetakKasKasir from "./StrukSettlement";
 
 const jamMenit = (ms: number) =>
   new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -30,40 +30,54 @@ const labelTotal = (v?: Venue) => (pakaiSewa(v) ? "Total Meja + Barang + Cafe" :
 /** Selisih pendapatan dengan uang yang masuk. Harus nol. */
 const selisih = (r: Rekap) => r.pendapatan - r.uang.total;
 
-/** Satu tabel jenis: qty · nama · total, persis urutan kolom di struk. */
+/**
+ * KARTU — satu wadah untuk satu kelompok isi (dirombak 14 Nov 2026).
+ * Judul selalu di kepala kartu, bukan teks lepas di atasnya: dulu judul kecil
+ * dan isinya terlihat seperti dua hal yang berbeda, dan semuanya bertumpuk.
+ */
+export function Kartu({ judul, ket, aksi, sorot, children }: {
+  judul: string; ket?: string; aksi?: React.ReactNode; sorot?: boolean; children: React.ReactNode;
+}) {
+  return (
+    <section className={`overflow-hidden rounded-2xl border ${sorot ? "border-amber/50 bg-amber/5" : "border-line bg-ink-2"}`}>
+      <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+        <div className="min-w-0">
+          <h3 className="text-[12px] font-bold uppercase tracking-[0.14em] text-cream">{judul}</h3>
+          {ket && <p className="truncate text-[11px] text-dim">{ket}</p>}
+        </div>
+        {aksi}
+      </header>
+      <div className="px-4 py-3">{children}</div>
+    </section>
+  );
+}
+
+/** Satu jenis penjualan di dalam kartu Penjualan: qty · nama · total, urutan kolom struk. */
 function Tabel({ judul, labelTotal, baris, total }: {
   judul: string; labelTotal: string; baris: BarisBarang[]; total: number;
 }) {
   if (baris.length === 0) return null;
   return (
-    <section className="mt-4">
-      <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">{judul}</h3>
-      <div className="overflow-hidden rounded-xl border border-line bg-ink-2">
-        <table className="w-full text-[12px]">
-          <thead>
-            <tr className="border-b border-line text-[10px] uppercase tracking-wider text-dim">
-              <th className="w-10 px-2 py-1.5 text-right font-bold">Qty</th>
-              <th className="px-2 py-1.5 text-left font-bold">Deskripsi</th>
-              <th className="px-3 py-1.5 text-right font-bold">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {baris.map((x) => (
-              <tr key={x.itemId}>
-                <td className="px-2 py-1 text-right tabular-nums text-mute">{x.qty}</td>
-                <td className="px-2 py-1 text-cream">{x.nama}</td>
-                <td className="px-3 py-1 text-right tabular-nums text-cream">{rupiah(x.total)}</td>
-              </tr>
-            ))}
-            <tr className="border-t border-line bg-ink-3/60">
-              <td />
-              <td className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-dim">{labelTotal}</td>
-              <td className="px-3 py-1.5 text-right font-bold tabular-nums text-amber">{rupiah(total)}</td>
-            </tr>
-          </tbody>
-        </table>
+    <div className="mt-4 first:mt-0">
+      <div className="mb-1 flex items-baseline justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-dim">
+        <span>{judul}</span><span className="font-normal normal-case tracking-normal">{baris.length} menu</span>
       </div>
-    </section>
+      <table className="w-full text-[12px]">
+        <tbody className="divide-y divide-line/60">
+          {baris.map((x) => (
+            <tr key={x.itemId}>
+              <td className="w-9 py-1 pr-2 text-right tabular-nums text-mute">{x.qty}×</td>
+              <td className="py-1 text-cream">{x.nama}</td>
+              <td className="py-1 pl-2 text-right tabular-nums text-cream">{rupiah(x.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-1 flex justify-between border-t border-line pt-1.5 text-[12px] font-bold">
+        <span className="uppercase tracking-wider text-dim">{labelTotal}</span>
+        <span className="tabular-nums text-amber">{rupiah(total)}</span>
+      </div>
+    </div>
   );
 }
 
@@ -78,23 +92,28 @@ const Angka = ({ k, v, tebal, warna }: { k: string; v: string; tebal?: boolean; 
 function Kepala({ r, tanggal }: { r: Rekap; tanggal: (d: string) => string }) {
   const sewa = pakaiSewa(r.venue);
   return (
-    <div className="mt-2 rounded-xl border border-line bg-ink-2 p-3">
-      {r.harian ? r.harian.map((h) => (
-        <div key={h.bizDate} className="flex justify-between text-[12px]">
-          <span className="text-mute">{tanggal(h.bizDate)}</span>
-          <span className="tabular-nums text-cream">{rupiah(sewa ? h.sewaMeja : h.pendapatan)}</span>
-        </div>
-      )) : r.shift.map((sh) => (
-        <div key={sh.id} className="flex justify-between text-[12px]">
-          <span className="text-mute">
-            {sh.nama} <span className="text-dim">{jamMenit(sh.openedAt)}–{sh.closedAt ? jamMenit(sh.closedAt) : "jalan"}</span>
-          </span>
-          <span className="tabular-nums text-cream">{rupiah(sewa ? sh.sewaMeja : sh.omzet)}</span>
-        </div>
-      ))}
-      {!r.harian && r.shift.length === 0 && r.totalSemua === 0 && <div className="text-[12px] text-dim">Belum ada penjualan.</div>}
-      <div className="mt-1 flex justify-between border-t border-line pt-1 text-[13px] font-bold">
-        <span className="text-dim">{sewa ? "TOTAL OMZET · sewa meja" : "TOTAL OMZET"}</span>
+    <div className="rounded-xl bg-ink px-3 py-2.5">
+      <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-dim">
+        {sewa ? "Sewa meja" : "Omzet"} per {r.harian ? "hari" : "shift"}
+      </div>
+      <div className="space-y-0.5">
+        {r.harian ? r.harian.filter((h) => (sewa ? h.sewaMeja : h.pendapatan) !== 0).map((h) => (
+          <div key={h.bizDate} className="flex justify-between text-[12px]">
+            <span className="text-mute">{tanggal(h.bizDate)}</span>
+            <span className="tabular-nums text-cream">{rupiah(sewa ? h.sewaMeja : h.pendapatan)}</span>
+          </div>
+        )) : r.shift.map((sh) => (
+          <div key={sh.id} className="flex justify-between text-[12px]">
+            <span className="text-mute">
+              {sh.nama} <span className="text-dim">{jamMenit(sh.openedAt)}–{sh.closedAt ? jamMenit(sh.closedAt) : "jalan"}</span>
+            </span>
+            <span className="tabular-nums text-cream">{rupiah(sewa ? sh.sewaMeja : sh.omzet)}</span>
+          </div>
+        ))}
+        {!r.harian && r.shift.length === 0 && <div className="text-[12px] text-dim">Belum ada shift.</div>}
+      </div>
+      <div className="mt-1.5 flex justify-between border-t border-line pt-1.5 text-[13px] font-bold">
+        <span className="text-cream">Total {sewa ? "sewa meja" : "omzet"}</span>
         <span className="tabular-nums text-amber">{rupiah(sewa ? r.sewaMeja : r.pendapatan)}</span>
       </div>
     </div>
@@ -105,9 +124,10 @@ function Kepala({ r, tanggal }: { r: Rekap; tanggal: (d: string) => string }) {
 function Pencocokan({ r }: { r: Rekap }) {
   const beda = selisih(r);
   return (
-    <section className="mt-4">
-      <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">Pencocokan uang</h3>
-      <div className="space-y-1 rounded-xl border border-line bg-ink-2 p-3">
+    <Kartu judul="Pencocokan uang" ket="uang yang masuk per cara bayar"
+      aksi={<span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${beda === 0 ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
+        {beda === 0 ? "Cocok" : "Selisih"}</span>}>
+      <div className="space-y-1">
         <Angka k="Tunai" v={rupiah(r.uang.tunai)} />
         <Angka k="QRIS" v={rupiah(r.uang.qris)} />
         {Object.keys(r.uang.edcPer).length > 0
@@ -115,11 +135,13 @@ function Pencocokan({ r }: { r: Rekap }) {
           : <Angka k="EDC" v={rupiah(r.uang.edc)} />}
         <Angka k="Prabayar online" v={rupiah(r.uang.prabayar)} />
         <div className="border-t border-line pt-1"><Angka k="Total uang masuk" v={rupiah(r.uang.total)} tebal /></div>
-        <p className={`text-[12px] font-semibold ${beda === 0 ? "text-emerald-400" : "text-red-300"}`}>
-          {beda === 0 ? "Cocok dengan pendapatan." : `Beda ${rupiah(Math.abs(beda))} dari pendapatan. Periksa Detail Transaksi di bagian Uang.`}
-        </p>
+        {beda !== 0 && (
+          <p className="text-[12px] font-semibold text-red-300">
+            Beda {rupiah(Math.abs(beda))} dari pendapatan. Periksa Detail Transaksi di tab Uang & Pajak.
+          </p>
+        )}
       </div>
-    </section>
+    </Kartu>
   );
 }
 
@@ -208,16 +230,17 @@ function StrukVenue({ r, ringkas, tanggal }: { r: Rekap; ringkas?: boolean; tang
 /** Kartu ringkas satu venue di tampilan gabungan. */
 function KartuVenue({ r, v }: { r: Rekap; v: Venue }) {
   return (
-    <div className="space-y-1 rounded-xl border border-line bg-ink-2 p-3">
-      <h3 className="font-display text-[15px] uppercase tracking-wide text-cream">{VENUE_LABEL[v]}</h3>
-      {v === "spl" && <Angka k="Sewa meja" v={rupiah(r.sewaMeja)} />}
-      {v === "spl" && <Angka k="Billiard" v={rupiah(r.totalBilliard)} />}
-      <Angka k="Restoran" v={rupiah(r.totalResto)} />
-      <Angka k="Bar" v={rupiah(r.totalBar)} />
-      {r.diskon > 0 && <Angka k="Diskon & promo" v={`− ${rupiah(r.diskon)}`} />}
-      <Angka k="Biaya" v={`− ${rupiah(r.totalBiaya)}`} />
-      <div className="border-t border-line pt-1"><Angka k="Pendapatan − Biaya" v={rupiah(r.bersih)} tebal /></div>
-    </div>
+    <Kartu judul={VENUE_LABEL[v]}>
+      <div className="space-y-1">
+        {v === "spl" && <Angka k="Sewa meja" v={rupiah(r.sewaMeja)} />}
+        {v === "spl" && <Angka k="Billiard" v={rupiah(r.totalBilliard)} />}
+        <Angka k="Restoran" v={rupiah(r.totalResto)} />
+        <Angka k="Bar" v={rupiah(r.totalBar)} />
+        {r.diskon > 0 && <Angka k="Diskon & promo" v={`− ${rupiah(r.diskon)}`} />}
+        <Angka k="Biaya" v={`− ${rupiah(r.totalBiaya)}`} />
+        <div className="border-t border-line pt-1"><Angka k="Pendapatan − Biaya" v={rupiah(r.bersih)} tebal /></div>
+      </div>
+    </Kartu>
   );
 }
 
@@ -232,6 +255,16 @@ export default function RekapTigaJenis({ dari, sampai, venue, hariIni }: {
   const smh = useMemo(() => (venue ? null : buat("smh")), [a, dari, sampai, venue]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [kabar, setKabar] = useState<string | null>(null);
   const bilang = (teks: string) => { setKabar(teks); setTimeout(() => setKabar(null), 4500); };
+  /**
+   * CLOSING PER SHIFT (permintaan pemilik 14 Nov 2026): struk bisa dicetak
+   * untuk satu shift kasir. Daftar shift = shift yang dibuka hari itu di venue
+   * ini (dua venue untuk gabungan), dengan nama yang sama dengan laporan uang.
+   */
+  const shifts = satuHari ? shiftHariItu(a, dari, venue) : [];
+  const [shiftPilih, setShiftPilih] = useState<string | null>(null);
+  const shiftAda = shifts.find((x) => x.id === shiftPilih) ?? null;
+  const namaShiftOf = (x: (typeof shifts)[number]) =>
+    `${x.nama}${venue ? "" : ` ${x.venue === "smh" ? "SHR" : "SPL"}`} · ${x.employeeName}`;
   const tanggal = (d: string) => fmtDateLong(d).replace(/ \d{4}$/, "");
   const judulWaktu = satuHari ? fmtDateLong(dari) : `${fmtDateLong(dari)} – ${fmtDateLong(sampai)}`;
   const namaLaporan = venue ? VENUE_LABEL[venue] : "Gabungan";
@@ -272,109 +305,115 @@ export default function RekapTigaJenis({ dari, sampai, venue, hariIni }: {
     if (hasil !== "dibatalkan") bilang(hasil === "gagal" ? "Gagal menyimpan berkas." : "Rekap tersimpan.");
   }
 
-  async function cetak() {
-    const hasil = await cetakStruk();
-    if (!hasil.ok) bilang(`Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
-  }
 
   return (
-    <section>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-            Rekap {satuHari ? "harian" : "periode"} · {namaLaporan}
-          </h2>
-          <p className="text-[12px] text-mute">{judulWaktu}</p>
-        </div>
-        <div className="flex gap-1.5">
+    <section className="space-y-3">
+      {/* CETAK STRUK — closing per shift atau sehari penuh, format panduan pemilik. */}
+      <Kartu judul="Cetak struk" ket={`${namaLaporan} · ${judulWaktu}${shiftAda ? ` · ${namaShiftOf(shiftAda)}` : ""}`}
+        aksi={
           <button onClick={() => void unduh()}
-            className="min-h-[34px] rounded-lg border border-line px-3 text-[12px] text-cream hover:border-amber hover:text-amber">
+            className="min-h-[34px] rounded-lg border border-line px-3 text-[12px] font-semibold text-mute hover:border-amber hover:text-amber">
             Unduh Excel
           </button>
-          <button onClick={() => void cetak()}
-            className="min-h-[34px] rounded-lg bg-amber px-3 text-[12px] font-bold text-ink">
-            {cetakSenyapMungkin() ? "Cetak struk" : "Cetak"}
-          </button>
-        </div>
-      </div>
+        }>
+        {satuHari && (
+          <div className="mb-3">
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-dim">Shift</div>
+            {shifts.length === 0 ? (
+              <p className="text-[12px] text-dim">Belum ada shift dibuka hari ini — struk mencakup sehari penuh.</p>
+            ) : (
+              <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-xl border border-line bg-ink p-0.5" role="radiogroup">
+                {[{ id: null as string | null, label: "Semua shift" }, ...shifts.map((x) => ({ id: x.id as string | null, label:
+                  `${namaShiftOf(x)} (${jamMenit(x.openedAt)}–${x.closedAt ? jamMenit(x.closedAt) : "jalan"})` }))].map((x) => (
+                  <button key={x.id ?? "semua"} role="radio" aria-checked={shiftPilih === x.id} onClick={() => setShiftPilih(x.id)}
+                    className={`min-h-[34px] rounded-lg px-3 text-[12px] font-semibold ${
+                      shiftPilih === x.id ? "bg-amber text-ink" : "text-mute hover:text-cream"
+                    }`}>{x.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <CetakKasKasir dari={dari} sampai={sampai} venue={venue} shiftId={shiftAda ? shiftAda.id : null}
+          namaShift={shiftAda ? namaShiftOf(shiftAda) : "Semua shift"} />
+      </Kartu>
 
-      {r.tercampur && (
-        <p className="mt-2 rounded-lg border border-amber/40 bg-amber/5 px-3 py-2 text-[11px] leading-relaxed text-amber">
-          Sebagian hari di laporan ini sudah terlalu lama, sehingga angkanya tidak bisa lagi dipisah per tempat.
-        </p>
-      )}
-      {!r.rincianTersedia && (
-        <p className="mt-2 rounded-lg border border-amber/40 bg-amber/5 px-3 py-2 text-[11px] leading-relaxed text-amber">
-          Rincian per barang untuk sebagian hari ini sudah tidak tersimpan. Totalnya tetap benar.
-        </p>
+      {(r.tercampur || !r.rincianTersedia) && (
+        <div className="space-y-1 rounded-xl border border-amber/40 bg-amber/5 px-3 py-2 text-[11px] leading-relaxed text-amber">
+          {r.tercampur && <p>Sebagian hari di laporan ini sudah terlalu lama, sehingga angkanya tidak bisa lagi dipisah per tempat.</p>}
+          {!r.rincianTersedia && <p>Rincian per barang untuk sebagian hari ini sudah tidak tersimpan. Totalnya tetap benar.</p>}
+        </div>
       )}
 
       {spl && smh ? (
-        <div className="mt-2 space-y-2">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <KartuVenue r={spl} v="spl" />
-            <KartuVenue r={smh} v="smh" />
-          </div>
-          <div className="rounded-xl border border-amber/40 bg-amber/5 p-3">
-            <Angka k="Total Pendapatan − Biaya kedua tempat" v={rupiah(r.bersih)} tebal />
-            <p className="mt-1 text-[11px] leading-relaxed text-dim">
-              Uang masuk {rupiah(r.uang.total)}. Untuk mencocokkan kas, pilih SPL Sport atau Smokehouse.
-            </p>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <KartuVenue r={spl} v="spl" />
+          <KartuVenue r={smh} v="smh" />
+          <div className="lg:col-span-2">
+            <Kartu judul="Gabungan kedua tempat" sorot>
+              <Angka k="Total Pendapatan − Biaya" v={rupiah(r.bersih)} tebal />
+              <p className="mt-1 text-[11px] leading-relaxed text-dim">
+                Uang masuk {rupiah(r.uang.total)}. Untuk mencocokkan kas, pilih SPL Sport atau Smokehouse.
+              </p>
+            </Kartu>
           </div>
         </div>
       ) : (
-        <>
-          <Kepala r={r} tanggal={tanggal} />
-          {pakaiSewa(venue) && (
-            <Tabel judul="Rekap penjualan Billiard" labelTotal="Total Billiard" baris={r.billiard} total={r.totalBilliard} />
-          )}
-          <Tabel judul="Rekap penjualan Restoran" labelTotal="Total Cafe" baris={r.resto} total={r.totalResto} />
-          <Tabel judul="Rekap penjualan Bar" labelTotal="Total Bar" baris={r.bar} total={r.totalBar} />
-
-          <div className="mt-3 space-y-1 rounded-xl border border-amber/40 bg-amber/5 p-3">
-            {pakaiSewa(venue) && <Angka k="Sewa meja" v={rupiah(r.sewaMeja)} />}
-            {r.rincianTersedia && <Angka k="Barang" v={rupiah(r.totalBarang)} />}
-            <div className="border-t border-amber/30 pt-1"><Angka k={labelTotal(venue)} v={rupiah(r.totalSemua)} tebal /></div>
-            {r.diskon > 0 && <Angka k="Diskon & promo" v={`− ${rupiah(r.diskon)}`} />}
-            {r.compliment > 0 && <Angka k="Compliment, sudah di luar total" v={rupiah(r.compliment)} warna="text-sky-200" />}
-          </div>
-
-          {r.dapurMejaBiliar > 0 && (
-            <div className="mt-2 rounded-xl border border-line bg-ink-2 p-3">
-              <Angka k="Pesanan dapur untuk meja biliar" v={rupiah(r.dapurMejaBiliar)} />
-              <p className="mt-1 text-[11px] leading-relaxed text-dim">
-                Sudah masuk rekap SPL Sport, jadi tidak dijumlahkan di sini.
-              </p>
-            </div>
-          )}
-
-          <section className="mt-4">
-            <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">Biaya</h3>
-            {venue && satuHari
-              ? <PanelBiaya bizDate={dari} venue={venue} bisaTambah={dari === hariIni && allow("catatBiaya")} />
-              : (
-                <div className="space-y-1 rounded-xl border border-line bg-ink-2 p-3">
-                  {r.biaya.map((b) => <Angka key={b.id} k={`${tanggal(businessDateOf(b.at))} · ${b.keterangan}`} v={rupiah(b.nilai)} />)}
-                  {r.biaya.length === 0 && <p className="text-[12px] text-dim">Belum ada biaya tercatat.</p>}
-                </div>
+        <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          {/* KIRI — PENJUALAN: semua yang menyusun pendapatan, dari atas ke bawah. */}
+          <Kartu judul="Penjualan"
+            ket={r.totalSemua === 0 && r.billiard.length + r.resto.length + r.bar.length === 0 ? "belum ada penjualan" : undefined}>
+            <Kepala r={r} tanggal={tanggal} />
+            <div className="mt-4">
+              {pakaiSewa(venue) && (
+                <Tabel judul="Billiard" labelTotal="Total Billiard" baris={r.billiard} total={r.totalBilliard} />
               )}
-            <div className="mt-2 space-y-1 rounded-xl border border-amber/40 bg-amber/5 p-3">
-              <Angka k="Total biaya" v={rupiah(r.totalBiaya)} />
-              <div className="border-t border-amber/30 pt-1"><Angka k="Total (Pendapatan − Biaya)" v={rupiah(r.bersih)} tebal /></div>
+              <Tabel judul="Restoran" labelTotal="Total Cafe" baris={r.resto} total={r.totalResto} />
+              <Tabel judul="Bar" labelTotal="Total Bar" baris={r.bar} total={r.totalBar} />
             </div>
-          </section>
+            <div className="mt-4 space-y-1 rounded-xl border border-amber/40 bg-amber/5 p-3">
+              {pakaiSewa(venue) && <Angka k="Sewa meja" v={rupiah(r.sewaMeja)} />}
+              {r.rincianTersedia && <Angka k="Barang" v={rupiah(r.totalBarang)} />}
+              {r.diskon > 0 && <Angka k="Diskon & promo" v={`− ${rupiah(r.diskon)}`} />}
+              <div className="border-t border-amber/30 pt-1"><Angka k={labelTotal(venue)} v={rupiah(r.totalSemua)} tebal /></div>
+              {r.compliment > 0 && <Angka k="Compliment, sudah di luar total" v={rupiah(r.compliment)} warna="text-sky-200" />}
+              {r.complimentMeja && r.complimentMeja.owner > 0 && <Angka k="· di meja Owner" v={rupiah(r.complimentMeja.owner)} warna="text-sky-200" />}
+              {r.complimentMeja && r.complimentMeja.entertain > 0 && <Angka k="· di meja Entertain" v={rupiah(r.complimentMeja.entertain)} warna="text-sky-200" />}
+            </div>
+            {r.dapurMejaBiliar > 0 && (
+              <p className="mt-2 text-[11px] leading-relaxed text-dim">
+                Termasuk pesanan dapur untuk meja biliar {rupiah(r.dapurMejaBiliar)} — masuk rekap SPL Sport.
+              </p>
+            )}
+          </Kartu>
 
-          {!r.tercampur && <Pencocokan r={r} />}
+          {/* KANAN — UANG KELUAR & PENCOCOKAN */}
+          <div className="space-y-3">
+            <Kartu judul="Biaya" ket={`${r.biaya.length} catatan`}
+              aksi={<span className="font-serif text-[15px] font-bold tabular-nums text-cream">{rupiah(r.totalBiaya)}</span>}>
+              {venue && satuHari
+                ? <PanelBiaya bizDate={dari} venue={venue} bisaTambah={dari === hariIni && allow("catatBiaya")} polos lipat />
+                : (
+                  <div className="space-y-1">
+                    {r.biaya.map((b) => <Angka key={b.id} k={`${tanggal(businessDateOf(b.at))} · ${b.keterangan}`} v={rupiah(b.nilai)} />)}
+                    {r.biaya.length === 0 && <p className="text-[12px] text-dim">Belum ada biaya tercatat.</p>}
+                  </div>
+                )}
+              <div className="mt-3 border-t border-line pt-2">
+                <Angka k="Pendapatan − Biaya" v={rupiah(r.bersih)} tebal />
+              </div>
+            </Kartu>
 
-          <Tabel judul="Rekap penjualan F&amp;B (belum checkout)" labelTotal="Grand total"
-            baris={r.belumCheckout} total={r.totalBelumCheckout} />
-          {r.belumCheckout.length > 0 && (
-            <p className="mt-1 text-[11px] leading-relaxed text-dim">
-              Barang di atas sudah keluar dari dapur atau bar tapi tabnya belum ditutup, jadi
-              <span className="text-cream"> belum dihitung sebagai penjualan</span>.
-            </p>
-          )}
-        </>
+            {!r.tercampur && <Pencocokan r={r} />}
+
+            {r.belumCheckout.length > 0 && (
+              <Kartu judul="Belum checkout" ket="sudah keluar dari dapur/bar, tabnya belum ditutup">
+                <Tabel judul="F&B" labelTotal="Grand total" baris={r.belumCheckout} total={r.totalBelumCheckout} />
+                <p className="mt-2 text-[11px] leading-relaxed text-dim">Belum dihitung sebagai penjualan.</p>
+              </Kartu>
+            )}
+          </div>
+        </div>
       )}
       {kabar && <p role="status" className="mt-2 text-[12px] text-amber">{kabar}</p>}
 

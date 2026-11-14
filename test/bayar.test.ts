@@ -7,7 +7,8 @@
    karena aturannya sekarang lebih ketat.
    ═══════════════════════════════════════════════════════════════════ */
 import {
-  replay, itemOf, voidMenungguSesi, VOID_MENAHAN_BAYAR, PIN_EMPAT_ANGKA,
+  replay, itemOf, voidMenungguSesi, VOID_MENAHAN_BAYAR, PIN_EMPAT_ANGKA, recap, settlementOf,
+  porsiTerbayar, sisaPorsi, paidLineKeys,
   type Action, type Entry, type Genesis,
 } from "../src/lib/engine";
 import { dariWib } from "../src/lib/occupancy";
@@ -122,6 +123,51 @@ console.log("-- PIN harus 4 angka --");
   t("akun lama masih bisa diubah perannya tanpa mengganti PIN",
     w.st().employees.find((e) => e.id === lama.id)!.role, "kru_gudang");
   t("PIN bawaan sudah 4 angka semua", EMPLOYEES.every((e) => /^\d{4}$/.test(e.pin)), true);
+}
+
+
+console.log("\n-- Split bill per porsi (13 Nov 2026) --");
+{
+  /* Laporan pemilik: Es Teh dipesan 4, satu orang hanya mau bayar 1 — dulu
+     tidak bisa, karena split bill hanya memilih seluruh baris. */
+  const TEH = "cd-01";
+  const d = dunia(2026, 11, 20);
+  const teh = itemOf(d.st(), TEH)!;
+  d.push(d.jam(18, 6), {
+    t: "addFnb", sessionId: d.id, name: teh.name, station: teh.station,
+    line: { key: "teh", itemId: TEH, qty: 4, unitPrice: teh.price, name: teh.name, station: teh.station },
+  });
+  const sesi = () => d.st().sessions.find((x) => x.id === d.id)!;
+  const bayar = () => (sesi().payments ?? []).map((p) => p.amount);
+
+  d.push(d.jam(19), { t: "paySplit", id: d.id, channel: "cash", qty: { teh: 1 }, label: "Andi" });
+  t("bayar 1 dari 4 Es Teh: nominalnya harga satu porsi", bayar(), [teh.price]);
+  t("sisa porsi 3", [porsiTerbayar(sesi(), "teh"), sisaPorsi(sesi(), "teh")], [1, 3]);
+
+  d.push(d.jam(19, 1), { t: "paySplit", id: d.id, channel: "qris_online", qty: { teh: 4 } });
+  t("membayar lebih dari sisa porsi ditolak", bayar().length, 1);
+  d.push(d.jam(19, 2), { t: "paySplit", id: d.id, channel: "cash", qty: { teh: 0 } });
+  d.push(d.jam(19, 2), { t: "paySplit", id: d.id, channel: "cash", qty: { teh: 1.5 } } as never);
+  t("0 porsi atau porsi pecahan ditolak", bayar().length, 1);
+
+  d.push(d.jam(19, 3), { t: "paySplit", id: d.id, channel: "qris_online", qty: { teh: 2, b1: 1 }, label: "Budi" });
+  t("orang kedua: 2 Es Teh + nasi goreng sekaligus", bayar(), [teh.price, 2 * teh.price + itemOf(d.st(), NASGOR)!.price]);
+
+  d.push(d.jam(19, 4), { t: "paySplit", id: d.id, channel: "cash", keys: ["teh"] });
+  t("baris yang sudah dibayar sebagian tidak bisa dibayar ulang sebagai satu baris", bayar().length, 2);
+
+  d.push(d.jam(19, 5), { t: "requestVoid", req: { targetKind: "item", targetId: `${d.id}|teh`, label: "", amount: 0, reason: "salah" } });
+  t("baris yang sebagian porsinya sudah dibayar tidak bisa di-void diam-diam", paidLineKeys(sesi()).has("teh"), true);
+
+  const sisaSebelum = settlementOf(sesi(), d.st(), d.jam(20)).due;
+  d.push(d.jam(19, 6), { t: "paySplit", id: d.id, channel: "cash", qty: { teh: 1 } });
+  t("porsi terakhir lunas, sisa tagihan berkurang tepat satu porsi",
+    [sisaPorsi(sesi(), "teh"), sisaSebelum - settlementOf(sesi(), d.st(), d.jam(20)).due], [0, teh.price]);
+
+  d.push(d.jam(20), { t: "settle", id: d.id, channel: "edc" });
+  const r = recap(d.st(), "2026-11-20");
+  t("tab tertutup", sesi().status, "done");
+  t("rekap: total = tunai + QRIS + EDC, tidak ada yang dobel", r.gross, Object.values(r.byChannel).reduce((n, c) => n + c.gross, 0));
 }
 
 console.log(bad === 0 ? `\nSEMUA BENAR (${total} pemeriksaan)` : `\n${bad} DARI ${total} GAGAL`);

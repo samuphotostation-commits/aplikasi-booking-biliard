@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   useAdmin, recap, recapRange, periodeRange, recapDates, businessDateOf, settledRefundsOf,
   clampRange, rangeDays, shiftDate, MAX_REKAP_HARI, omzetPerShift,
-  ARCHIVE_ROW_DAYS, mejaDijual, cariMeja, type Refund, type RekapPeriode,
+  ARCHIVE_ROW_DAYS, OPEN_IDX, CLOSE_IDX, mejaDijual, cariMeja, mesinEdc, labelKanal, rekapTigaJenis, rekapJenisRentang,
+  type Refund, type RekapPeriode, type UnitRekap, type KelasShift,
 } from "../../lib/adminStore";
 import { TABLES } from "../../data/venue";
 import { fmtDateLong, rupiah } from "../../lib/core";
@@ -14,6 +15,8 @@ const ribu = (n: number) => n.toLocaleString("id-ID");
 import { unduhExcel } from "../../lib/excel";
 import LaporanStok from "./LaporanStok";
 import DetailTransaksi from "./DetailTransaksi";
+import RekapSaring from "./RekapSaring";
+import { DuaKolom } from "./Tata";
 import LaporanProduk from "./LaporanProduk";
 import RekapTigaJenis from "./RekapTigaJenis";
 import TrenPenjualan from "./TrenPenjualan";
@@ -56,10 +59,18 @@ function RekapKeuangan() {
   const [refundMsg, setRefundMsg] = useState<string | null>(null);
   const today = businessDateOf(Date.now());
   const dates = recapDates(a);
+  /** Hari tertua yang tercatat — untuk pintasan "Semua data". */
+  const hariPertama = dates[dates.length - 1] ?? today;
   const [picked, setPicked] = useState(today);
-  const [periode, setPeriode] = useState<RekapPeriode>("hari");
+  const [periode, setPeriode] = useState<RekapPeriode | "tahun">("hari");
+  /** Bulan & tahun yang dipilih untuk periode Bulanan / Tahunan. */
+  const [bulanPilih, setBulanPilih] = useState(today.slice(0, 7));
+  const [tahunPilih, setTahunPilih] = useState(today.slice(0, 4));
+  /** Saringan shift & rekening (bagian Unit · Shift · Rekening dan struknya). */
+  const [shiftSaring, setShiftSaring] = useState<KelasShift | "semua">("semua");
+  const [kanalSaring, setKanalSaring] = useState<string[]>([]);
   /** Rekap Harian lebih dulu: itu format yang dipegang pemilik tiap malam. */
-  const [bagian, setBagian] = useState<"harian" | "uang" | "analisa">("harian");
+  const [bagian, setBagian] = useState<"harian" | "uang" | "saring" | "analisa">("harian");
   // Rentang bebas (mode custom): dua kolom tanggal, awalnya 7 hari terakhir.
   const [ct, setCt] = useState({ dari: shiftDate(today, -6), sampai: today });
   const bizDate = dates.includes(picked) ? picked : today;
@@ -77,11 +88,22 @@ function RekapKeuangan() {
    * venue sebelah bukan urusannya, dan "Gabungan" berarti melihat keduanya.
    */
   const venueAkun = a.me?.venue;
+  /*
+   * Unit = VENUE. Bar TIDAK dipisah (keputusan pemilik 14 Nov 2026): makanan,
+   * minuman bar, dan rokok yang dipesan di SPL masuk SPL Sport.
+   */
   const dipakai: Venue | "semua" = venueAkun ?? lingkup;
   const venue = dipakai === "semua" ? undefined : dipakai;
+  const unitSaring: UnitRekap = dipakai;
+  const bagianAktif = bagian;
+  /** Semua rekening (non-tunai): QRIS, tiap mesin EDC, prabayar, + yang muncul di data. */
+  const rekeningSemua = [...new Set(["qris", ...mesinEdc(a).map((m) => `edc:${m}`), "prabayar"])];
   const r = recap(a, bizDate, venue);
   // Periode: hari (seperti dulu), minggu (Senin–Minggu), bulan berjalan, atau rentang bebas.
-  const rentang = periode === "custom" ? clampRange(ct.dari, ct.sampai) : { ...periodeRange(bizDate, periode), dipotong: false };
+  const rentang = periode === "custom" ? clampRange(ct.dari, ct.sampai)
+    : periode === "tahun" ? { dari: `${tahunPilih}-01-01`, sampai: `${tahunPilih}-12-31`, dipotong: false }
+      : periode === "bulan" ? { ...periodeRange(`${bulanPilih}-01`, "bulan"), dipotong: false }
+        : { ...periodeRange(bizDate, periode), dipotong: false };
   const { dari, sampai } = rentang;
   const rp = periode === "hari" ? null : recapRange(a, dari, sampai, venue);
   /**
@@ -104,11 +126,19 @@ function RekapKeuangan() {
   const dayLabel = periode === "hari"
     ? (isToday ? "hari ini" : fmtDateLong(bizDate))
     : periode === "minggu" ? `minggu ${fmtDateLong(dari)} – ${fmtDateLong(sampai)}`
+      : periode === "tahun" ? `tahun ${tahunPilih}`
       : periode === "custom"
         ? (dari === sampai ? fmtDateLong(dari) : `${fmtDateLong(dari)} – ${fmtDateLong(sampai)} (${rangeDays(dari, sampai)} hari)`)
         : `bulan ${new Date(Number(dari.slice(0, 4)), Number(dari.slice(5, 7)) - 1, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" })}`;
 
-  const OPEN_HOURS = 15;
+  const labelLingkupWaktu = periode === "hari"
+    ? (isToday ? `Hari ini, ${fmtDateLong(bizDate)}` : fmtDateLong(bizDate))
+    : `${fmtDateLong(dari)} – ${fmtDateLong(sampai > today ? today : sampai)}`;
+  /** Angka utama (pendapatan, uang masuk, biaya, bersih) — rumus yang sama dengan tab Kas Kasir. */
+  const rk = useMemo(() => (rp ? rekapJenisRentang(a, dari, sampai > today ? today : sampai, venue) : rekapTigaJenis(a, bizDate, venue)),
+    [a, rp, dari, sampai, today, venue, bizDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const OPEN_HOURS = CLOSE_IDX - OPEN_IDX;   // 11.00–06.00 = 19 jam
   // Penyebut ikut periode: kalau yang dilihat 30 hari, kapasitasnya juga 30 hari —
   // kalau tidak, utilisasi sebulan terbaca seperti seperempat persen.
   const hariDihitung = rp ? rangeDays(dari, sampai) : 1;
@@ -212,163 +242,215 @@ function RekapKeuangan() {
 
   return (
     <div className="space-y-5 pb-6">
-      {/* Lingkup: venue mana yang dilaporkan */}
-      {venueAkun ? (
-        <div className="rounded-xl border border-line bg-ink-2 px-3 py-2 text-[12px] font-semibold text-amber">
-          {VENUE_LABEL[venueAkun]}
-          <span className="ml-2 font-normal text-dim">akun ini hanya mengurus satu venue</span>
+      {/* ── KEPALA REKAP (dirombak 14 Nov 2026, pemilik: "berantakan, tumpang tindih")
+          Tiga lapis yang jelas bedanya:
+            1. Judul + LINGKUP laporan (unit · periode · tanggal) — berlaku untuk semua tab.
+            2. Empat ANGKA UTAMA — jawaban yang paling sering dicari, sebelum menggulir.
+            3. TAB bergaris bawah — beda bentuk dengan tombol pilihan, jadi tidak tertukar.
+          Saringan yang hanya berlaku di satu tab (shift, rekening) pindah ke tab itu. */}
+      <section className="rounded-2xl border border-line bg-ink-2">
+        <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line px-4 py-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-xl uppercase tracking-wide text-cream">Rekap</h1>
+            <p className="truncate text-[12px] text-mute">
+              {dipakai === "semua" ? "SPL Sport + Smokehouse" : VENUE_LABEL[dipakai]} · {labelLingkupWaktu}
+            </p>
+          </div>
+          {venueAkun && (
+            <span className="rounded-full border border-amber/40 bg-amber/10 px-2.5 py-1 text-[11px] font-semibold text-amber">
+              Akun {VENUE_LABEL[venueAkun]}
+            </span>
+          )}
         </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-2">
-          {(["spl", "smh", "semua"] as const).map((v) => (
-            <button key={v} onClick={() => setLingkup(v)} aria-pressed={lingkup === v}
-              className={`min-h-[40px] rounded-xl border px-1 text-[12px] font-semibold ${
-                lingkup === v ? "border-amber bg-amber/10 text-amber" : "border-line bg-ink-2 text-mute"
-              }`}>
-              {v === "semua" ? "Gabungan" : VENUE_LABEL[v]}
-            </button>
-          ))}
-        </div>
-      )}
-      {dipakai === "semua" && (
-        <p className="rounded-lg border border-amber/40 bg-amber/5 px-3 py-2 text-[11px] leading-relaxed text-amber">
-          Angka di bawah ini <span className="text-cream">menjumlahkan kedua venue</span>.
-          Untuk membandingkan atau menyetor kas, pakai rekap per venue.
-        </p>
-      )}
-      {r.venueTercampur && (
-        <p className="rounded-lg border border-amber/40 bg-amber/5 px-3 py-2 text-[11px] leading-relaxed text-amber">
-          Hari ini sudah terlalu lama, jadi angkanya tidak bisa lagi dipisah. Yang
-          tampil adalah gabungan, bukan {VENUE_LABEL[dipakai as Venue]} saja.
-        </p>
-      )}
 
-      {/* Periode rekap */}
-      <div className="grid grid-cols-4 gap-2">
-        {([["hari", "Harian"], ["minggu", "Mingguan"], ["bulan", "Bulanan"], ["custom", "Pilih tanggal"]] as const).map(([p, label]) => (
-          <button key={p} onClick={() => setPeriode(p)} aria-pressed={periode === p}
-            className={`min-h-[40px] rounded-xl border px-1 text-[12px] font-semibold ${
-              periode === p ? "border-amber bg-amber/10 text-amber" : "border-line bg-ink-2 text-mute"
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-4 py-3">
+          {!venueAkun && (
+            <Kendali label="Unit">
+              <Segmen pilihan={[["spl", "SPL Sport"], ["smh", "Smokehouse"], ["semua", "Gabungan"]] as const}
+                nilai={dipakai} ubah={setLingkup} />
+            </Kendali>
+          )}
+          <Kendali label="Periode">
+            <Segmen pilihan={[["hari", "Harian"], ["minggu", "Mingguan"], ["bulan", "Bulanan"], ["tahun", "Tahunan"], ["custom", "Rentang"]] as const}
+              nilai={periode} ubah={setPeriode} />
+          </Kendali>
+          <Kendali label={periode === "custom" ? "Dari – sampai" : periode === "bulan" ? "Bulan" : periode === "tahun" ? "Tahun" : periode === "minggu" ? "Minggu" : "Tanggal"}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {periode === "hari" && (
+                <select value={bizDate} onChange={(e) => setPicked(e.target.value)} aria-label="Hari operasional" className={KOLOM}>
+                  {dates.map((d) => (
+                    <option key={d} value={d}>{d === today ? `Hari ini · ${fmtDateLong(d)}` : fmtDateLong(d)}</option>
+                  ))}
+                </select>
+              )}
+              {periode === "minggu" && <span className={`${KOLOM} inline-flex items-center`}>{fmtDateLong(dari)} – {fmtDateLong(sampai)}</span>}
+              {periode === "bulan" && (
+                <input type="month" value={bulanPilih} max={today.slice(0, 7)} aria-label="Bulan" className={KOLOM}
+                  onChange={(e) => e.target.value && setBulanPilih(e.target.value)} />
+              )}
+              {periode === "tahun" && (
+                <select value={tahunPilih} onChange={(e) => setTahunPilih(e.target.value)} aria-label="Tahun" className={KOLOM}>
+                  {Array.from({ length: Math.max(1, Number(today.slice(0, 4)) - Number(hariPertama.slice(0, 4)) + 1) },
+                    (_, k) => String(Number(today.slice(0, 4)) - k)).map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              )}
+              {periode === "custom" && (<>
+                <input type="date" value={ct.dari} max={today} aria-label="Dari tanggal" className={KOLOM}
+                  onChange={(e) => e.target.value && setCt((c) => ({ ...c, dari: e.target.value }))} />
+                <span className="text-[12px] text-dim">–</span>
+                <input type="date" value={ct.sampai} max={today} aria-label="Sampai tanggal" className={KOLOM}
+                  onChange={(e) => e.target.value && setCt((c) => ({ ...c, sampai: e.target.value }))} />
+                {([
+                  ["7 hari", () => ({ dari: shiftDate(today, -6), sampai: today })],
+                  ["30 hari", () => ({ dari: shiftDate(today, -29), sampai: today })],
+                  ["Semua", () => ({ dari: hariPertama, sampai: today })],
+                ] as const).map(([label, f]) => (
+                  <button key={label} onClick={() => setCt(f())}
+                    className="min-h-[38px] rounded-lg border border-line px-2.5 text-[11px] text-mute hover:border-amber hover:text-amber">
+                    {label}
+                  </button>
+                ))}
+              </>)}
+            </div>
+          </Kendali>
+        </div>
+
+        {(dipakai === "semua" || (r.venueTercampur && venue) || rentang.dipotong) && (
+          <div className="space-y-1 border-t border-line px-4 py-2.5 text-[11px] leading-relaxed text-amber">
+            {dipakai === "semua" && <p>Angka menjumlahkan SPL Sport dan Smokehouse. Untuk menyetor kas, pilih salah satu venue.</p>}
+            {r.venueTercampur && venue && <p>Hari ini sudah terlalu lama, jadi angkanya tidak bisa lagi dipisah per venue.</p>}
+            {rentang.dipotong && <p>Rentang dipotong ke {MAX_REKAP_HARI} hari.</p>}
+          </div>
+        )}
+      </section>
+
+      {/* ANGKA UTAMA — sama untuk semua tab, mengikuti unit & periode di atas. */}
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Angka utama">
+        <Ubin label="Pendapatan" nilai={rupiah(rk.pendapatan)}
+          ket={`${venue !== "smh" ? `Sewa ${rupiah(rk.sewaMeja)} · ` : ""}barang ${rupiah(rk.totalBarang)}${rk.diskon > 0 ? ` · diskon ${rupiah(rk.diskon)}` : ""}`} />
+        <Ubin label="Uang masuk" nilai={rupiah(rk.uang.total)}
+          ket={`Tunai ${rupiah(rk.uang.tunai)} · non-tunai ${rupiah(rk.uang.total - rk.uang.tunai)}`} />
+        <Ubin label="Biaya" nilai={rupiah(rk.totalBiaya)} ket={`${rk.biaya.length} catatan`} />
+        <Ubin label="Bersih" nilai={rupiah(rk.bersih)} ket="pendapatan − biaya" sorot />
+      </section>
+
+      {/* TAB — garis bawah, bukan tombol: beda bentuk dengan pilihan di atas. */}
+      <nav className="no-bar flex gap-1 overflow-x-auto border-b border-line" role="tablist" aria-label="Bagian rekap">
+        {([["harian", "Kas Kasir"], ["uang", "Uang & Pajak"], ["saring", "Shift & Rekening"], ["analisa", "Analisa"]] as const).map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={bagianAktif === k} onClick={() => setBagian(k)}
+            className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-[13px] font-semibold transition-colors ${
+              bagianAktif === k ? "border-amber text-amber" : "border-transparent text-mute hover:text-cream"
             }`}>{label}</button>
         ))}
-      </div>
+      </nav>
 
-      {/* Rentang bebas: dua kalender + pintasan yang sering dipakai */}
-      {periode === "custom" && (
-        <section className="rounded-xl border border-line bg-ink-2 p-3">
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-[11px] uppercase tracking-[0.16em] text-dim">Dari tanggal</span>
-              <input type="date" value={ct.dari} max={today}
-                onChange={(e) => e.target.value && setCt((c) => ({ ...c, dari: e.target.value }))}
-                className="min-h-[40px] w-full rounded-lg border border-line bg-ink px-2 text-[13px] text-cream focus:border-amber focus:outline-none" />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[11px] uppercase tracking-[0.16em] text-dim">Sampai tanggal</span>
-              <input type="date" value={ct.sampai} max={today}
-                onChange={(e) => e.target.value && setCt((c) => ({ ...c, sampai: e.target.value }))}
-                className="min-h-[40px] w-full rounded-lg border border-line bg-ink px-2 text-[13px] text-cream focus:border-amber focus:outline-none" />
-            </label>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {([
-              ["7 hari terakhir", () => ({ dari: shiftDate(today, -6), sampai: today })],
-              ["30 hari terakhir", () => ({ dari: shiftDate(today, -29), sampai: today })],
-              ["Bulan ini", () => ({ dari: `${today.slice(0, 7)}-01`, sampai: today })],
-              ["Bulan lalu", () => {
-                const [y, m] = today.split("-").map(Number);
-                const p = new Date(y, m - 2, 1);
-                const awal = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, "0")}-01`;
-                const akhir = new Date(p.getFullYear(), p.getMonth() + 1, 0);
-                return { dari: awal, sampai: `${akhir.getFullYear()}-${String(akhir.getMonth() + 1).padStart(2, "0")}-${String(akhir.getDate()).padStart(2, "0")}` };
-              }],
-            ] as const).map(([label, f]) => (
-              <button key={label} onClick={() => setCt(f())}
-                className="rounded-full border border-line bg-ink px-2.5 py-1 text-[11px] text-mute hover:border-amber hover:text-amber">
-                {label}
-              </button>
-            ))}
-          </div>
+      {bagianAktif === "harian" && (
+        <RekapTigaJenis dari={rp ? dari : bizDate} sampai={rp ? sampai : bizDate} venue={venue} hariIni={today} />
+      )}
+
+      {bagianAktif === "saring" && (<>
+        {/* Saringan khusus tab ini — tidak di kepala, karena tab lain tidak memakainya. */}
+        <section className="flex flex-wrap items-end gap-x-5 gap-y-3 rounded-2xl border border-line bg-ink-2 px-4 py-3">
+          <Kendali label="Shift">
+            <Segmen pilihan={[["semua", "Semua"], ["pagi", "Pagi"], ["sore", "Sore"]] as const}
+              nilai={shiftSaring} ubah={setShiftSaring} />
+          </Kendali>
+          <Kendali label="Pembayaran">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Segmen pilihan={[["semua", "Semua"], ["tunai", "Cash"], ["rekening", "Rekening"]] as const}
+                nilai={kanalSaring.length === 0 ? "semua"
+                  : kanalSaring.length === 1 && kanalSaring[0] === "tunai" ? "tunai"
+                    : rekeningSemua.every((k) => kanalSaring.includes(k)) ? "rekening" : "lain"}
+                ubah={(x) => setKanalSaring(x === "semua" ? [] : x === "tunai" ? ["tunai"] : rekeningSemua)} />
+              {rekeningSemua.map((k) => (
+                <button key={k} aria-pressed={kanalSaring.includes(k)}
+                  onClick={() => setKanalSaring((x) => (x.includes(k) ? x.filter((y) => y !== k) : [...x.filter((y) => y !== "tunai"), k]))}
+                  className={`min-h-[34px] rounded-full border px-3 text-[11px] font-semibold ${
+                    kanalSaring.includes(k) ? "border-amber bg-amber/15 text-amber" : "border-line text-dim hover:text-cream"
+                  }`}>{kanalSaring.includes(k) ? "✓ " : ""}{labelKanal(k)}</button>
+              ))}
+            </div>
+          </Kendali>
+        </section>
+        <RekapSaring unit={unitSaring} dari={dari} sampai={sampai > today ? today : sampai} shift={shiftSaring}
+          kanal={kanalSaring} hariIni={today} perBulan={periode === "tahun"} />
+      </>)}
+
+      {bagianAktif === "uang" && (<>
+      {/* Dana pelanggan yang wajib dikembalikan — semua hari, tidak boleh tenggelam */}
+      {a.refunds.length > 0 && (
+        <section>
+          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-red-300 before:bg-red-400">
+            Dana perlu dikembalikan · {openRefunds.length}
+            {openRefunds.length > 0 && ` · ${rupiah(openRefunds.reduce((n, f) => n + f.amount, 0))}`}
+          </h2>
+          {openRefunds.length === 0 ? (
+            <div className="rounded-xl border border-line bg-ink-2 px-4 py-4 text-center text-[13px] text-dim">
+              Semua dana pelanggan sudah dikembalikan.
+            </div>
+          ) : (
+            <div className="divide-y divide-line overflow-hidden rounded-xl border border-red-500/40 bg-red-500/5">
+              {openRefunds.map((f) => (
+                <div key={f.id} className="px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] text-cream">{f.guest} · {f.bookingCode}</div>
+                      <div className="text-[11px] leading-snug text-dim">
+                        {f.reason} · dicatat {new Date(f.at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        {f.phone && ` · ${f.phone}`}
+                      </div>
+                    </div>
+                    <div className="shrink-0 font-serif text-[14px] font-bold tabular-nums text-red-300">
+                      {rupiah(f.amount)}
+                    </div>
+                  </div>
+                  {allow("lihatLaporanKeuangan") && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-dim">Sudah dikembalikan lewat:</span>
+                      {(Object.keys(METHOD_LABEL) as NonNullable<Refund["method"]>[]).map((m) => (
+                        <button key={m} onClick={() => settle(f, m)}
+                          className="min-h-[34px] rounded-lg border border-line bg-ink px-2.5 text-[12px] text-cream hover:border-amber hover:text-amber">
+                          {METHOD_LABEL[m]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {refundMsg && <p role="status" className="mt-1.5 text-[12px] text-amber">{refundMsg}</p>}
+          {settledRefunds.length > 0 && (
+            <details className="mt-2 rounded-xl border border-line bg-ink-2 px-3 py-2">
+              <summary className="cursor-pointer text-[12px] text-mute">Sudah dikembalikan · {settledRefunds.length}</summary>
+              <div className="mt-1 divide-y divide-line">
+                {settledRefunds.map((f) => (
+                  <div key={f.id} className="flex justify-between gap-3 py-1.5 text-[12px]">
+                    <span className="min-w-0 truncate text-mute">
+                      {f.guest} · {f.bookingCode} · {METHOD_LABEL[f.method ?? "transfer"]} oleh {f.settledBy}
+                    </span>
+                    <span className="shrink-0 font-serif tabular-nums text-dim">{rupiah(f.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
           <p className="mt-2 text-[11px] leading-relaxed text-dim">
-            {rentang.dipotong
-              ? `Rentang dipotong ke ${MAX_REKAP_HARI} hari (${fmtDateLong(dari)} – ${fmtDateLong(sampai)}) supaya laporan tetap cepat dibuka.`
-              : `Menghitung ${rangeDays(dari, sampai)} hari operasional: ${fmtDateLong(dari)} – ${fmtDateLong(sampai)}. Batas hari tetap jam 02.00.`}
+            Pembayaran online yang tidak bisa dipenuhi (slot keburu diambil, tarif berubah,
+            stok habis) atau booking/pesanan yang di-void. Uangnya sudah masuk, jadi harus dikembalikan
+            atau dijadikan kredit — jangan dihitung sebagai pendapatan. Tandai setelah benar-benar ditransfer.
           </p>
         </section>
       )}
 
-      {/* Hari operasional (batas 02.00) */}
-      {!rp && (
-      <label className="flex items-center justify-between gap-3 rounded-xl border border-line bg-ink-2 px-3 py-2">
-        <span className="text-[11px] uppercase tracking-[0.16em] text-dim">Hari operasional</span>
-        <select
-          value={bizDate}
-          onChange={(e) => setPicked(e.target.value)}
-          className="min-h-[36px] min-w-0 rounded-lg border border-line bg-ink px-2 text-[13px] text-cream focus:border-amber focus:outline-none"
-        >
-          {dates.map((d) => (
-            <option key={d} value={d}>{d === today ? `Hari ini · ${fmtDateLong(d)}` : fmtDateLong(d)}</option>
-          ))}
-        </select>
-      </label>
-      )}
 
-      {/* Tiga bagian: format kertas, uang, dan bahan analisa */}
-      <div className="grid grid-cols-3 gap-1 rounded-xl border border-line bg-ink-2 p-1" role="tablist" aria-label="Bagian rekap">
-        {([["harian", periode === "hari" ? "Rekap Harian" : "Rekap Periode"], ["uang", "Uang"], ["analisa", "Analisa"]] as const).map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={bagian === k} onClick={() => setBagian(k)}
-            className={`min-h-[44px] rounded-lg text-[13px] font-semibold ${
-              bagian === k ? "bg-amber text-ink" : "text-mute hover:text-cream"
-            }`}>{label}</button>
-        ))}
-      </div>
-
-      {bagian === "harian" && (
-        <RekapTigaJenis dari={rp ? dari : bizDate} sampai={rp ? sampai : bizDate} venue={venue} hariIni={today} />
-      )}
-
-      {bagian === "uang" && (<>
-      {/* Rincian per hari dalam periode */}
-      {rp && (
-        <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-            Per hari · {rp.hari.filter((h) => h.money.gross > 0).length} hari ada transaksi
-          </h2>
-          {rp.hari.every((h) => h.money.gross === 0) ? (
-            <div className="rounded-xl border border-line bg-ink-2 px-4 py-6 text-center text-sm text-dim">
-              Belum ada transaksi pada periode ini.
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-line bg-ink-2">
-              {rp.hari.filter((h) => h.money.gross > 0 || h.counts.done > 0).map((h) => {
-                const pct = rp.terbaik && rp.terbaik.gross > 0 ? (h.money.gross / rp.terbaik.gross) * 100 : 0;
-                return (
-                  <button key={h.bizDate} onClick={() => { setPeriode("hari"); setPicked(h.bizDate); }}
-                    className="flex w-full items-center gap-3 border-b border-line px-3 py-2 text-left last:border-0">
-                    <span className="w-24 shrink-0 text-[12px] text-mute">{fmtDateLong(h.bizDate).replace(/ \d{4}$/, "")}</span>
-                    <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-ink-3">
-                      <span className="absolute inset-y-0 left-0 rounded-full bg-amber/70" style={{ width: `${pct}%` }} />
-                    </span>
-                    <span className="w-24 shrink-0 text-right font-serif text-[12px] tabular-nums text-cream">
-                      {rupiah(h.money.gross)}
-                    </span>
-                    <span className="w-14 shrink-0 text-right text-[11px] text-dim">{h.counts.done} tab</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {rp.terbaik && (
-            <p className="mt-1.5 text-[11px] text-dim">
-              Hari terbaik: {fmtDateLong(rp.terbaik.bizDate)} · {rupiah(rp.terbaik.gross)}. Ketuk baris untuk membuka rekap hari itu.
-            </p>
-          )}
-        </section>
-      )}
-
+      {/* Perapian 14 Nov 2026: kiri = uangnya (lapisan & cara bayar),
+          kanan = siapa yang menerimanya (shift) & dari lini mana. */}
+      <DuaKolom
+        kiri={<>
       {/* Lima lapisan uang */}
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
           Uang {dayLabel}
         </h2>
         <div className="overflow-hidden rounded-2xl border border-line bg-ink-2">
@@ -455,126 +537,56 @@ function RekapKeuangan() {
           Nilai penjualan = semua yang terjual {rp ? "di rentang ini" : "hari ini"}, termasuk meja yang sudah
           dibayar online sebelumnya. Uang yang benar-benar diterima di kasir bisa
           lebih kecil — itu wajar, bukan kebocoran.
-          PPN adalah uang titipan untuk pemerintah daerah — bukan keuntungan; persennya diatur di tab Atur.
+          PPN adalah uang titipan untuk pemerintah daerah — bukan keuntungan; persennya diatur di Pengaturan.
           MDR QRIS memakai skema berjenjang: transaksi sampai Rp 500.000 bebas biaya
           untuk merchant kategori Usaha Mikro.
         </p>
       </section>
 
-      {/* Pisah dua lini usaha — permintaan pemilik. Margin biliar dan
-          smokehouse sangat berbeda; mencampurnya menyembunyikan mana yang
-          sebenarnya menghasilkan. */}
+      {/* Per kanal — tanpa ini laporan menyesatkan */}
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Per lini usaha
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
+          Per kanal pembayaran
         </h2>
-        <div className="grid grid-cols-2 gap-2">
-          <LineCard
-            nama="SPL Biliar" sub="sewa meja"
-            nilai={u.billiard} total={u.billiard + u.fnb} warna="text-amber" bar="bg-amber"
-          />
-          <LineCard
-            nama="Smokehouse" sub="makanan & minuman"
-            nilai={u.fnb} total={u.billiard + u.fnb} warna="text-emerald-400" bar="bg-emerald-500"
-          />
-        </div>
-        {u.discount > 0 && (
-          <div className="mt-2 flex items-baseline justify-between rounded-xl border border-line
-            bg-ink-2 px-4 py-2.5">
-            <span className="text-[13px] text-dim">
-              Total diskon diberikan
-              {(u.diskonManual ?? 0) > 0 && ` · ${rupiah(u.diskonManual ?? 0)} di antaranya diskon manual kasir`}
-            </span>
-            <span className="font-serif text-[14px] tabular-nums text-amber">− {rupiah(u.discount)}</span>
+        {!adaTransaksi ? (
+          <div className="rounded-xl border border-line bg-ink-2 px-4 py-6 text-center text-sm text-dim">
+            Belum ada tab yang ditutup atau takeaway {dayLabel}.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {Object.entries(u.byChannel).map(([ch, v]) => {
+              const pct = u.gross > 0 ? (v.gross / u.gross) * 100 : 0;
+              return (
+                <div key={ch} className="rounded-xl border border-line bg-ink-2 p-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-cream">{CHANNEL_LABEL[ch] ?? ch}</span>
+                    <span className="font-serif text-base font-bold tabular-nums text-cream">
+                      {rupiah(v.gross)}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-3">
+                    <motion.div
+                      className="h-full rounded-full bg-amber"
+                      initial={{ width: 0 }} animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                    />
+                  </div>
+                  <div className="mt-1 text-[11px] text-dim">
+                    {v.n} transaksi · {pct.toFixed(0)}%
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-        {/* SMH-11b: barang yang digratiskan punya barisnya sendiri. Nilainya
-            TIDAK ikut omzet (barangnya memang tidak dibayar), tapi tidak boleh
-            hilang dari laporan — ini biaya yang ditanggung venue. */}
-        {(u.compliment ?? 0) > 0 && (
-          <div className="mt-2 flex items-baseline justify-between rounded-xl border border-sky-500/40
-            bg-sky-500/5 px-4 py-2.5">
-            <span className="text-[13px] text-sky-200">Compliment — barang digratiskan venue</span>
-            <span className="font-serif text-[14px] tabular-nums text-sky-200">{rupiah(u.compliment ?? 0)}</span>
-          </div>
-        )}
-        <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Angka ini sebelum potongan pajak dan MDR. Attach rate F&B —
-          berapa besar belanja makanan dibanding sewa meja — adalah ukuran
-          paling cepat untuk melihat apakah dapur benar-benar dimanfaatkan.
-        </p>
       </section>
 
-      {/* Dana pelanggan yang wajib dikembalikan — semua hari, tidak boleh tenggelam */}
-      {a.refunds.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-red-300">
-            Dana perlu dikembalikan · {openRefunds.length}
-            {openRefunds.length > 0 && ` · ${rupiah(openRefunds.reduce((n, f) => n + f.amount, 0))}`}
-          </h2>
-          {openRefunds.length === 0 ? (
-            <div className="rounded-xl border border-line bg-ink-2 px-4 py-4 text-center text-[13px] text-dim">
-              Semua dana pelanggan sudah dikembalikan.
-            </div>
-          ) : (
-            <div className="divide-y divide-line overflow-hidden rounded-xl border border-red-500/40 bg-red-500/5">
-              {openRefunds.map((f) => (
-                <div key={f.id} className="px-3 py-2.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-[13px] text-cream">{f.guest} · {f.bookingCode}</div>
-                      <div className="text-[11px] leading-snug text-dim">
-                        {f.reason} · dicatat {new Date(f.at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                        {f.phone && ` · ${f.phone}`}
-                      </div>
-                    </div>
-                    <div className="shrink-0 font-serif text-[14px] font-bold tabular-nums text-red-300">
-                      {rupiah(f.amount)}
-                    </div>
-                  </div>
-                  {allow("lihatLaporanKeuangan") && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] text-dim">Sudah dikembalikan lewat:</span>
-                      {(Object.keys(METHOD_LABEL) as NonNullable<Refund["method"]>[]).map((m) => (
-                        <button key={m} onClick={() => settle(f, m)}
-                          className="min-h-[34px] rounded-lg border border-line bg-ink px-2.5 text-[12px] text-cream hover:border-amber hover:text-amber">
-                          {METHOD_LABEL[m]}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {refundMsg && <p role="status" className="mt-1.5 text-[12px] text-amber">{refundMsg}</p>}
-          {settledRefunds.length > 0 && (
-            <details className="mt-2 rounded-xl border border-line bg-ink-2 px-3 py-2">
-              <summary className="cursor-pointer text-[12px] text-mute">Sudah dikembalikan · {settledRefunds.length}</summary>
-              <div className="mt-1 divide-y divide-line">
-                {settledRefunds.map((f) => (
-                  <div key={f.id} className="flex justify-between gap-3 py-1.5 text-[12px]">
-                    <span className="min-w-0 truncate text-mute">
-                      {f.guest} · {f.bookingCode} · {METHOD_LABEL[f.method ?? "transfer"]} oleh {f.settledBy}
-                    </span>
-                    <span className="shrink-0 font-serif tabular-nums text-dim">{rupiah(f.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
-          <p className="mt-2 text-[11px] leading-relaxed text-dim">
-            Pembayaran online yang tidak bisa dipenuhi (slot keburu diambil, tarif berubah,
-            stok habis) atau booking/pesanan yang di-void. Uangnya sudah masuk, jadi harus dikembalikan
-            atau dijadikan kredit — jangan dihitung sebagai pendapatan. Tandai setelah benar-benar ditransfer.
-          </p>
-        </section>
-      )}
-
+        </>}
+        kanan={<>
       {/* SMH-13 & SMH-14 · Omzet per shift: TUNAI | QRIS | EDC, pagi/sore/ALL */}
       {os && (
         <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
             Omzet per shift
           </h2>
 
@@ -657,58 +669,115 @@ function RekapKeuangan() {
         </section>
       )}
 
+      {/* Pisah dua lini usaha — permintaan pemilik. Margin biliar dan
+          smokehouse sangat berbeda; mencampurnya menyembunyikan mana yang
+          sebenarnya menghasilkan. */}
+      <section>
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
+          Per lini usaha
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          <LineCard
+            nama="SPL Biliar" sub="sewa meja"
+            nilai={u.billiard} total={u.billiard + u.fnb} warna="text-amber" bar="bg-amber"
+          />
+          <LineCard
+            nama="Smokehouse" sub="makanan & minuman"
+            nilai={u.fnb} total={u.billiard + u.fnb} warna="text-emerald-400" bar="bg-emerald-500"
+          />
+        </div>
+        {u.discount > 0 && (
+          <div className="mt-2 flex items-baseline justify-between rounded-xl border border-line
+            bg-ink-2 px-4 py-2.5">
+            <span className="text-[13px] text-dim">
+              Total diskon diberikan
+              {(u.diskonManual ?? 0) > 0 && ` · ${rupiah(u.diskonManual ?? 0)} di antaranya diskon manual kasir`}
+            </span>
+            <span className="font-serif text-[14px] tabular-nums text-amber">− {rupiah(u.discount)}</span>
+          </div>
+        )}
+        {/* SMH-11b: barang yang digratiskan punya barisnya sendiri. Nilainya
+            TIDAK ikut omzet (barangnya memang tidak dibayar), tapi tidak boleh
+            hilang dari laporan — ini biaya yang ditanggung venue. */}
+        {(u.compliment ?? 0) > 0 && (
+          <div className="mt-2 flex items-baseline justify-between rounded-xl border border-sky-500/40
+            bg-sky-500/5 px-4 py-2.5">
+            <span className="text-[13px] text-sky-200">
+              Compliment — barang digratiskan venue
+              {/* Rincian meja compliment (14 Nov 2026): owner & band terlihat terpisah. */}
+              {u.complimentMeja && (
+                <span className="mt-0.5 block text-[11px] text-sky-200/80">
+                  Meja Owner {rupiah(u.complimentMeja.owner)} · Meja Entertain {rupiah(u.complimentMeja.entertain)}
+                  {" · "}per item {rupiah(Math.max(0, (u.compliment ?? 0) - u.complimentMeja.owner - u.complimentMeja.entertain))}
+                </span>
+              )}
+            </span>
+            <span className="font-serif text-[14px] tabular-nums text-sky-200">{rupiah(u.compliment ?? 0)}</span>
+          </div>
+        )}
+        <p className="mt-2 text-[11px] leading-relaxed text-dim">
+          Angka ini sebelum potongan pajak dan MDR. Attach rate F&B —
+          berapa besar belanja makanan dibanding sewa meja — adalah ukuran
+          paling cepat untuk melihat apakah dapur benar-benar dimanfaatkan.
+        </p>
+      </section>
+
+        </>}
+      />
+
+      {/* Rincian per hari dalam periode */}
+      {rp && (
+        <section>
+          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
+            Per hari · {rp.hari.filter((h) => h.money.gross > 0).length} hari ada transaksi
+          </h2>
+          {rp.hari.every((h) => h.money.gross === 0) ? (
+            <div className="rounded-xl border border-line bg-ink-2 px-4 py-6 text-center text-sm text-dim">
+              Belum ada transaksi pada periode ini.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-line bg-ink-2">
+              {rp.hari.filter((h) => h.money.gross > 0 || h.counts.done > 0).map((h) => {
+                const pct = rp.terbaik && rp.terbaik.gross > 0 ? (h.money.gross / rp.terbaik.gross) * 100 : 0;
+                return (
+                  <button key={h.bizDate} onClick={() => { setPeriode("hari"); setPicked(h.bizDate); }}
+                    className="flex w-full items-center gap-3 border-b border-line px-3 py-2 text-left last:border-0">
+                    <span className="w-24 shrink-0 text-[12px] text-mute">{fmtDateLong(h.bizDate).replace(/ \d{4}$/, "")}</span>
+                    <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-ink-3">
+                      <span className="absolute inset-y-0 left-0 rounded-full bg-amber/70" style={{ width: `${pct}%` }} />
+                    </span>
+                    <span className="w-24 shrink-0 text-right font-serif text-[12px] tabular-nums text-cream">
+                      {rupiah(h.money.gross)}
+                    </span>
+                    <span className="w-14 shrink-0 text-right text-[11px] text-dim">{h.counts.done} tab</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {rp.terbaik && (
+            <p className="mt-1.5 text-[11px] text-dim">
+              Hari terbaik: {fmtDateLong(rp.terbaik.bizDate)} · {rupiah(rp.terbaik.gross)}. Ketuk baris untuk membuka rekap hari itu.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Rincian yang menyusun angka di atas — bentuknya mengikuti laporan
           "DETAIL TRANSAKSI" yang sudah dicetak pemilik tiap malam. */}
       {os && barisShift && (
         <DetailTransaksi os={os} pilih={shiftPilih} nama={barisShift.nama} bizDate={bizDate} venue={venue} />
       )}
 
-      {/* Per kanal — tanpa ini laporan menyesatkan */}
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Per kanal pembayaran
-        </h2>
-        {!adaTransaksi ? (
-          <div className="rounded-xl border border-line bg-ink-2 px-4 py-6 text-center text-sm text-dim">
-            Belum ada tab yang ditutup atau takeaway {dayLabel}.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {Object.entries(u.byChannel).map(([ch, v]) => {
-              const pct = u.gross > 0 ? (v.gross / u.gross) * 100 : 0;
-              return (
-                <div key={ch} className="rounded-xl border border-line bg-ink-2 p-3">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-sm text-cream">{CHANNEL_LABEL[ch] ?? ch}</span>
-                    <span className="font-serif text-base font-bold tabular-nums text-cream">
-                      {rupiah(v.gross)}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-3">
-                    <motion.div
-                      className="h-full rounded-full bg-amber"
-                      initial={{ width: 0 }} animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.6, ease: "easeOut" }}
-                    />
-                  </div>
-                  <div className="mt-1 text-[11px] text-dim">
-                    {v.n} transaksi · {pct.toFixed(0)}%
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {/* Struk settlement pindah ke tab Kas Kasir (satu tempat cetak, bisa per shift). */}
 
       </>)}
 
-      {bagian === "analisa" && (<>
-      <TrenPenjualan venue={venue} hariIni={today} />
-
+      {bagianAktif === "analisa" && (<>
+      <DuaKolom kiri={<TrenPenjualan venue={venue} hariIni={today} />} kanan={<>
       {/* Operasional */}
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
           Operasional
         </h2>
         <div className="grid grid-cols-2 gap-2">
@@ -733,6 +802,7 @@ function RekapKeuangan() {
           supaya kerugiannya terlihat.
         </p>
       </section>
+      </>} />
 
       {/* SPL-11 · penjualan per produk. Rentang & venue-nya diwarisi dari
           layar ini supaya tidak ada dua tanggal di satu halaman. */}
@@ -752,7 +822,7 @@ function RekapKeuangan() {
           Jejak: lengkap, bernama, bisa disaring per orang, dan terpisah per
           venue. Tab ini tinggal uang. */}
 
-      {bagian === "uang" && (
+      {bagianAktif === "uang" && (
       <div>
         <button
           onClick={() => (rp ? exportPeriodeCSV() : exportCSV())}
@@ -819,6 +889,46 @@ function Metric({ label, value, hint }: { label: string; value: string; hint: st
       <div className="text-[10px] uppercase tracking-wider text-dim">{label}</div>
       <div className="font-display text-2xl leading-tight text-cream">{value}</div>
       <div className="text-[11px] text-dim">{hint}</div>
+    </div>
+  );
+}
+
+/** Gaya kolom isian (tanggal, bulan, tahun) — setinggi tombol segmen. */
+const KOLOM = "min-h-[38px] rounded-lg border border-line bg-ink px-2.5 text-[13px] text-cream focus:border-amber focus:outline-none";
+
+/** Label kecil di atas satu kendali. */
+function Kendali({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-dim">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+/** Tombol segmen: pilihan yang saling meniadakan, digabung dalam satu wadah. */
+function Segmen<T extends string>({ pilihan, nilai, ubah }: {
+  pilihan: readonly (readonly [T, string])[]; nilai: string; ubah: (x: T) => void;
+}) {
+  return (
+    <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-xl border border-line bg-ink p-0.5" role="radiogroup">
+      {pilihan.map(([v, label]) => (
+        <button key={v} role="radio" aria-checked={nilai === v} onClick={() => ubah(v)}
+          className={`min-h-[34px] rounded-lg px-3 text-[12px] font-semibold transition-colors ${
+            nilai === v ? "bg-amber text-ink shadow-sm" : "text-mute hover:text-cream"
+          }`}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+/** Satu angka utama. */
+function Ubin({ label, nilai, ket, sorot }: { label: string; nilai: string; ket: string; sorot?: boolean }) {
+  return (
+    <div className={`rounded-2xl border p-3.5 ${sorot ? "border-amber/50 bg-amber/10" : "border-line bg-ink-2"}`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-dim">{label}</div>
+      <div className={`mt-1 truncate font-serif text-xl font-bold tabular-nums ${sorot ? "text-amber" : "text-cream"}`}>{nilai}</div>
+      <div className="mt-0.5 truncate text-[11px] text-dim">{ket}</div>
     </div>
   );
 }

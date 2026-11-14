@@ -55,7 +55,7 @@ export default function Antar() {
   return (
     <div className="space-y-4 pb-6">
       <section>
-        <h2 className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="mb-1 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-cream before:bg-amber">
           Siap diantar · {VENUE_LABEL[venue]}
         </h2>
         <p className="text-[11px] leading-relaxed text-dim">

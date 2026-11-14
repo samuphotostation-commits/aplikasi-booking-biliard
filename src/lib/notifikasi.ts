@@ -20,7 +20,7 @@
  *    permintaan izin hanya setelah ada ketukan pengguna, tapi alasannya lebih
  *    sederhana: kotak izin yang muncul tanpa diminta adalah hal pertama yang
  *    ditolak orang, dan sesudah ditolak tidak bisa ditanya lagi. Jadi izinnya
- *    diminta lewat tombol di tab Atur, dan selama belum diberi, yang jalan
+ *    diminta lewat tombol di Pengaturan, dan selama belum diberi, yang jalan
  *    hanya bunyinya.
  */
 

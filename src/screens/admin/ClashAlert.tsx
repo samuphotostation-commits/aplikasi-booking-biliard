@@ -35,7 +35,7 @@ export default function ClashAlert() {
 
   return (
     <section className="mb-4">
-      <h2 className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-red-300">
+      <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-red-300 before:bg-red-400">
         <motion.span
           className="inline-block h-2 w-2 rounded-full bg-red-400"
           animate={{ opacity: [1, 0.25, 1] }}
@@ -150,7 +150,7 @@ function ClashCard({ clash }: { clash: Clash }) {
                   }}
                   className="min-h-[40px] min-w-[44px] rounded-lg border border-emerald-500/40
                     bg-emerald-500/10 px-2.5 text-[13px] font-bold text-emerald-300"
-                >{tableLabel(classOf(a, t.id), t.no)}</button>
+                >{tableLabel(classOf(a, t.id), t.no, t.name)}</button>
               ))}
             </div>
             <button onClick={() => setMode("idle")} className="mt-2 min-h-[36px] text-[12px] text-dim">Batal</button>
@@ -174,7 +174,7 @@ function ClashCard({ clash }: { clash: Clash }) {
                   }}
                   className="min-h-[40px] min-w-[44px] rounded-lg border border-emerald-500/40
                     bg-emerald-500/10 px-2.5 text-[13px] font-bold text-emerald-300"
-                >{tableLabel(classOf(a, t.id), t.no)}</button>
+                >{tableLabel(classOf(a, t.id), t.no, t.name)}</button>
               ))}
             </div>
             <button

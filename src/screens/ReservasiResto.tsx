@@ -92,7 +92,7 @@ export default function ReservasiResto() {
   const hari = useMemo(() => Array.from({ length: 14 }, (_, i) => addDaysISO(todayISO(), i)), []);
   const mejaResto = mejaDijual(venue).filter((t) => classOf(venue, t.id) === "resto");
   /** Menu yang boleh dilihat tamu (rokok counter tidak ikut). */
-  const kategori = useMemo(() => kategoriJual(venue, { staf: false }), [venue]);
+  const kategori = useMemo(() => kategoriJual(venue, { staf: false, venue: "smh" }), [venue]);
   const katAktif = kat ?? kategori[0]?.id ?? "";
 
   /**

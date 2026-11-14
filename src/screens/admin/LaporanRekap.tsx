@@ -90,7 +90,7 @@ export default function LaporanRekap() {
   return (
     <div className="space-y-4 pb-6">
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
           Laporan rekap · {VENUE_LABEL[venue]}
         </h2>
 

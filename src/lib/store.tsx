@@ -2,12 +2,12 @@ import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNo
 import type { MenuItem } from "../data/menu";
 import type { TableType } from "../data/venue";
 import {
-  GATEWAY_EXPIRY_MIN, HOLD_GRACE_MIN, HOLD_MIN, paketOf,
-  businessDateOf, priceLines, priceWith, runningOn, useAdmin,
+  GATEWAY_EXPIRY_MIN, HOLD_GRACE_MIN, HOLD_MIN, paketOf, hargaPaket,
+  businessDateOf, priceLines, priceWith, runningOn, useAdmin, hariOperasional,
   liniDariLines, pecahPajakLini, persenPpnSeragam,
   type State as VenueState, type Lini,
 } from "./adminStore";
-import { diWib } from "./occupancy";
+import { diWib, slotStart } from "./occupancy";
 import { todayISO } from "./core";
 import { riwayatMember, tokenMember, type RiwayatMemberItem } from "./member";
 import { EVENT_GANTI_AKUN } from "./jejakTamu";
@@ -43,6 +43,8 @@ export type CartLine = {
    * ia tetap bisa dilaporkan sebagai biaya yang ditanggung venue.
    */
   comp?: number;
+  /** Compliment otomatis dari MEJA COMPLIMENT (Owner / Entertain), bukan dari manajer per item. */
+  compUntuk?: "owner" | "entertain";
   /**
    * ISI PAKET: barang yang harganya SUDAH termasuk harga paket, jadi
    * barisnya Rp 0. Ditandai supaya tidak tertukar dengan jatah minuman
@@ -208,9 +210,10 @@ function reducer(s: State, a: Action): State {
     case "setHours":
       return { ...s, draft: { ...s.draft, hours: a.v, tableId: null } };
     case "setTable":
-      // Paket Siang hanya untuk meja reguler (sama dengan aturan mesin).
-      // Paket Siang hanya untuk meja reguler — VIP/VVIP tidak termasuk.
-      return { ...s, draft: { ...s.draft, tableId: a.id, tableType: a.type, paketId: a.type === "regular" ? s.draft.paketId : null } };
+      // Kelas meja paket (reguler / VIP) disaring di layar booking dan ditegakkan
+      // mesin (`paketProblem`); di sini paketnya tidak dibuang lagi, karena
+      // sejak 14 Nov 2026 ada paket khusus meja VIP.
+      return { ...s, draft: { ...s.draft, tableId: a.id, tableType: a.type } };
     case "setPaket":
       return { ...s, draft: { ...s.draft, paketId: a.v } };
     case "clearBooking":
@@ -383,14 +386,17 @@ export function computeTotals(
     ? venue.tableTypes[draft.tableId]
     : draft.tableType;
   const pk = draft.paketId ? paketOf(venue, draft.paketId) : undefined;
+  // Harga paket mengikuti TANGGAL MAIN (weekday/weekend) — rumus yang sama dengan mesin.
+  const hp = pk && booking ? hargaPaket(pk, slotStart(draft.dateISO, draft.startHour!)) : undefined;
   const tableTotal = !booking
     ? 0
-    : pk
-      ? pk.price
-      : priceWith(venue.rates, tableType, draft.startHour!, draft.hours);
+    : hp
+      ? hp.price
+      // Tarif weekend mengikuti HARI OPERASIONAL tanggal main, sama dengan mesin.
+      : priceWith(venue.rates, tableType, draft.startHour!, draft.hours, hariOperasional(slotStart(draft.dateISO, draft.startHour!)));
 
   const credits = booking
-    ? (pk ? pk.freeDrinks : 0)
+    ? (hp ? hp.freeDrinks : 0)
     : draft.fnbMode === "meja"
       ? (runningOn(venue, draft.fnbTable ?? undefined)?.freeDrinks ?? 0)
       : 0;

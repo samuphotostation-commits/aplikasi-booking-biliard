@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import {
   aturCetakOtomatis, cetakKertas, cetakOtomatis, cetakSenyapMungkin, cetakStruk, daftarPrinter, printerBagian,
-  printerTersimpan, simpanPrinter, simpanPrinterBagian,
+  printerTersimpan, simpanPrinter, simpanPrinterBagian, printerBagian2, simpanPrinterBagian2,
 } from "../../lib/cetak";
 import { htmlKertas, kelompokkan, kunciTiket } from "../../lib/cetakDapur";
 import { useAdmin } from "../../lib/adminStore";
@@ -26,7 +26,7 @@ export function PilihPrinter() {
 
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">Printer struk</h2>
+      <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">Printer struk</h2>
 
       {!bisaSenyap ? (
         <p className="rounded-xl border border-line bg-ink-2 px-3.5 py-3 text-[12px] leading-snug text-dim">
@@ -78,6 +78,7 @@ export function PrinterDapur() {
   const bisaSenyap = cetakSenyapMungkin();
   const [daftar, setDaftar] = useState<{ nama: string }[]>([]);
   const [pilih, setPilih] = useState({ kitchen: printerBagian("kitchen"), bar: printerBagian("bar") });
+  const [pilih2, setPilih2] = useState({ kitchen: printerBagian2("kitchen"), bar: printerBagian2("bar") });
   const [otomatis, setOtomatis] = useState(cetakOtomatis());
   const [kabar, setKabar] = useState<string | null>(null);
 
@@ -85,16 +86,17 @@ export function PrinterDapur() {
 
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">Printer dapur &amp; bar</h2>
+      <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">Printer dapur &amp; bar</h2>
       {!bisaSenyap ? (
         <p className="rounded-xl border border-line bg-ink-2 px-3.5 py-3 text-[12px] leading-snug text-dim">
           Cetak otomatis hanya jalan di <span className="text-cream">aplikasi Windows SPL Kasir</span> pada
-          komputer dapur. Di peramban, tombol Cetak di tab Dapur tetap bisa dipakai lewat dialog cetak.
+          komputer dapur. Di peramban, tombol Cetak di tab Checker tetap bisa dipakai lewat dialog cetak.
         </p>
       ) : (
         <div className="space-y-2">
           {(["kitchen", "bar"] as const).map((b) => (
-            <div key={b} className="flex gap-2">
+            <div key={b} className="space-y-1.5">
+            <div className="flex gap-2">
               <select
                 value={pilih[b]} aria-label={b === "bar" ? "Printer bar" : "Printer dapur"}
                 onChange={(e) => {
@@ -113,7 +115,27 @@ export function PrinterDapur() {
                 Coba
               </button>
             </div>
+            {pilih[b] && (
+              <select
+                value={pilih2[b]} aria-label={b === "bar" ? "Printer bar kedua" : "Printer checker kedua"}
+                onChange={(e) => {
+                  simpanPrinterBagian2(b, e.target.value);
+                  setPilih2((p) => ({ ...p, [b]: e.target.value }));
+                }}
+                className="min-h-[40px] w-full rounded-xl border border-dashed border-line bg-ink px-3 text-[13px] text-mute"
+              >
+                <option value="">{b === "bar" ? "Bar" : "Dapur"} · printer kedua: tidak dipakai</option>
+                {daftar.filter((p) => p.nama !== pilih[b]).map((p) => (
+                  <option key={p.nama} value={p.nama}>{b === "bar" ? "Bar" : "Dapur"} · printer kedua: {p.nama}</option>
+                ))}
+              </select>
+            )}
+            </div>
           ))}
+          <p className="text-[11px] leading-snug text-dim">
+            Printer kedua opsional: kalau dipilih, setiap kertas pesanan keluar di dua printer sekaligus
+            (mis. satu untuk checker, satu untuk dapur). Catatan pesanan seperti “tidak pedas” ikut tercetak di keduanya.
+          </p>
           <label className="flex items-start gap-2.5 rounded-xl border border-line bg-ink-2 px-3.5 py-3 text-[13px] text-cream">
             <input type="checkbox" checked={otomatis} className="mt-0.5 h-4 w-4 accent-amber"
               onChange={(e) => {
@@ -141,7 +163,7 @@ export function PrinterDapur() {
 export function LayarTamu() {
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">Layar menghadap tamu</h2>
+      <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">Layar menghadap tamu</h2>
       <div className="rounded-xl border border-line bg-ink-2 p-3.5">
         <p className="text-[12px] leading-relaxed text-dim">
           Buka jendela kedua, lalu geser ke monitor atau tablet yang menghadap tamu. QR dinamis

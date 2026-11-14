@@ -56,7 +56,17 @@ function stateDariRingkasan(pv: Partial<PublicVenue>, genesis: Genesis, milikSay
     tableTypes: pv.tableTypes ?? {},
     menuPrices: pv.menuPrices ?? {},
     promos: pv.promos ?? [],
+    // Paket ikut ringkasan sejak 14 Nov 2026; ringkasan lama → paket bawaan.
+    packages: pv.packages ?? kosong.packages,
     soldOut: pv.soldOut ?? [],
+    // Menu tambahan pemilik, menu per venue, dan kategori yang diatur pemilik
+    // (15 Nov 2026) — tanpa ketiganya HP tamu memakai buku menu polos dan
+    // pengaturan "Dijual di" / kategori di Menu & Stok tidak berlaku di HP.
+    customItems: pv.customItems ?? [],
+    ...(pv.menuVenue ? { menuVenue: pv.menuVenue } : {}),
+    ...(pv.aturKategori ? { aturKategori: pv.aturKategori } : {}),
+    ...(pv.kategoriMejaBaru ? { kategoriMejaBaru: pv.kategoriMejaBaru } : {}),
+    ...(pv.mejaKategori ? { mejaKategori: pv.mejaKategori } : {}),
     shift: null,
     me: null,
     employees: [] as Employee[],

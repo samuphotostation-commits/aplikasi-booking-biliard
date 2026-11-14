@@ -1,4 +1,5 @@
-import { OPEN_HOUR, rateForHour, type Rates, type TableType } from "../data/venue";
+import { HARI_TARIF_WEEKEND, OPEN_HOUR, rateForHour, type Rates, type TableType, type Venue } from "../data/venue";
+import { BATAS_HARI_JAM } from "./occupancy";
 // Jam & hari SELALU dibaca dalam WIB, tidak ikut zona perangkat — lihat occupancy.ts.
 import { diWib } from "./occupancy";
 
@@ -116,7 +117,7 @@ export function billOpenSession(
     const h = hourIndexOf(cursor);
     const segEnd = Math.min(nextHourBoundary(cursor), billedEnd);
     const ms = segEnd - cursor;
-    const perHour = rateOf(type, h, rates);
+    const perHour = rateOf(type, h, rates, businessDow(cursor));
 
     segments.push({ fromHour: h, minutes: Math.round((ms / 60_000) * 100) / 100, ratePerHour: perHour, amount: (perHour * ms) / 3_600_000 });
     rateMs += perHour * ms;
@@ -134,12 +135,27 @@ export function billOpenSession(
   };
 }
 
-function rateOf(type: TableType, hour: number, rates?: Rates): number {
+function rateOf(type: TableType, hour: number, rates?: Rates, dow?: number): number {
   if (!rates) return rateForHour(type, hour);
+  return tarifJam(rates, type, hour, dow);
+}
+
+/** Hari operasional ini memakai tarif weekend? */
+export const hariWeekend = (dow?: number) => dow !== undefined && HARI_TARIF_WEEKEND.includes(dow);
+
+/**
+ * Tarif satu jam: kelas meja, jam (siang/malam untuk reguler), dan WEEKDAY
+ * atau WEEKEND. Tarif weekend yang kosong/0 jatuh ke tarif weekday. Jam di
+ * luar jam buka (02.00–10.59, indeks ≥ 26) bertarif MALAM — keputusan pemilik.
+ */
+export function tarifJam(rates: Rates, type: TableType, hour: number, dow?: number): number {
   if (type === "resto") return 0;
-  if (type === "vip") return rates.vip;
-  if (type === "vvip") return rates.vvip ?? rates.vip;
-  return hour < 18 ? rates.regularDay : rates.regularNight;
+  const we = hariWeekend(dow);
+  const pilih = (biasa: number, akhirPekan?: number) => (we && akhirPekan && akhirPekan > 0 ? akhirPekan : biasa);
+  if (type === "vip") return pilih(rates.vip, rates.vipWe);
+  // Jejak lama (sebelum kelas VVIP ada) tidak punya tarif VVIP — pakai tarif VIP.
+  if (type === "vvip") return pilih(rates.vvip ?? rates.vip, rates.vvipWe ?? rates.vipWe);
+  return hour < 18 ? pilih(rates.regularDay, rates.regularDayWe) : pilih(rates.regularNight, rates.regularNightWe);
 }
 
 /* ── Promo ──────────────────────────────────────────────────────── */
@@ -160,13 +176,21 @@ export type Promo = {
   maxDiscount: number;        // 0 = tanpa batas
   active: boolean;
   autoApply: boolean;         // true = happy hour, tidak perlu kode
+  /**
+   * Venue tempat promo berlaku (pemilik 14 Nov 2026). Kosong = KEDUA venue —
+   * promo yang dibuat sebelum aturan ini tetap berlaku seperti dulu.
+   */
+  venue?: Venue;
 };
+
+/** Promo ini berlaku di venue itu? Kosong di salah satu sisi = tidak dibatasi. */
+export const promoDiVenue = (p: Pick<Promo, "venue">, venue?: Venue) => !p.venue || !venue || p.venue === venue;
 
 /**
  * Hari promo mengikuti HARI OPERASIONAL (batas 02.00, PRD KK-19), bukan tanggal
  * kalender: pukul 01.00 Minggu dini hari masih "Sabtu malam" bagi tamu dan kasir.
  */
-export const businessDow = (at: number) => diWib(at - 2 * 3_600_000).getUTCDay();
+export const businessDow = (at: number) => diWib(at - BATAS_HARI_JAM * 3_600_000).getUTCDay();
 
 export function promoApplies(p: Promo, at: number, dow = businessDow(at)): boolean {
   if (!p.active) return false;
@@ -194,10 +218,12 @@ export function bestPromo(
   fnb: number,
   at = Date.now(),
   manualCode?: string,
+  venue?: Venue,
 ): { promo: Promo; discount: number } | null {
   const dow = businessDow(at);
   const pool = promos.filter(
     (p) =>
+      promoDiVenue(p, venue) &&
       promoApplies(p, at, dow) &&
       (p.autoApply || (manualCode && p.code.toUpperCase() === manualCode.toUpperCase())),
   );

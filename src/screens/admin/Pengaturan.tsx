@@ -2,15 +2,15 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "../../components/UI";
 import {
-  useAdmin, maintenanceBlockers, classOf, paketAktif, mesinEdc, priceOf, semuaItem, itemOf,
-  mejaDijual, mejaDipakai, cariMeja,
+  useAdmin, maintenanceBlockers, classOf, mesinEdc,
+  mejaDijual, mejaDipakai, cariMeja, namaMeja,
 } from "../../lib/adminStore";
 import { venueStore } from "../../lib/venueStore";
 import {
-  TABLES, SEMUA_MEJA, PAKET_SIANG, CLASS_LABEL, VENUE_LABEL, type TableType, type Venue,
+  TABLES, SEMUA_MEJA, CLASS_LABEL, VENUE_LABEL, type TableType, type Venue,
 } from "../../data/venue";
-import { useVenueAktif } from "../../lib/venueAktif";
-import { LINI, LINI_LABEL, persenLini, type Lini } from "../../lib/engine";
+import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
+import { LINI, LINI_LABEL, persenLini, PERAN_SATU_VENUE, kategoriMejaVenue, kategoriMejaDari, type Lini } from "../../lib/engine";
 
 /** Apa saja yang masuk tiap lini — ditulis di layar supaya tidak ditebak. */
 const KETERANGAN_LINI: Record<Lini, string> = {
@@ -24,11 +24,14 @@ import { LayarTamu, PilihPrinter, PrinterDapur } from "./PilihPrinter";
 import { jam } from "./AdminShell";
 import QrisPanel from "./QrisPanel";
 import { TambahBanyakAkun } from "./TambahBanyakAkun";
+import TambahMeja from "./TambahMeja";
 import { PinMassal } from "./PinMassal";
+import PaketPanel from "./PaketPanel";
+import PembaruanPanel from "./PembaruanPanel";
 import {
   suaraNyala, setSuaraNyala, bunyikan, izinNotif, mintaIzinNotif, type IzinNotif,
 } from "../../lib/notifikasi";
-import { buatKunciAlat, useLampuAlat } from "../../lib/lampuAlat";
+import { buatKunciAlat, tampilKunciAlat, useLampuAlat } from "../../lib/lampuAlat";
 
 /* Pengaturan tarif, kelas meja, akun staf & data — hanya manajer/owner (PRD §7.5).
    Perubahan tarif TIDAK mengubah booking yang sudah dibuat: harga
@@ -72,7 +75,7 @@ function MesinEdc() {
 
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+      <h2 id="atur-edc" className="scroll-mt-28 mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
         Mesin EDC di kasir
       </h2>
       <div className="rounded-xl border border-line bg-ink-2 p-3.5">
@@ -104,7 +107,7 @@ function BunyiNotif() {
 
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+      <h2 id="atur-bunyi" className="scroll-mt-28 mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
         Bunyi &amp; notifikasi perangkat ini
       </h2>
       <div className="rounded-xl border border-line bg-ink-2 p-3.5">
@@ -185,7 +188,7 @@ function LampuMeja() {
 
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+      <h2 id="atur-lampu" className="scroll-mt-28 mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
         Lampu meja — alat relay di venue
       </h2>
       <div className="rounded-xl border border-line bg-ink-2 p-3.5">
@@ -226,8 +229,9 @@ function LampuMeja() {
 
           {kunciBaru && (
             <div className="mt-2 rounded-lg border border-amber/40 bg-amber/10 p-2.5">
-              <div className="text-[10px] uppercase tracking-wider text-amber">Salin sekarang — tidak bisa dilihat lagi</div>
-              <div className="mt-1 select-all break-all font-mono text-[13px] text-cream">{kunciBaru}</div>
+              <div className="text-[10px] uppercase tracking-wider text-amber">Catat / foto sekarang — tidak bisa dilihat lagi</div>
+              <div className="mt-1 select-all break-all font-mono text-[17px] tracking-wide text-cream">{tampilKunciAlat(kunciBaru)}</div>
+              <div className="mt-1 text-[11px] text-dim">Ketik persis seperti ini di halaman pengaturan ESP32 (huruf kecil semua; tanda - boleh ikut atau tidak).</div>
               <button type="button"
                 onClick={() => { void navigator.clipboard?.writeText(kunciBaru).catch(() => { /* tanpa izin papan klip: salin manual */ }); }}
                 className="mt-2 rounded-full border border-line bg-ink px-2.5 py-1 text-[11px] text-mute hover:border-amber hover:text-amber">
@@ -263,8 +267,6 @@ function LampuMeja() {
 export default function Pengaturan() {
   const { a, dispatchA, byTable, sync, resetData, peek, terbitkanSekarang, allow } = useAdmin();
   const venue = useVenueAktif();
-  /** Paket venue yang sedang dibuka saja — dua venue, dua daftar. */
-  const paketVenue = (a.packages ?? []).filter((pk) => (pk.venue ?? "spl") === venue);
   const [confirmReset, setConfirmReset] = useState<null | boolean>(null);
   const [draft, setDraft] = useState(a.rates);
   /** Tarif yang menjadi dasar suntingan — untuk mendeteksi perubahan dari perangkat lain. */
@@ -275,27 +277,18 @@ export default function Pengaturan() {
   const [ubahPajak, setUbahPajak] = useState<
     null | { lini: Lini; key: "ppn" | "service"; dari: number; ke: number }
   >(null);
-  /** Borang tambah/ubah paket meja. */
-  const [paketForm, setPaketForm] = useState<{
-    id?: string; name: string; price: string; hours: string;
-    freeDrinks: string; lastStartHour: string;
-    venue: Venue;
-    /** Isi paket: id barang → jumlah. */
-    isi: Record<string, number>;
-  } | null>(null);
-  /** Pencarian barang di editor isi paket. */
-  const [cariIsi, setCariIsi] = useState("");
-
-  /** Tambah/kurangi satu barang di isi paket yang sedang disunting. */
-  const ubahIsi = (itemId: string, d: number) =>
-    setPaketForm((f) => f && ({
-      ...f,
-      isi: { ...f.isi, [itemId]: Math.max(0, Math.min(20, (f.isi[itemId] ?? 0) + d)) },
-    }));
   const [pilihMeja, setPilihMeja] = useState<string | null>(null);
+  /** Kategori Pengaturan yang sedang dibuka — diingat per perangkat. */
+  const [kategori, setKategori] = useState<string>(() => {
+    try { return localStorage.getItem("spl:v1:pengaturan-kategori") ?? ""; } catch { return ""; }
+  });
+  /** Isian "nama meja" untuk meja yang sedang dipilih. null = belum diubah. */
+  const [namaBaru, setNamaBaru] = useState<string | null>(null);
+  /** Formulir tambah meja. */
 
-  const same = (x: typeof draft, y: typeof draft) =>
-    x.regularDay === y.regularDay && x.regularNight === y.regularNight && x.vip === y.vip && x.vvip === y.vvip;
+  /** Delapan tarif: empat weekday + empat weekend (kosong/0 = sama dengan weekday). */
+  const KUNCI_TARIF = ["regularDay", "regularNight", "vip", "vvip", "regularDayWe", "regularNightWe", "vipWe", "vvipWe"] as const;
+  const same = (x: typeof draft, y: typeof draft) => KUNCI_TARIF.every((k) => (x[k] ?? 0) === (y[k] ?? 0));
   const dirty = !same(draft, a.rates);
   const editing = !same(draft, baseRates);
   const remoteChanged = !same(baseRates, a.rates);
@@ -312,8 +305,8 @@ export default function Pengaturan() {
   }
 
   async function save() {
-    (Object.keys(draft) as (keyof typeof draft)[]).forEach((k) => {
-      if (draft[k] !== a.rates[k]) dispatchA({ t: "setRate", key: k, value: draft[k] });
+    KUNCI_TARIF.forEach((k) => {
+      if ((draft[k] ?? 0) !== (a.rates[k] ?? 0)) dispatchA({ t: "setRate", key: k, value: draft[k] ?? 0 });
     });
     // Dibaca ulang dari mesin — layar tidak mengaku "tersimpan" untuk tarif yang ditolak.
     const after = peek().rates;
@@ -336,6 +329,28 @@ export default function Pengaturan() {
     }
   }
 
+  /** Ganti nama meja. Dikirim hanya kalau memang berubah — nama sama = aksi kosong yang ditolak mesin. */
+  function gantiNama(tableId: string, nama: string) {
+    const bersih = nama.trim().slice(0, 30);
+    if (bersih === namaMeja(a, tableId)) { setNamaBaru(null); return; }
+    const kembar = bersih && mejaDijual(a).some((t) => t.id !== tableId
+      && namaMeja(a, t.id).trim().toLowerCase() === bersih.toLowerCase());
+    if (kembar) {
+      setTableNote(`Nama "${bersih}" sudah dipakai meja lain — pilih nama lain supaya kasir dan checker tidak tertukar.`);
+      return;
+    }
+    dispatchA({ t: "setTableName", tableId, name: bersih });
+    if (namaMeja(peek(), tableId) !== (bersih || cariMeja(tableId)?.name)) {
+      setTableNote("Nama meja tidak berubah — ditolak mesin.");
+    } else {
+      setTableNote(null);
+      setNamaBaru(null);
+      void terbitkanSekarang?.();
+    }
+  }
+
+  // TAMBAH MEJA: lihat `TambahMeja` — satu formulir untuk Pengaturan dan Papan.
+
   function setKelas(tableId: string, type: TableType) {
     dispatchA({ t: "setTableClass", tableId, type });
     if (classOf(peek(), tableId) !== type) {
@@ -355,64 +370,168 @@ export default function Pengaturan() {
   /** Meja yang dikenal mesin tapi belum dijual — calon "tambah meja". */
   const mejaCadangan = SEMUA_MEJA.filter((t) => t.venue === venue && !mejaDipakai(a, t.id));
 
+  /*
+   * PENGATURAN (dirombak 14 Nov 2026, pemilik: "terlalu sulit dicek, SPL dan
+   * Smokehouse tidak ada pemisahnya").
+   *
+   * Satu KATEGORI tampil sekali waktu (menu di kiri; di HP di atas), bukan satu
+   * halaman panjang. Tiap kategori menyebut CAKUPANNYA: venue yang dipilih,
+   * kedua venue, perangkat ini, atau sistem — dan pemilih venue ada di kepala
+   * halaman, karena tarif, paket, meja, dan lampu memang berbeda per venue.
+   * Isi tiap bagian tidak diubah: bagian yang sama, tombol yang sama.
+   */
+  type Kat = "tarif" | "paket" | "meja" | "lampu" | "akun" | "bayar" | "perangkat" | "sistem";
+  const KATEGORI: { id: Kat; label: string; ket: string; cakupan: "venue" | "dua" | "perangkat" | "sistem"; boleh: boolean }[] = [
+    // Di Smokehouse isinya tinggal pajak, yang berlaku untuk kedua venue.
+    { id: "tarif", label: venue === "spl" ? "Tarif & pajak" : "Pajak", cakupan: venue === "spl" ? "venue" : "dua",
+      ket: venue === "spl" ? "Tarif sewa meja per jam (weekday & weekend) dan pemecahan PPN/service di laporan."
+        : "Pemecahan PPN/service per lini di laporan.", boleh: allow("ubahTarif") },
+    { id: "paket", label: "Paket", cakupan: "venue", ket: "Paket yang dijual di venue ini.", boleh: allow("kelolaPromo") },
+    { id: "meja", label: "Meja", cakupan: "venue", ket: "Tambah, ganti nama, hapus, kelas, dan meja rusak.", boleh: allow("kelolaMeja") },
+    { id: "lampu", label: "Lampu meja", cakupan: "venue", ket: "Alat relay lampu meja biliar.", boleh: allow("kontrolLampu") && venue === "spl" },
+    { id: "akun", label: "Akun staf", cakupan: "dua", ket: "Akun, peran, PIN, dan venue tiap karyawan.", boleh: allow("kelolaMeja") },
+    { id: "bayar", label: "Pembayaran", cakupan: "dua", ket: "Mesin EDC dan QRIS dinamis.", boleh: allow("ubahTarif") || allow("kelolaMeja") },
+    { id: "perangkat", label: "Printer & layar", cakupan: "perangkat", ket: "Printer struk, printer checker/bar, layar tamu, dan bunyi di komputer ini.", boleh: true },
+    { id: "sistem", label: "Sistem", cakupan: "sistem", ket: "Mode demo, pembaruan aplikasi, dan data.", boleh: true },
+  ];
+  const tersedia = KATEGORI.filter((k) => k.boleh);
+  const kat = tersedia.find((k) => k.id === kategori) ?? tersedia[0];
+  const pilihKat = (id: Kat) => {
+    setKategori(id);
+    try { localStorage.setItem("spl:v1:pengaturan-kategori", id); } catch { /* mode privat */ }
+    // Isi kategori baru dibaca dari atas, bukan dari posisi gulir kategori sebelumnya.
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const CAKUPAN = {
+    venue: { teks: VENUE_LABEL[venue], kelas: "border-amber/50 bg-amber/10 text-amber" },
+    dua: { teks: "Kedua venue", kelas: "border-sky-400/40 bg-sky-400/10 text-sky-300" },
+    perangkat: { teks: "Perangkat ini saja", kelas: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" },
+    sistem: { teks: "Sistem", kelas: "border-line bg-ink text-mute" },
+  } as const;
+  const grup: { judul: string; isi: typeof tersedia }[] = [
+    { judul: `Venue · ${VENUE_LABEL[venue]}`, isi: tersedia.filter((k) => k.cakupan === "venue") },
+    { judul: "Kedua venue", isi: tersedia.filter((k) => k.cakupan === "dua") },
+    { judul: "Perangkat & sistem", isi: tersedia.filter((k) => k.cakupan === "perangkat" || k.cakupan === "sistem") },
+  ].filter((g) => g.isi.length > 0);
+
   return (
-    <div className="space-y-6 pb-6">
-      {/* Printer struk: setelan PERANGKAT, bukan data venue — tiap komputer
-          kasir punya printernya sendiri. */}
-      <PilihPrinter />
+    <div className="space-y-4 pb-6">
+      {/* ── KEPALA: judul + PEMISAH VENUE ── */}
+      <section className="rounded-2xl border border-line bg-ink-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-xl uppercase tracking-wide text-cream">Pengaturan</h1>
+            <p className="text-[12px] text-mute">Pilih kategori di kiri. Label di tiap kategori menyebut untuk siapa pengaturannya berlaku.</p>
+          </div>
+          <div>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-dim">Sedang mengatur venue</div>
+            {a.me?.venue ? (
+              <span className="inline-block rounded-lg border border-amber/50 bg-amber/10 px-3 py-1.5 text-[12px] font-bold text-amber">
+                {VENUE_LABEL[a.me.venue]}
+              </span>
+            ) : (
+              <div className="inline-flex gap-0.5 rounded-xl border border-line bg-ink p-0.5" role="radiogroup" aria-label="Venue yang diatur">
+                {(["spl", "smh"] as const).map((v) => (
+                  <button key={v} role="radio" aria-checked={venue === v} onClick={() => setVenueAktif(v)}
+                    className={`min-h-[36px] rounded-lg px-4 text-[13px] font-bold ${
+                      venue === v ? "bg-amber text-ink" : "text-mute hover:text-cream"
+                    }`}>{VENUE_LABEL[v]}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
-      <PrinterDapur />
+      <div className="grid items-start gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
+        {/* ── MENU KATEGORI: kolom kiri di layar lebar, deret di atas di HP ── */}
+        <nav aria-label="Kategori pengaturan"
+          className="no-bar -mx-4 flex gap-3 overflow-x-auto px-4 lg:sticky lg:top-28 lg:mx-0 lg:block lg:space-y-4 lg:overflow-visible lg:rounded-2xl lg:border lg:border-line lg:bg-ink-2 lg:p-3">
+          {grup.map((g) => (
+            <div key={g.judul} className="shrink-0 lg:shrink">
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-dim lg:px-2">{g.judul}</div>
+              <div className="flex gap-1 lg:flex-col">
+                {g.isi.map((k) => (
+                  <button key={k.id} onClick={() => pilihKat(k.id)} aria-current={kat?.id === k.id ? "page" : undefined}
+                    className={`shrink-0 rounded-lg px-3 py-2 text-left text-[13px] font-semibold transition-colors ${
+                      kat?.id === k.id ? "bg-amber text-ink" : "border border-line bg-ink text-mute hover:text-cream lg:border-transparent lg:bg-transparent"
+                    }`}>{k.label}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
 
-      <LayarTamu />
-
-      <BunyiNotif />
-
-      {allow("ubahTarif") && <MesinEdc />}
-
-      {allow("kontrolLampu") && <LampuMeja />}
-
+        {/* ── ISI KATEGORI ── */}
+        <div className="min-w-0 space-y-6">
+          {kat && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
+              <div className="min-w-0">
+                <h2 className="font-display text-lg uppercase tracking-wide text-cream">{kat.label}</h2>
+                <p className="text-[12px] text-mute">{kat.ket}</p>
+              </div>
+              <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${CAKUPAN[kat.cakupan].kelas}`}>
+                Berlaku: {kat.id === "tarif" ? (venue === "spl" ? "tarif SPL Sport · pajak kedua venue" : "kedua venue") : CAKUPAN[kat.cakupan].teks}
+              </span>
+            </div>
+          )}
+          {kat?.id === "tarif" && (<>
       {allow("ubahTarif") && (<>
       {/* ── Tarif ────────────────────────────────────────── */}
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        {venue === "spl" ? (<>
+        <h2 id="atur-tarif" className="scroll-mt-28 mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
           Tarif per jam
         </h2>
-        <div className="space-y-2">
-          <RateField
-            label="Reguler siang" hint="11.00 – 18.00"
-            value={draft.regularDay}
-            onChange={(v) => setDraft({ ...draft, regularDay: v })}
-          />
-          <RateField
-            label="Reguler malam" hint="18.00 – tutup"
-            value={draft.regularNight}
-            onChange={(v) => setDraft({ ...draft, regularNight: v })}
-          />
-          <RateField
-            label="VIP (bebas asap rokok)" hint={`sepanjang jam · ${hitung("vip")} ruang`}
-            value={draft.vip}
-            onChange={(v) => setDraft({ ...draft, vip: v })}
-          />
-          <RateField
-            label="VVIP (boleh merokok)" hint={`sepanjang jam · ${hitung("vvip")} ruang`}
-            value={draft.vvip}
-            onChange={(v) => setDraft({ ...draft, vvip: v })}
-          />
+        {/* TARIF WEEKDAY & WEEKEND (permintaan pemilik 14 Nov 2026). Satu baris per
+            kelas, dua kolom: weekday (Senin–Jumat) dan weekend (Sabtu & Minggu,
+            menurut hari operasional — main jam 03.00 Minggu pagi masih Sabtu).
+            Kolom weekend kosong = memakai tarif weekday. */}
+        <div className="overflow-hidden rounded-2xl border border-line bg-ink-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_112px_112px] items-center gap-2 border-b border-line px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-dim">
+            <span>Kelas · jam</span><span className="text-right">Weekday</span><span className="text-right">Weekend</span>
+          </div>
+          {([
+            ["regularDay", "regularDayWe", "Reguler siang", "11.00 – 18.00"],
+            ["regularNight", "regularNightWe", "Reguler malam", "18.00 – tutup & lembur"],
+            ["vip", "vipWe", "VIP (bebas asap rokok)", `sepanjang jam · ${hitung("vip")} ruang`],
+            ["vvip", "vvipWe", "VVIP (boleh merokok)", `sepanjang jam · ${hitung("vvip")} ruang`],
+          ] as const).map(([k, kWe, label, hint]) => (
+            <div key={k} className="grid grid-cols-[minmax(0,1fr)_112px_112px] items-center gap-2 border-b border-line/60 px-3 py-2.5 last:border-b-0">
+              <div className="min-w-0">
+                <div className="truncate text-[13px] text-cream">{label}</div>
+                <div className="truncate text-[11px] text-dim">{hint}</div>
+              </div>
+              <InputTarif label={`${label} weekday`} value={draft[k]} onChange={(v) => setDraft({ ...draft, [k]: v ?? 0 })} />
+              <InputTarif label={`${label} weekend`} value={draft[kWe]} kosongBoleh placeholder={String(draft[k] || "")}
+                onChange={(v) => setDraft({ ...draft, [kWe]: v ?? 0 })} />
+            </div>
+          ))}
         </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
+          Weekend = Sabtu & Minggu (hari operasional, berganti pukul 06.00). Kosongkan kolom weekend untuk memakai
+          tarif weekday. Jam lewat tutup (lembur) memakai tarif malam.
+        </p>
 
         {/* Pratinjau — supaya tidak ada kejutan setelah disimpan */}
         <div className="mt-3 rounded-xl border border-line bg-ink-2 p-3">
-          <div className="text-[11px] uppercase tracking-wider text-dim">Pratinjau harga sesi</div>
+          <div className="text-[11px] uppercase tracking-wider text-dim">Pratinjau harga sesi · weekday / weekend</div>
           <div className="mt-1.5 space-y-1 text-[13px]">
-            <PreviewRow label="Reguler 2 jam siang" value={draft.regularDay * 2} />
-            <PreviewRow label="Reguler 2 jam malam" value={draft.regularNight * 2} />
-            <PreviewRow
-              label="Reguler 17.00–19.00 (lintas tarif)"
-              value={draft.regularDay + draft.regularNight}
-              accent
-            />
-            <PreviewRow label="VIP 3 jam" value={draft.vip * 3} />
-            <PreviewRow label="VVIP 3 jam" value={draft.vvip * 3} />
+            {([
+              ["Reguler 2 jam siang", 2 * draft.regularDay, 2 * (draft.regularDayWe || draft.regularDay)],
+              ["Reguler 2 jam malam", 2 * draft.regularNight, 2 * (draft.regularNightWe || draft.regularNight)],
+              ["Reguler 17.00–19.00 (lintas tarif)", draft.regularDay + draft.regularNight,
+                (draft.regularDayWe || draft.regularDay) + (draft.regularNightWe || draft.regularNight)],
+              ["VIP 3 jam", 3 * draft.vip, 3 * (draft.vipWe || draft.vip)],
+              ["VVIP 3 jam", 3 * draft.vvip, 3 * (draft.vvipWe || draft.vvip)],
+            ] as const).map(([l, wd, we]) => (
+              <div key={l} className="flex items-baseline justify-between gap-2">
+                <span className="text-mute">{l}</span>
+                <span className="font-serif tabular-nums text-cream">
+                  {rupiah(wd)} <span className="text-dim">/</span> <span className={we !== wd ? "text-amber" : ""}>{rupiah(we)}</span>
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -445,6 +564,13 @@ export default function Pengaturan() {
           pelanggan tidak boleh ikut berubah harganya di tengah jalan.
         </p>
 
+        </>) : (
+          <p className="rounded-xl border border-line bg-ink-2 px-3 py-3 text-[12px] leading-relaxed text-mute">
+            Smokehouse tidak memakai tarif sewa per jam — yang ditagih hanya makanan &amp; minuman, dan harganya
+            diatur di <span className="text-cream">Menu &amp; Stok</span>. Untuk tarif meja biliar, pilih
+            <span className="text-cream"> SPL Sport</span> di atas.
+          </p>
+        )}
         {/* PPN & SERVICE PER LINI USAHA (permintaan pemilik 18 Okt 2026).
             HANYA pemecahan laporan, bukan penambah harga. */}
         <div className="mt-3 rounded-xl border border-line bg-ink-2 p-3">
@@ -523,240 +649,17 @@ export default function Pengaturan() {
         </div>
       </section>
       </>)}
-
+          </>)}
+          {kat?.id === "paket" && (<>
       {allow("kelolaPromo") && (<>
-      {/* ── Paket ─────────────────────────────────── */}
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Paket {VENUE_LABEL[venue]} · {paketVenue.filter((pk) => pk.aktif !== false).length} aktif
-        </h2>
-        <p className="mb-2 text-[11px] leading-relaxed text-dim">
-          {venue === "spl" ? (<>
-            Paket SPL Sport <span className="text-cream">menggantikan tarif per jam</span> dengan harga
-            blok. Paket yang aktif langsung muncul di layar buka meja kasir dan di booking online tamu.
-          </>) : (<>
-            Paket Smokehouse <span className="text-cream">tidak punya jam main</span> — isinya makanan
-            &amp; minuman, dijual seperti satu barang di bill meja lewat layar pesan kasir.
-          </>)}{" "}
-          Keduanya boleh berisi barang; isinya memotong stok gudang dan masuk tiket dapur saat
-          diserahkan. Daftar ini hanya memuat paket {VENUE_LABEL[venue]} — venue sebelah diurus dari
-          venue-nya sendiri, lewat tombol di kanan atas.
-        </p>
-
-        {paketVenue.length === 0 && (
-          <p className="rounded-xl border border-line bg-ink-2 px-4 py-5 text-center text-[13px] text-dim">
-            Belum ada paket {VENUE_LABEL[venue]}.
-          </p>
-        )}
-
-        <div className="space-y-2">
-          {paketVenue.map((pk) => (
-            <div key={pk.id}
-              className={`rounded-xl border p-3.5 ${pk.aktif === false ? "border-line-2 bg-ink-3" : "border-line bg-ink-2"}`}>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className={`font-script text-xl leading-none ${pk.aktif === false ? "text-dim line-through" : "text-amber"}`}>
-                  {pk.name}
-                </span>
-                <span className="font-serif text-lg font-bold text-cream">{rupiah(pk.price)}</span>
-              </div>
-              <div className="mt-0.5 text-[11px] uppercase tracking-wider text-brick-lit">
-                {VENUE_LABEL[pk.venue ?? "spl"]}
-              </div>
-              <ul className="mt-1.5 space-y-0.5 text-[12px] text-mute">
-                {pk.perks.map((x) => <li key={x}>• {x}</li>)}
-                {pk.hours > 0 && <li>• Hanya meja reguler, mulai paling lambat jam {pk.lastStartHour}.00</li>}
-              </ul>
-              <div className="mt-2 flex gap-1.5">
-                <button
-                  onClick={() => setPaketForm({
-                    id: pk.id, name: pk.name, price: String(pk.price), hours: String(pk.hours),
-                    freeDrinks: String(pk.freeDrinks), lastStartHour: String(pk.lastStartHour),
-                    venue: pk.venue ?? "spl",
-                    isi: Object.fromEntries((pk.isi ?? []).map((x) => [x.itemId, x.qty])),
-                  })}
-                  className="min-h-[34px] rounded-lg border border-line px-3 text-[12px] text-mute hover:border-amber hover:text-amber">
-                  Ubah
-                </button>
-                {pk.aktif !== false && (a.packages ?? []).length > 0 && (
-                  <button onClick={() => dispatchA({ t: "removePaket", id: pk.id })}
-                    className="min-h-[34px] rounded-lg border border-line px-3 text-[12px] text-dim">
-                    Nonaktifkan
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {!paketForm ? (
-          <button
-            onClick={() => setPaketForm({
-              name: "", price: "", hours: venue === "smh" ? "0" : "2", freeDrinks: "0",
-              lastStartHour: "16", venue, isi: {},
-            })}
-            className="mt-2 min-h-[42px] w-full rounded-xl border border-amber/50 bg-amber/10 text-[13px] font-bold text-amber">
-            + Tambah paket
-          </button>
-        ) : (
-          <div className="mt-2 space-y-2 rounded-xl border border-line bg-ink-2 p-3">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
-              {paketForm.id ? "Ubah paket" : "Paket baru"}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {(["spl", "smh"] as Venue[]).map((v) => (
-                <button key={v}
-                  onClick={() => setPaketForm({
-                    ...paketForm, venue: v,
-                    // Paket Smokehouse tidak bersewa waktu; jamnya dinolkan
-                    // supaya tidak ada paket makanan yang diam-diam mengunci meja.
-                    hours: v === "smh" ? "0" : (paketForm.hours === "0" ? "2" : paketForm.hours),
-                  })}
-                  aria-pressed={paketForm.venue === v}
-                  className={`min-h-[42px] rounded-lg border text-[12px] font-semibold ${
-                    paketForm.venue === v ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink text-mute"
-                  }`}>{VENUE_LABEL[v]}</button>
-              ))}
-            </div>
-            <input value={paketForm.name} placeholder="Nama paket (mis. Paket 2 Jam)"
-              onChange={(e) => setPaketForm({ ...paketForm, name: e.target.value.slice(0, 40) })}
-              className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-[13px] text-cream placeholder:text-dim focus:border-amber focus:outline-none" />
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                ["price", "Harga (Rp)"], ["hours", "Durasi (jam)"],
-                ["freeDrinks", "Minuman gratis"], ["lastStartHour", "Mulai terakhir (jam)"],
-              ] as const).map(([k, label]) => (
-                <label key={k} className="block">
-                  <span className="mb-1 block text-[11px] text-dim">{label}</span>
-                  <input value={paketForm[k]} inputMode="numeric"
-                    onChange={(e) => setPaketForm({ ...paketForm, [k]: e.target.value.replace(/[^0-9]/g, "").slice(0, 9) })}
-                    className="min-h-[42px] w-full rounded-lg border border-line bg-ink px-2 text-right text-[13px] tabular-nums text-cream focus:border-amber focus:outline-none" />
-                </label>
-              ))}
-            </div>
-            {/* ── ISI PAKET ─────────────────────────────────────── */}
-            <div className="rounded-lg border border-line bg-ink p-2.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
-                  Isi paket · {Object.values(paketForm.isi).filter((n) => n > 0).length} barang
-                </span>
-                <span className="text-[11px] text-dim">
-                  nilai normal {rupiah(Object.entries(paketForm.isi)
-                    .reduce((n, [id, q]) => n + priceOf(a, id) * q, 0))}
-                </span>
-              </div>
-
-              {Object.entries(paketForm.isi).filter(([, q]) => q > 0).length > 0 && (
-                <ul className="mt-1.5 divide-y divide-line">
-                  {Object.entries(paketForm.isi).filter(([, q]) => q > 0).map(([id, q]) => (
-                    <li key={id} className="flex items-center gap-2 py-1 text-[12px]">
-                      <span className="min-w-0 flex-1 truncate text-cream">{itemOf(a, id)?.name ?? id}</span>
-                      <button onClick={() => ubahIsi(id, -1)}
-                        className="h-7 w-7 rounded border border-line text-mute">−</button>
-                      <span className="w-5 text-center tabular-nums text-cream">{q}</span>
-                      <button onClick={() => ubahIsi(id, 1)}
-                        className="h-7 w-7 rounded border border-line text-mute">+</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <input value={cariIsi} onChange={(e) => setCariIsi(e.target.value)}
-                placeholder="Cari barang untuk ditambahkan…"
-                className="mt-1.5 min-h-[38px] w-full rounded-lg border border-line bg-ink-2 px-3 text-[12px] text-cream placeholder:text-dim focus:border-amber focus:outline-none" />
-              {cariIsi.trim() && (
-                <div className="mt-1 max-h-40 space-y-0.5 overflow-y-auto">
-                  {semuaItem(a)
-                    .filter((it) => it.name.toLowerCase().includes(cariIsi.trim().toLowerCase()))
-                    .slice(0, 20)
-                    .map((it) => (
-                      <button key={it.id} onClick={() => { ubahIsi(it.id, 1); setCariIsi(""); }}
-                        className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[12px] hover:bg-ink-2">
-                        <span className="min-w-0 flex-1 truncate text-cream">{it.name}</span>
-                        <span className="shrink-0 tabular-nums text-dim">{rupiah(priceOf(a, it.id))}</span>
-                      </button>
-                    ))}
-                </div>
-              )}
-              <p className="mt-1.5 text-[11px] leading-snug text-dim">
-                Harga isi <span className="text-cream">sudah termasuk</span> harga paket — barisnya
-                masuk bill Rp 0. Yang tidak nol: stoknya berkurang dan tiketnya masuk dapur saat
-                paket diserahkan, bukan saat dipesan.
-              </p>
-            </div>
-
-            <p className="text-[11px] leading-snug text-dim">
-              {paketForm.venue === "smh"
-                ? "Paket Smokehouse dijual langsung ke bill meja makan — tanpa jam main, tanpa mengunci meja."
-                : "Paket SPL menggantikan tarif per jam dengan harga blok. Syaratnya ditegakkan mesin: hanya meja reguler, durasi harus sama persis, dan tidak bisa dipesan setelah jam mulai terakhir."}
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => setPaketForm(null)}
-                className="min-h-[42px] flex-1 rounded-xl border border-line text-[13px] text-mute">Batal</button>
-              <button
-                onClick={() => {
-                  const n = (x: string) => Math.round(Number(x) || 0);
-                  dispatchA({ t: "savePaket", paket: {
-                    id: paketForm.id, name: paketForm.name,
-                    price: n(paketForm.price), hours: n(paketForm.hours),
-                    freeDrinks: n(paketForm.freeDrinks), lastStartHour: n(paketForm.lastStartHour),
-                    venue: paketForm.venue,
-                    isi: Object.entries(paketForm.isi)
-                      .filter(([, q]) => q > 0).map(([itemId, qty]) => ({ itemId, qty })),
-                  } });
-                  const tersimpan = (peek().packages ?? []).some((x) =>
-                    x.name === paketForm.name.trim() && x.aktif !== false);
-                  if (!tersimpan) {
-                    setTableNote(paketForm.venue === "smh"
-                      ? "Paket ditolak — cek nama, harga, jam mulai 11–25, dan isinya."
-                      : "Paket ditolak — cek nama, durasi 1–6 jam, jam mulai 11–25, dan isinya.");
-                    return;
-                  }
-                  setPaketForm(null);
-                }}
-                className="min-h-[42px] flex-[2] rounded-xl bg-amber text-[13px] font-bold text-ink">Simpan</button>
-            </div>
-          </div>
-        )}
-      </section>
+      {/* ── Paket: lihat PaketPanel.tsx ───────────── */}
+      <div id="atur-paket" className="scroll-mt-28"><PaketPanel venue={venue} /></div>
       </>)}
-
-      {allow("bukaKunciJam") && (
+          </>)}
+          {kat?.id === "meja" && (<>
+      {allow("kelolaMeja") && (
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Mode demo
-        </h2>
-        <div className={`rounded-xl border p-3.5 ${
-          a.jamBebas ? "border-amber bg-amber/10" : "border-line bg-ink-2"
-        }`}>
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[13px] font-semibold text-cream">Buka meja 24 jam</span>
-            <span className={`text-[11px] font-bold uppercase tracking-wider ${
-              a.jamBebas ? "text-amber" : "text-dim"
-            }`}>{a.jamBebas ? "menyala" : "mati"}</span>
-          </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-mute">
-            Biasanya meja hanya bisa dibuka pukul 11.00–02.00. Nyalakan ini untuk memperagakan
-            aplikasi di luar jam itu — pagi, siang, kapan saja.
-          </p>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
-            Yang dibuka hanya jamnya. Harga, hak akses tiap peran, pemisahan SPL dan Smokehouse,
-            serta penahanan pembayaran saat internet mati tetap berlaku seperti biasa.
-            Penyalaannya tercatat di Jejak lengkap dengan nama Anda.
-          </p>
-          <button
-            onClick={() => dispatchA({ t: "setJamBebas", on: !a.jamBebas })}
-            className={`mt-2.5 min-h-[46px] w-full rounded-xl text-[13px] font-bold ${
-              a.jamBebas ? "border border-line bg-ink text-cream" : "bg-amber text-ink"
-            }`}>
-            {a.jamBebas ? "Matikan — kembali ke jam buka biasa" : "Nyalakan mode demo"}
-          </button>
-        </div>
-      </section>
-      )}
-      {allow("kelolaMeja") && (<>
-      {/* ── Meja biliar: kelas & status ──────────────────── */}
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 id="atur-meja" className="scroll-mt-28 mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
           Meja {VENUE_LABEL[venue]} · {biliar.length}
         </h2>
         <div className="mb-2 flex flex-wrap gap-3 text-[12px] text-dim">
@@ -776,7 +679,7 @@ export default function Pengaturan() {
             return (
               <button
                 key={t.id}
-                onClick={() => setPilihMeja(pilihMeja === t.id ? null : t.id)}
+                onClick={() => { setPilihMeja(pilihMeja === t.id ? null : t.id); setNamaBaru(null); }}
                 aria-pressed={pilihMeja === t.id}
                 className={`min-h-[46px] rounded-lg border text-[13px] font-semibold transition-colors ${
                   pilihMeja === t.id ? "border-amber bg-amber/15 text-amber"
@@ -786,9 +689,10 @@ export default function Pengaturan() {
                           : "border-line bg-ink-2 text-cream"
                 }`}
               >
-                {t.type === "vip" || t.type === "vvip" ? `V${t.no}` : t.no}
+                {t.type === "resto" ? <span className="block truncate px-1">{namaMeja(a, t.id)}</span>
+                  : t.type === "vip" || t.type === "vvip" ? `V${t.no}` : t.no}
                 <div className="text-[9px] font-normal uppercase tracking-wider text-dim">
-                  {kelas === "regular" ? "reg" : kelas}
+                  {kelas === "resto" ? (t.lantai ? `lantai ${t.lantai}` : "resto") : kelas === "regular" ? "reg" : kelas}
                 </div>
               </button>
             );
@@ -798,9 +702,31 @@ export default function Pengaturan() {
         {mejaTerpilih && (
           <div className="mt-2 rounded-xl border border-amber/40 bg-amber/5 p-3">
             <div className="flex items-baseline justify-between">
-              <span className="font-semibold text-cream">{mejaTerpilih.name}</span>
+              <span className="font-semibold text-cream">
+                {namaMeja(a, mejaTerpilih.id)}
+                {namaMeja(a, mejaTerpilih.id) !== mejaTerpilih.name && (
+                  <span className="ml-1.5 text-[11px] font-normal text-dim">(kode {mejaTerpilih.name})</span>
+                )}
+              </span>
               <button onClick={() => setPilihMeja(null)} className="text-[12px] text-dim">tutup</button>
             </div>
+            {/* GANTI NAMA MEJA — permintaan staf Smokehouse 14 Nov 2026 ("R01, R02
+                bisa dirubah?"). Nama baru langsung dipakai di papan, struk, dan
+                kertas checker berikutnya; kertas yang sudah tercetak tetap. */}
+            <div className="mt-2 text-[11px] uppercase tracking-wider text-dim">Nama meja</div>
+            <div className="mt-1 flex gap-1.5">
+              <input value={namaBaru ?? namaMeja(a, mejaTerpilih.id)}
+                onChange={(e) => setNamaBaru(e.target.value.slice(0, 30))}
+                onKeyDown={(e) => { if (e.key === "Enter" && namaBaru !== null) gantiNama(mejaTerpilih.id, namaBaru); }}
+                placeholder={mejaTerpilih.name} aria-label="Nama meja"
+                className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 text-[14px] text-cream focus:border-amber focus:outline-none" />
+              <button disabled={namaBaru === null || namaBaru.trim() === namaMeja(a, mejaTerpilih.id)}
+                onClick={() => namaBaru !== null && gantiNama(mejaTerpilih.id, namaBaru)}
+                className="min-h-[44px] shrink-0 rounded-lg bg-amber px-4 text-[12px] font-bold text-ink disabled:opacity-40">
+                Simpan nama
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-dim">Kosongkan lalu simpan untuk kembali ke nama bawaan ({mejaTerpilih.name}).</p>
             {mejaTerpilih.type !== "resto" && (
               <>
                 <div className="mt-2 text-[11px] uppercase tracking-wider text-dim">Kelas & tarif meja ini</div>
@@ -820,6 +746,40 @@ export default function Pengaturan() {
                 </div>
               </>
             )}
+            {/* KATEGORI MEJA SMOKEHOUSE (pemilik 15 Nov 2026): Reguler, VIP, Owner,
+                Entertain, atau kategori buatan sendiri. Owner/Entertain = compliment Rp 0. */}
+            {mejaTerpilih.venue === "smh" && (
+              <>
+                <div className="mt-2 text-[11px] uppercase tracking-wider text-dim">Kategori meja</div>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {kategoriMejaVenue(a, "smh").map((k) => {
+                    const on = kategoriMejaDari(a, mejaTerpilih.id)?.id === k.id;
+                    return (
+                      <button key={k.id} aria-pressed={on}
+                        onClick={() => {
+                          dispatchA({ t: "setKategoriMeja", tableId: mejaTerpilih.id, kategori: k.id });
+                          setTableNote(kategoriMejaDari(peek(), mejaTerpilih.id)?.id === k.id
+                            ? `${namaMeja(a, mejaTerpilih.id)} sekarang kategori ${k.nama}.`
+                            : "Kategori tidak berubah — selesaikan dulu tamu atau booking di meja ini.");
+                        }}
+                        className={`min-h-[40px] rounded-lg border px-3 text-[12px] font-semibold ${
+                          on ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink text-cream"
+                        }`}>
+                        {k.nama}
+                        {k.compliment && <span className="block text-[10px] font-normal text-sky-300">compliment · Rp 0</span>}
+                      </button>
+                    );
+                  })}
+                  {kategoriMejaVenue(a, "smh").filter((k) => !k.bawaan && !Object.values(a.mejaKategori ?? {}).includes(k.id)).map((k) => (
+                    <button key={`hapus-${k.id}`}
+                      onClick={() => { dispatchA({ t: "hapusKategoriMeja", id: k.id }); setTableNote(`Kategori ${k.nama} dihapus.`); }}
+                      className="min-h-[40px] rounded-lg border border-dashed border-line px-2 text-[11px] text-red-300"
+                      title="Kategori ini tidak dipakai meja mana pun">hapus “{k.nama}”</button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-dim">Kategori baru dibuat dari formulir “Tambah meja” di bawah. Tidak bisa diganti saat meja sedang dipakai.</p>
+              </>
+            )}
             <button
               disabled={!byTable.get(mejaTerpilih.id) && maintenanceBlockers(a, mejaTerpilih.id).length > 0}
               onClick={() => toggleTable(mejaTerpilih.id, byTable.get(mejaTerpilih.id)?.status === "maintenance")}
@@ -833,16 +793,25 @@ export default function Pengaturan() {
             <button
               disabled={maintenanceBlockers(a, mejaTerpilih.id).length > 0}
               onClick={() => {
-                if (!confirm(`Tarik ${mejaTerpilih.name} dari denah? `
-                  + `Mejanya hilang dari papan dan dari booking tamu. Riwayatnya tetap tersimpan, `
+                const nm = namaMeja(a, mejaTerpilih.id);
+                if (!confirm(`Hapus ${nm} dari denah? `
+                  + `Mejanya hilang dari papan dan dari booking tamu. Riwayat & laporannya tetap tersimpan, `
                   + `dan bisa ditambahkan lagi kapan saja.`)) return;
                 dispatchA({ t: "setMejaDipakai", tableId: mejaTerpilih.id, dipakai: false });
+                if (mejaDipakai(peek(), mejaTerpilih.id)) {
+                  setTableNote(`${nm} tidak bisa dihapus — masih ada tamu, pesanan, atau booking di meja itu.`);
+                  return;
+                }
+                setTableNote(`${nm} dihapus dari denah.`);
                 setPilihMeja(null);
                 void terbitkanSekarang?.();
               }}
-              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-line px-3 text-[12px] text-dim disabled:opacity-40">
-              Tarik meja ini dari denah
+              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-red-500/40 px-3 text-[12px] text-red-300 disabled:opacity-40">
+              Hapus meja ini dari denah
             </button>
+            {maintenanceBlockers(a, mejaTerpilih.id).length > 0 && (
+              <p className="mt-1 text-[11px] text-dim">Belum bisa dihapus: masih ada tamu, pesanan, atau booking di meja ini.</p>
+            )}
           </div>
         )}
         {/* TAMBAH MEJA (permintaan pemilik 21 Okt 2026). Mejanya diambil dari
@@ -857,52 +826,88 @@ export default function Pengaturan() {
             <p className="mt-1.5 text-[12px] text-dim">
               Semua meja yang dikenal mesin sudah dipakai di venue ini.
             </p>
-          ) : (<>
-            <p className="mt-1 text-[11px] leading-relaxed text-dim">
-              Ketuk untuk memakainya. Langsung muncul di papan kasir dan di booking tamu;
-              namanya bisa diganti sesudahnya lewat “ubah nomor” di papan.
-            </p>
-            <div className="mt-2 grid grid-cols-5 gap-1.5 sm:grid-cols-8">
-              {mejaCadangan.map((t) => (
-                <button key={t.id}
-                  onClick={() => {
-                    dispatchA({ t: "setMejaDipakai", tableId: t.id, dipakai: true });
-                    setPilihMeja(t.id);
-                    void terbitkanSekarang?.();
-                  }}
-                  className="min-h-[44px] rounded-lg border border-dashed border-line-2 bg-ink
-                    text-[13px] font-semibold text-dim hover:border-amber hover:text-amber">
-                  {t.name}
-                  {t.lantai === 2 && (
-                    <div className="text-[9px] font-normal uppercase tracking-wider">lantai 2</div>
-                  )}
-                </button>
-              ))}
+          ) : (
+            <div className="mt-2">
+              {/* FORMULIR YANG SAMA dengan "+ Meja" di Papan (pemilik 15 Nov 2026):
+                  pilih lantai (Smokehouse) atau kelas (SPL), beri nama, tambah. */}
+              <TambahMeja key={venue} venue={venue} onSelesai={(pesan, id) => {
+                setTableNote(`${pesan} Juga bisa langsung dari Papan lewat kotak "+ Meja" di ujung tiap lantai.`);
+                setPilihMeja(id);
+                setNamaBaru(null);
+              }} />
             </div>
-          </>)}
+          )}
         </div>
 
         {tableNote && <p role="status" className="mt-2 text-[12px] text-amber">{tableNote}</p>}
         <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Ketuk meja untuk mengatur kelasnya (Reguler / VIP bebas asap rokok / VVIP boleh merokok) atau menandainya rusak.
+          Ketuk meja untuk mengganti namanya, menghapusnya, mengatur kelasnya (Reguler / VIP bebas asap rokok / VVIP boleh merokok), atau menandainya rusak.
           Kelas menentukan tarif per jam meja itu. Meja yang sedang dipakai atau sudah dibooking tidak bisa
           berpindah kelas — harga sudah terlanjur disepakati tamu.
         </p>
       </section>
-
-      {/* ── Akun staf ────────────────────────────────────── */}
-      <AkunStaf />
-      </>)}
-
+      )}
+          </>)}
+          {kat?.id === "lampu" && (<>
+      {allow("kontrolLampu") && <LampuMeja />}
+          </>)}
+          {kat?.id === "akun" && (<>
+      {allow("kelolaMeja") && <AkunStaf />}
+          </>)}
+          {kat?.id === "bayar" && (<>
+      {allow("ubahTarif") && <MesinEdc />}
       {allow("kelolaMeja") && (<>
       {/* ── QRIS dinamis ─────────────────────────────────── */}
-      <QrisPanel />
+      <div id="atur-qris" className="scroll-mt-28"><QrisPanel /></div>
       </>)}
-
+          </>)}
+          {kat?.id === "perangkat" && (<>
+      {/* Printer struk: setelan PERANGKAT, bukan data venue — tiap komputer
+          kasir punya printernya sendiri. */}
+      <div id="atur-printer" className="scroll-mt-28"><PilihPrinter /></div>
+      <PrinterDapur />
+      <div id="atur-layar" className="scroll-mt-28"><LayarTamu /></div>
+      <BunyiNotif />
+          </>)}
+          {kat?.id === "sistem" && (<>
+      {allow("bukaKunciJam") && (
+      <section>
+        <h2 id="atur-demo" className="scroll-mt-28 mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
+          Mode demo
+        </h2>
+        <div className={`rounded-xl border p-3.5 ${
+          a.jamBebas ? "border-amber bg-amber/10" : "border-line bg-ink-2"
+        }`}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[13px] font-semibold text-cream">Buka meja 24 jam</span>
+            <span className={`text-[11px] font-bold uppercase tracking-wider ${
+              a.jamBebas ? "text-amber" : "text-dim"
+            }`}>{a.jamBebas ? "menyala" : "mati"}</span>
+          </div>
+          <p className="mt-1 text-[12px] leading-relaxed text-mute">
+            Tamu hanya bisa booking & pesan dari HP pukul 11.00–06.00; kasir tetap bisa membuka meja di luar jam itu selama shift buka (lembur). Nyalakan ini untuk memperagakan
+            aplikasi di luar jam itu — pagi, siang, kapan saja.
+          </p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
+            Yang dibuka hanya jamnya. Harga, hak akses tiap peran, pemisahan SPL dan Smokehouse,
+            serta penahanan pembayaran saat internet mati tetap berlaku seperti biasa.
+            Penyalaannya tercatat di Jejak lengkap dengan nama Anda.
+          </p>
+          <button
+            onClick={() => dispatchA({ t: "setJamBebas", on: !a.jamBebas })}
+            className={`mt-2.5 min-h-[46px] w-full rounded-xl text-[13px] font-bold ${
+              a.jamBebas ? "border border-line bg-ink text-cream" : "bg-amber text-ink"
+            }`}>
+            {a.jamBebas ? "Matikan — kembali ke jam buka biasa" : "Nyalakan mode demo"}
+          </button>
+        </div>
+      </section>
+      )}
+      <div id="atur-pembaruan" className="scroll-mt-28"><PembaruanPanel /></div>
       {allow("kelolaMeja") && (<>
       {/* ── Data simulasi ────────────────────────────────── */}
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 id="atur-data" className="scroll-mt-28 mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
           Data &amp; sinkronisasi
         </h2>
         <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
@@ -962,7 +967,9 @@ export default function Pengaturan() {
         )}
       </section>
       </>)}
-
+          </>)}
+        </div>
+      </div>
     </div>
   );
 }
@@ -981,6 +988,7 @@ function AkunStaf() {
     simpanPinStaf?: (e: { id: string; name: string; role: string; pin?: string; active: boolean; nip?: string; venue?: string }) => Promise<{ alasan: string | null; nip?: string }>;
     daftarNip?: () => Promise<Record<string, { nip: string | null; terkunci: boolean }>>;
     hapusPinStaf?: (id: string) => Promise<string | null>;
+    daftarStafServer?: () => Promise<{ id: string; nama: string; peran: string; aktif: boolean }[]>;
     tautkanEmail?: (staffId: string, email: string) => Promise<string | null>;
     daftarGmail?: () => Promise<Record<string, boolean>>;
   };
@@ -991,6 +999,16 @@ function AkunStaf() {
   /** NIP dan status kunci menurut server. Akun lama hanya punya NIP di sana. */
   const [dataNip, setDataNip] = useState<Record<string, { nip: string | null; terkunci: boolean }>>({});
   const muatNip = () => { void store.daftarNip?.().then(setDataNip); };
+  /**
+   * AKUN SERVER YANG TIDAK DIKENAL MESIN. Server mencatat pelaku tiap kejadian
+   * dengan id di tabel stafnya; kalau id itu tidak ada di daftar staf aplikasi,
+   * semua aksinya ditolak saat jejak diputar ulang (penyebab "tambah meja" dan
+   * "ganti nama meja" hilang, 14 Nov 2026). Tombol "Catat" menyalinnya ke sini.
+   */
+  const [stafServer, setStafServer] = useState<{ id: string; nama: string; peran: string; aktif: boolean }[]>([]);
+  const muatServer = () => { void store.daftarStafServer?.().then(setStafServer); };
+  const belumTercatat = stafServer.filter((x) => x.aktif && !a.employees.some((e) => e.id === x.id)
+    && (ROLES as string[]).includes(x.peran));
   /** Akun yang PIN-nya sedang diatur ulang. */
   const [ulangPin, setUlangPin] = useState<{ id: string; pin: string } | null>(null);
   const [banyak, setBanyak] = useState(false);
@@ -1008,7 +1026,7 @@ function AkunStaf() {
   /** Siapa yang Gmail-nya sudah terbukti lewat masuk Google. */
   const [terbukti, setTerbukti] = useState<Record<string, boolean>>({});
 
-  useEffect(() => { void store.daftarGmail?.().then(setTerbukti); muatNip(); }, [store]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void store.daftarGmail?.().then(setTerbukti); muatNip(); muatServer(); }, [store]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const flash = (t: string) => { setPesan(t); setTimeout(() => setPesan(null), 4000); };
   const superaktif = a.employees.filter((e) => e.active && e.role === "superadmin").length;
@@ -1079,9 +1097,36 @@ function AkunStaf() {
 
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+      <h2 id="atur-akun" className="scroll-mt-28 mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
         Akun staf · {a.employees.length} ({superaktif} superadmin aktif)
       </h2>
+      {belumTercatat.length > 0 && (
+        <div role="alert" className="mb-2 rounded-xl border border-red-500/50 bg-red-500/10 p-3">
+          <p className="text-[12px] leading-snug text-red-300">
+            <span className="font-semibold">{belumTercatat.length} akun ada di server tapi belum tercatat di aplikasi.</span>{" "}
+            Perubahan dari akun ini (mis. tambah meja) ditolak server sampai dicatat.
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {belumTercatat.map((x) => (
+              <div key={x.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-[13px] text-cream">
+                  {x.nama} <span className="text-[11px] text-dim">· {ROLE_LABEL[x.peran as Role] ?? x.peran}</span>
+                </span>
+                <button
+                  onClick={() => {
+                    dispatchA({ t: "saveEmployee", emp: { id: x.id, name: x.nama, pin: "", role: x.peran as Role, active: true } });
+                    flash(peek().employees.some((e) => e.id === x.id)
+                      ? `Akun ${x.nama} tercatat. Atur venue-nya kalau perlu.`
+                      : `Akun ${x.nama} tidak bisa dicatat — periksa nama/NIP.`);
+                  }}
+                  className="min-h-[36px] shrink-0 rounded-lg bg-amber px-3 text-[12px] font-bold text-ink">
+                  Catat
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
         {urutStaf(a.employees).map((e, i, arr) => (
           <Fragment key={e.id}>
@@ -1103,6 +1148,12 @@ function AkunStaf() {
               <div className="text-[11px] text-dim">
                 NIP {dataNip[e.id]?.nip ?? e.nip ?? "belum ada"} · {ROLE_LABEL[e.role]} · {e.venue ? VENUE_LABEL[e.venue] : "kedua venue"}
               </div>
+              {/* Kasir & waiter bekerja di SATU venue (pemilik 14 Nov 2026). */}
+              {!e.venue && PERAN_SATU_VENUE.includes(e.role) && (
+                <p className="text-[11px] font-semibold text-red-300">
+                  {ROLE_LABEL[e.role]} harus memilih SPL Sport atau Smokehouse — sekarang bisa membuka shift di kedua venue.
+                </p>
+              )}
               {dataNip[e.id]?.terkunci && (
                 <p className="text-[11px] text-amber">Akun terkunci karena PIN salah. Atur ulang PIN untuk membukanya.</p>
               )}
@@ -1136,7 +1187,11 @@ function AkunStaf() {
             </div>
             <select
               value={e.role} aria-label={`Peran ${e.name}`}
-              onChange={(ev) => simpan({ ...e, role: ev.target.value as Role })}
+              onChange={(ev) => {
+                const role = ev.target.value as Role;
+                // Kasir/waiter tanpa venue: langsung diikat ke venue yang sedang dibuka.
+                simpan(!e.venue && PERAN_SATU_VENUE.includes(role) ? { ...e, role, venue: venueAktif } : { ...e, role });
+              }}
               className="min-h-[36px] shrink-0 rounded-lg border border-line bg-ink px-2 text-[11px] text-cream">
               {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
               {e.role === "karyawan" && <option value="karyawan">{ROLE_LABEL.karyawan}</option>}
@@ -1151,7 +1206,7 @@ function AkunStaf() {
               className="min-h-[36px] shrink-0 rounded-lg border border-line bg-ink px-2 text-[11px] text-cream">
               <option value="spl">{VENUE_LABEL.spl}</option>
               <option value="smh">{VENUE_LABEL.smh}</option>
-              <option value="">Keduanya</option>
+              {(!PERAN_SATU_VENUE.includes(e.role) || !e.venue) && <option value="">Keduanya</option>}
             </select>
             <button
               onClick={() => simpan({ ...e, active: !e.active })}
@@ -1193,7 +1248,8 @@ function AkunStaf() {
             className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-sm tracking-[0.3em] text-cream placeholder:tracking-normal placeholder:text-dim" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ROLES.map((r) => (
-              <button key={r} onClick={() => setForm({ ...form, role: r })} aria-pressed={form.role === r}
+              <button key={r} aria-pressed={form.role === r}
+                onClick={() => setForm({ ...form, role: r, ...(PERAN_SATU_VENUE.includes(r) && !form.venue ? { venue: venueAktif } : {}) })}
                 className={`min-h-[44px] rounded-lg border px-1 text-[12px] leading-tight ${
                   form.role === r ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink text-cream"
                 }`}>{ROLE_LABEL[r]}</button>
@@ -1201,9 +1257,10 @@ function AkunStaf() {
           </div>
           <div className="grid grid-cols-3 gap-2">
             {([["spl", VENUE_LABEL.spl], ["smh", VENUE_LABEL.smh], ["", "Keduanya"]] as const).map(([v, label]) => (
-              <button key={v || "dua"} onClick={() => setForm({ ...form, venue: (v || undefined) as Venue | undefined })}
+              <button key={v || "dua"} disabled={!v && PERAN_SATU_VENUE.includes(form.role)}
+                onClick={() => setForm({ ...form, venue: (v || undefined) as Venue | undefined })}
                 aria-pressed={(form.venue ?? "") === v}
-                className={`min-h-[44px] rounded-lg border px-1 text-[12px] leading-tight ${
+                className={`min-h-[44px] rounded-lg border px-1 text-[12px] leading-tight disabled:opacity-35 ${
                   (form.venue ?? "") === v ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink text-cream"
                 }`}>{label}</button>
             ))}
@@ -1274,6 +1331,23 @@ function InfoRow({ k, v, bad }: { k: string; v: string; bad?: boolean }) {
     <div className="flex items-start justify-between gap-3 px-3 py-2.5">
       <span className="shrink-0 text-[12px] text-dim">{k}</span>
       <span className={`text-right text-[12px] ${bad ? "text-red-300" : "text-cream"}`}>{v}</span>
+    </div>
+  );
+}
+
+/** Satu kolom tarif. `kosongBoleh` = boleh dikosongkan (tarif weekend → ikut weekday). */
+function InputTarif({ label, value, onChange, kosongBoleh, placeholder }: {
+  label: string; value?: number; onChange: (v: number | undefined) => void; kosongBoleh?: boolean; placeholder?: string;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <span className="text-[11px] text-dim">Rp</span>
+      <input
+        type="number" inputMode="numeric" min={0} step={1000} value={value ? value : kosongBoleh ? "" : 0}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value === "" && kosongBoleh ? undefined : Math.max(0, Number(e.target.value) || 0))}
+        aria-label={`Tarif ${label}`}
+        className="w-[88px] rounded-lg border border-line bg-ink px-2 py-1.5 text-right font-serif text-[15px] tabular-nums text-cream placeholder:text-dim/60 focus:border-amber focus:outline-none" />
     </div>
   );
 }

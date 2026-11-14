@@ -9,6 +9,13 @@ import { CLOSE_HOUR, OPEN_HOUR } from "../data/venue";
 
 export const HOUR_MS = 3_600_000;
 
+/**
+ * Jam pergantian HARI OPERASIONAL: 06.00 (keputusan pemilik 14 Nov 2026,
+ * sebelumnya 02.00). Main pukul 04.00 Minggu pagi masih "Sabtu malam" — untuk
+ * rekap, promo, tarif weekend, dan tutup buku.
+ */
+export const BATAS_HARI_JAM = 6;
+
 /* ═════════════════════════════════════════════════════════════════
    VENUE JALAN DI WIB — BUKAN DI ZONA PERANGKAT
 
@@ -98,15 +105,15 @@ export function slotStart(dateISO: string, hour: number): number {
   return dariWib(y, m, d, hour);
 }
 
-/** Tanggal operasional sebuah timestamp — batas hari jam 02.00 (PRD KK-19). */
+/** Tanggal operasional sebuah timestamp — batas hari pukul 06.00 (`BATAS_HARI_JAM`). */
 export function businessDateOf(ts: number): string {
-  return tanggalWib(ts - 2 * HOUR_MS);
+  return tanggalWib(ts - BATAS_HARI_JAM * HOUR_MS);
 }
 
 /** Jam operasional sekarang dalam indeks 11..25. Di luar jam buka → null. */
 export function currentHourIndex(now = Date.now()): number | null {
   const h = diWib(now).getUTCHours();
-  const idx = h < 2 ? h + 24 : h;
+  const idx = h < BATAS_HARI_JAM ? h + 24 : h;
   return idx >= OPEN_HOUR && idx < CLOSE_HOUR ? idx : null;
 }
 

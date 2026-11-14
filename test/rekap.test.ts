@@ -302,7 +302,7 @@ console.log("\n-- Paket meja bisa ditambah pemilik, syaratnya tetap dijaga mesin
   t("durasi beda: ditolak dan disebutkan lamanya",
     slot(pk.id, 2, 18), "Paket Malam lamanya 3 jam");
   t("mulai lewat batas: ditolak dan disebutkan batasnya",
-    slot(pk.id, 3, 21), "Paket Malam paling lambat mulai jam 20.00");
+    slot(pk.id, 3, 21), "Paket Malam berlaku 11.00–23.00 (mulai paling lambat 20.00)");
   t("paket karangan: ditolak", slot("paket-hantu", 3, 18), "paket tidak tersedia");
 
   // Dinonaktifkan: tidak bisa dipesan lagi, TAPI sesi lama tetap terbaca.
@@ -1146,16 +1146,16 @@ console.log("\n-- Syarat paket: satu aturan untuk booking & kasir --");
 {
   const st = replay(dunia().genesis, dunia().entries);
   t("meja reguler, 2 jam, jam 13: boleh",
-    paketProblem(st, "siang", { kelas: "regular", hours: 2, startH: 13 }), null);
+    paketProblem(st, "siang", { kelas: "regular", hours: 2, startH: 13, startsAt: Date.now() }), null);
   t("meja VIP: ditolak dengan alasannya",
-    paketProblem(st, "siang", { kelas: "vip", hours: 2, startH: 13 }),
+    paketProblem(st, "siang", { kelas: "vip", hours: 2, startH: 13, startsAt: Date.now() }),
     "Paket Siang hanya untuk meja reguler");
   t("lama tidak cocok: ditolak",
-    paketProblem(st, "siang", { kelas: "regular", hours: 3, startH: 13 }),
+    paketProblem(st, "siang", { kelas: "regular", hours: 3, startH: 13, startsAt: Date.now() }),
     "Paket Siang lamanya 2 jam");
   t("lewat batas jam mulai: ditolak",
-    paketProblem(st, "siang", { kelas: "regular", hours: 2, startH: 17 }),
-    "Paket Siang paling lambat mulai jam 16.00");
+    paketProblem(st, "siang", { kelas: "regular", hours: 2, startH: 17, startsAt: Date.now() }),
+    "Paket Siang berlaku 11.00–18.00 (mulai paling lambat 16.00)");
 }
 
 
@@ -1329,8 +1329,14 @@ console.log("\n-- Mode demo: membuka JAM saja (23 Okt 2026) --");
   {
     const d = pagiHari();
     d.push(jam(PAGI), { t: "walkin", tableId: "T30", guest: "Andi" });
-    t("pagi hari, mode demo mati: meja tidak bisa dibuka",
-      replay(d.genesis, d.entries).sessions.some((x) => x.tableId === "T30"), false);
+    /* Aturan 14 Nov 2026: di luar jam resmi KASIR tetap boleh membuka meja selama
+       shift venue buka — ditandai LEMBUR. Yang tetap tertutup: tamu (booking online). */
+    const st = replay(d.genesis, d.entries);
+    const sesi = st.sessions.find((x) => x.tableId === "T30");
+    t("pagi hari, shift buka, mode demo mati: kasir membuka meja sebagai lembur", !!sesi?.lembur, true);
+    t("lemburnya tercatat di jejak", st.log.some((l) => l.what.includes("LEMBUR")), true);
+    t("tamu tetap tidak bisa booking online pagi hari",
+      !!slotProblem(st, { tableId: "T33", startsAt: jam(PAGI + 1), hours: 1 }, jam(PAGI), true), true);
   }
 
   {
@@ -1348,8 +1354,8 @@ console.log("\n-- Mode demo: membuka JAM saja (23 Okt 2026) --");
 
     d.push(jam(PAGI, 30), { t: "setJamBebas", on: false });
     d.push(jam(PAGI, 31), { t: "walkin", tableId: "T32", guest: "Budi" });
-    t("dimatikan lagi: pagar jam berlaku lagi",
-      replay(d.genesis, d.entries).sessions.some((x) => x.tableId === "T32"), false);
+    t("dimatikan lagi: kasir tetap bisa lembur selama shift buka",
+      !!replay(d.genesis, d.entries).sessions.find((x) => x.tableId === "T32")?.lembur, true);
   }
 
   // YANG TIDAK IKUT LONGGAR.

@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Mark } from "../../components/UI";
 import { Ball } from "../../components/motion/Billiard";
-import { useAdmin, recap, businessDateOf, siapDiantar, shiftDi } from "../../lib/adminStore";
-import { can, ROLE_LABEL, type Permission, type Role } from "../../data/staff";
+import { useAdmin, recap, businessDateOf, venueTiket, shiftDi } from "../../lib/adminStore";
+import { can, EMPLOYEES, ROLE_LABEL, type Permission, type Role } from "../../data/staff";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
 import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
 import { fmtDateLong, rupiah } from "../../lib/core";
 import { usePantauKabar } from "../../lib/pantauKabar";
 import { usePantauCetak } from "../../lib/pantauCetak";
+import { SpandukPembaruan } from "./PembaruanPanel";
 import { masukDenganGoogle, memberMungkin, selesaikanGoogleStaf } from "../../lib/member";
 
 /* Login per KARYAWAN (bukan per peran) supaya setiap tindakan punya nama
@@ -67,34 +68,37 @@ const writeLock = (x: PinLock) => { try { window.localStorage.setItem(K_PINLOCK,
 const TABS: {
   to: string; label: string; end?: boolean;
   izin?: Permission; roles?: readonly Role[];
+  /** Kelompok menu — dipisah garis tipis di bilah atas (perapian 14 Nov 2026). */
+  grup?: string;
 }[] = [
-  { to: "/admin", label: "Papan", end: true, izin: "bukaMeja" },
-  { to: "/admin/kasir", label: "Kasir", izin: "tutupTab" },
-  { to: "/admin/dapur", label: "Dapur", roles: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "waiter", "karyawan"] },
-  // ANTAR duduk tepat sesudah Dapur, karena itu urutan kerjanya: dapur
-  // menandai matang, pramusaji mengambil dan mengantar. Perannya sama dengan
-  // Dapur — siapa pun yang di lantai boleh melihatnya.
-  { to: "/admin/antar", label: "Antar", roles: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "waiter", "karyawan"] },
-  { to: "/admin/menu", label: "Menu & Stok", izin: "kelolaStok" },
-  { to: "/admin/gudang", label: "Gudang", izin: "kelolaStok" },
-  { to: "/admin/void", label: "Void", izin: "ajukanVoid" },
+  { to: "/admin", label: "Papan", end: true, izin: "bukaMeja", grup: "Lantai" },
+  { to: "/admin/kasir", label: "Kasir", izin: "tutupTab", grup: "Lantai" },
+  // CHECKER menggantikan layar Dapur dan Antar (permintaan pemilik 14 Nov
+  // 2026: dapur tidak memakai monitor). Pesanan keluar di printer checker,
+  // checker menutupnya saat hidangan diantar. Alamatnya tetap /admin/dapur
+  // supaya pintasan lama di komputer dapur tidak putus; /admin/antar
+  // diarahkan ke sini juga (lihat App.tsx).
+  { to: "/admin/dapur", label: "Checker", roles: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "waiter", "karyawan"], grup: "Lantai" },
+  { to: "/admin/menu", label: "Menu & Stok", izin: "kelolaStok", grup: "Stok" },
+  { to: "/admin/gudang", label: "Gudang", izin: "kelolaStok", grup: "Stok" },
+  { to: "/admin/void", label: "Void", izin: "ajukanVoid", grup: "Kasir" },
   // Buka/tutup shift sengaja tidak berizin di mesin: hampir semua aksi uang
   // menuntut shift terbuka, jadi yang bekerja di lantai harus bisa membukanya.
-  { to: "/admin/shift", label: "Shift", roles: ["superadmin", "manager", "kru_kasir", "karyawan"] },
+  { to: "/admin/shift", label: "Shift", roles: ["superadmin", "manager", "kru_kasir", "karyawan"], grup: "Kasir" },
   // Absen dipakai SEMUA karyawan — identitasnya dari PIN masing-masing.
-  { to: "/admin/absen", label: "Absen" },
-  { to: "/admin/promo", label: "Promo", izin: "kelolaPromo" },
-  { to: "/admin/pelanggan", label: "Pelanggan", roles: ["superadmin", "manager"] },
+  { to: "/admin/absen", label: "Absen", grup: "Kasir" },
+  { to: "/admin/promo", label: "Promo", izin: "kelolaPromo", grup: "Tamu" },
+  { to: "/admin/pelanggan", label: "Pelanggan", roles: ["superadmin", "manager"], grup: "Tamu" },
   // Karyawan boleh mengirim pemberitahuan booking; blast promo di dalamnya
   // tetap dikunci lewat izin kelolaPromo.
-  { to: "/admin/pesan", label: "Pesan", roles: ["superadmin", "manager", "kru_kasir", "karyawan"] },
-  { to: "/admin/rekap", label: "Rekap", izin: "lihatRekapPenjualan" },
+  { to: "/admin/pesan", label: "Pesan", roles: ["superadmin", "manager", "kru_kasir", "karyawan"], grup: "Tamu" },
+  { to: "/admin/rekap", label: "Rekap", izin: "lihatRekapPenjualan", grup: "Laporan" },
   // Jejak dipisah dari Rekap (permintaan pemilik 21 Okt 2026): Rekap untuk
   // uang, Jejak untuk siapa melakukan apa.
-  { to: "/admin/jejak", label: "Jejak", izin: "lihatJejak" },
+  { to: "/admin/jejak", label: "Jejak", izin: "lihatJejak", grup: "Laporan" },
   // Atur memuat beberapa bagian dengan izin berbeda (tarif, meja, akun staf).
   // Finance ikut masuk untuk mengatur harga; isinya dipagari sendiri-sendiri.
-  { to: "/admin/atur", label: "Atur", roles: ["superadmin", "manager", "finance"] },
+  { to: "/admin/atur", label: "Pengaturan", roles: ["superadmin", "manager", "finance"], grup: "Pengaturan" },
 ];
 
 /** Boleh membuka tab ini? Dipakai untuk daftar tab DAN untuk alamat langsung. */
@@ -187,7 +191,8 @@ export default function AdminShell() {
 
   const r = recap(a, undefined, venue);
   /** Hidangan matang yang masih menunggu pramusaji — nomor di tab Antar. */
-  const menungguAntar = siapDiantar(a, venue).reduce((n, t) => n + t.qty, 0);
+  /** Porsi di checker yang belum diantar — KEDUA venue, sama dengan layar Checker gabungan. */
+  const menungguAntar = a.tickets.filter((t) => t.status !== "served").reduce((n, t) => n + t.qty, 0);
   const lockedFor = Math.max(0, Math.ceil((lock.until - Date.now()) / 1000));
   // Hitung mundur kunci PIN.
   useEffect(() => {
@@ -458,16 +463,27 @@ export default function AdminShell() {
   // Menyembunyikan tab tidak cukup: halaman laporan uang juga bisa dibuka lewat alamat langsung.
   const current = TABS.find((t) => !t.end && (path === t.to || path.startsWith(`${t.to}/`)));
   const terlarang = !!current && !bolehTab(current, role);
+  // Peran tanpa Papan (Kru Kitchen, Kru Gudang, Finance) langsung dibawa ke
+  // tab pertamanya — Kru Kitchen ke Checker, lalu Menu & Stok dan Gudang.
+  const papan = TABS[0];
+  if ((path === "/admin" || path === "/admin/") && !bolehTab(papan, role) && tabs.length > 0) {
+    return <Navigate to={tabs[0].to} replace />;
+  }
   // Karyawan lain yang login saat shift orang lain masih buka: uangnya masuk laci shift itu.
   const shiftOrangLain = !!shiftIni && shiftIni.employeeId !== a.me.id;
   // Data contoh dibuat relatif terhadap jam saat pertama dibuka; kalau hari
   // operasional sudah berganti, papan berisi tamu fiktif yang jamnya sudah lewat.
   const seedBasi = sync.genesis.seed && businessDateOf(sync.genesis.at) < businessDateOf(Date.now());
+  /* PAPAN & CHECKER MEMAKAI LEBAR LAYAR PENUH (panduan UI/UX pemilik 15 Nov
+     2026, "komposisi UI kiri kanan"): di komputer kasir denah meja dan kolom
+     checker tidak lagi terjepit di tengah. Layar lain tetap selebar bacaan. */
+  const lebarHalaman = path === "/admin" || path === "/admin/" || path === "/admin/dapur"
+    ? "max-w-3xl lg:max-w-none" : "max-w-3xl lg:max-w-6xl";
 
   return (
     <div className="min-h-screen bg-ink pb-20">
       <header className="safe-t sticky top-0 z-30 border-b border-line bg-ink/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-3xl lg:max-w-6xl items-center gap-3 px-4 py-2.5">
+        <div className={`mx-auto flex ${lebarHalaman} items-center gap-3 px-4 py-2.5 lg:px-6`}>
           <span className="text-amber"><Mark size={26} /></span>
           <div className="min-w-0 flex-1 leading-none">
             <div className="truncate font-display text-sm uppercase tracking-[0.14em] text-cream">
@@ -513,12 +529,17 @@ export default function AdminShell() {
           >Kunci</button>
         </div>
 
-        <div className="no-bar mx-auto flex max-w-3xl lg:max-w-6xl gap-1 overflow-x-auto px-4 pb-2">
-          {tabs.map((t) => (
-            <NavLink key={t.to} to={t.to} end={t.end}
+        {/* MENU ATAS — dikelompokkan (Lantai · Stok · Kasir · Tamu · Laporan · Atur)
+            dengan garis tipis di antaranya. Urutan & isinya tidak berubah. */}
+        <div className={`no-bar mx-auto flex ${lebarHalaman} items-center gap-1 overflow-x-auto px-4 pb-2 lg:px-6`}>
+          {tabs.map((t, i) => (<Fragment key={t.to}>
+            {i > 0 && tabs[i - 1].grup !== t.grup && (
+              <span className="mx-1 h-5 w-px shrink-0 bg-line-2" aria-hidden="true" />
+            )}
+            <NavLink to={t.to} end={t.end} title={t.grup}
               className={({ isActive }) =>
-                `relative shrink-0 rounded-lg px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-                  isActive ? "bg-amber text-ink" : "bg-ink-2 text-mute hover:text-cream"
+                `relative shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+                  isActive ? "bg-amber text-ink shadow-sm" : "text-mute hover:bg-ink-2 hover:text-cream"
                 }`
               }>
               {t.label}
@@ -529,7 +550,7 @@ export default function AdminShell() {
               )}
               {/* Biru, bukan merah: ini bukan masalah, ini pekerjaan yang
                   menunggu dikerjakan. */}
-              {t.label === "Antar" && menungguAntar > 0 && (
+              {t.label === "Checker" && menungguAntar > 0 && (
                 <span className="ml-1.5 rounded-full bg-blue-400/80 px-1.5 text-[10px] text-ink">
                   {menungguAntar}
                 </span>
@@ -540,11 +561,11 @@ export default function AdminShell() {
                 </span>
               )}
             </NavLink>
-          ))}
+          </Fragment>))}
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl lg:max-w-6xl px-4 pt-4">
+      <div className={`mx-auto ${lebarHalaman} px-4 pt-4 lg:px-6`}>
         {/* Tombolnya ada di spanduknya sendiri. Perangkat memang mencoba
             sendiri (mundur berlipat sampai 30 detik, dan seketika saat
             peramban melaporkan jaringan kembali), tapi di kasir yang sedang
@@ -569,7 +590,7 @@ export default function AdminShell() {
           <p role="status"
             className="mb-3 rounded-xl border border-amber bg-amber/15 px-4 py-2 text-center text-[12px] font-semibold text-amber">
             Mode demo menyala — meja bisa dibuka kapan saja, di luar jam buka sekalipun.
-            Jangan lupa dimatikan lagi di tab Atur.
+            Jangan lupa dimatikan lagi di Pengaturan.
           </p>
         )}
         {sync.mode === "server" && sync.sesiHabis ? (
@@ -631,18 +652,32 @@ export default function AdminShell() {
             {sync.problem}
           </p>
         )}
+        {/* AKUN YANG TIDAK DIKENAL MESIN. Server dan setiap perangkat memutar
+            ulang jejak dan mencari pelakunya di daftar staf; kalau tidak ada,
+            semua aksi berizin dari akun ini DITOLAK di server walau di layar
+            ini terlihat berhasil — itulah sebab "tambah meja" dan "ganti nama
+            meja" hilang lagi (laporan 14 Nov 2026). */}
+        {sync.mode === "server" && a.me && !a.employees.some((x) => x.id === a.me!.id)
+          && !EMPLOYEES.some((x) => x.id === a.me!.id) && (
+          <p role="alert"
+            className="mb-3 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-[12px] leading-snug text-red-300">
+            <span className="font-semibold">Akun {a.me.name} belum tercatat di daftar staf aplikasi.</span> Perubahan
+            dari akun ini akan ditolak server. Minta superadmin membuka Pengaturan → Akun staf dan menyimpan ulang akun ini.
+          </p>
+        )}
         {sync.storageError && (
           <p role="alert"
             className="mb-3 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-2.5 text-[12px] leading-snug text-red-300">
             <span className="font-semibold">Data tidak tersimpan di perangkat.</span> {sync.storageError}
           </p>
         )}
+        <SpandukPembaruan />
         {seedBasi && (
           <p className="mb-3 rounded-xl border border-amber/50 bg-amber/10 px-4 py-2.5 text-[12px] leading-snug text-amber">
             Data contoh dari {fmtDateLong(businessDateOf(sync.genesis.at))} masih dipakai —{" "}
             {role === "superadmin" ? (
               <NavLink to="/admin/atur" className="font-semibold underline underline-offset-4">
-                reset di tab Atur.
+                reset di Pengaturan.
               </NavLink>
             ) : (
               "minta superadmin reset."

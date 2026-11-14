@@ -17,6 +17,9 @@ export type KertasDapur = {
   bagian: Bagian;
   meja: string;
   via?: string;
+  /** Lantai meja & kode pesanan — ditulis di bawah nomor meja (pemilik 15 Nov 2026). */
+  lantai?: number;
+  kode?: string;
   at: number;
   item: Ticket[];
 };
@@ -28,16 +31,35 @@ const BATAS_OTOMATIS_MS = 2 * 60 * 60_000;
 export const kunciTiket = (t: Ticket) =>
   [t.sessionId, t.at, t.station, t.itemId, t.variant ?? "", t.lineKey ?? ""].join("|");
 
-/** Tiket yang lahir dari satu kali pesan punya meja, jam, dan bagian yang sama. */
+/**
+ * Jarak paling jauh antar-tiket yang masih dianggap SATU KALI PESAN.
+ *
+ * Kasir mengirim satu pesanan berisi beberapa menu sebagai beberapa aksi
+ * `addFnb` berturut-turut, dan tiap aksi mendapat jamnya sendiri — selisihnya
+ * cuma milidetik. Dulu kertas dikelompokkan per jam PERSIS, jadi pesanan lima
+ * menu keluar jadi lima kertas dan lima kartu checker (laporan staf 14 Nov
+ * 2026: "harusnya per meja, bukan satu satuan").
+ */
+export const JEDA_SATU_PESAN_MS = 30_000;
+
+/** Tiket satu meja & satu bagian yang masuk berdekatan = satu kertas. */
 export function kelompokkan(tiket: Ticket[]): KertasDapur[] {
-  const peta = new Map<string, KertasDapur>();
-  for (const t of tiket) {
-    const k = `${t.sessionId}|${t.at}|${t.station}`;
-    const ada = peta.get(k);
-    if (ada) ada.item.push(t);
-    else peta.set(k, { bagian: t.station, meja: t.tableName, via: t.via, at: t.at, item: [t] });
+  const hasil: KertasDapur[] = [];
+  const terakhir = new Map<string, KertasDapur>();
+  for (const t of [...tiket].sort((x, y) => x.at - y.at)) {
+    const k = `${t.sessionId}|${t.station}`;
+    const ada = terakhir.get(k);
+    if (ada && t.at - ada.at <= JEDA_SATU_PESAN_MS) ada.item.push(t);
+    else {
+      const baru: KertasDapur = {
+        bagian: t.station, meja: t.tableName, via: t.via, at: t.at, item: [t],
+        ...(t.lantai ? { lantai: t.lantai } : {}), ...(t.kode ? { kode: t.kode } : {}),
+      };
+      hasil.push(baru);
+      terakhir.set(k, baru);
+    }
   }
-  return [...peta.values()].sort((x, y) => x.at - y.at);
+  return hasil.sort((x, y) => x.at - y.at);
 }
 
 /** Yang perlu keluar otomatis: baru masuk, belum pernah dicetak, dan belum basi. */
@@ -66,6 +88,7 @@ body{font-family:Arial,Helvetica,sans-serif;padding:2mm 3mm 10mm}
 .b{display:flex;justify-content:space-between;font-size:11pt;font-weight:700;border-bottom:2px solid #000;padding-bottom:1mm}
 .m{font-size:22pt;font-weight:800;line-height:1.1;margin-top:2mm;word-break:break-word}
 .a{font-size:10pt;margin-top:.5mm}.u{background:#000;color:#fff;padding:0 2mm}
+.k{font-size:12pt;font-weight:700;margin-top:.5mm}
 .i{display:flex;gap:2mm;margin-top:3mm;break-inside:avoid}
 .c{flex:none;width:5mm;height:5mm;border:2px solid #000;margin-top:.5mm}
 .t{flex:1;min-width:0;font-size:14pt;line-height:1.2;word-break:break-word}
@@ -73,7 +96,8 @@ body{font-family:Arial,Helvetica,sans-serif;padding:2mm 3mm 10mm}
 .e{margin-top:4mm;border-top:2px solid #000;padding-top:1mm;font-size:10pt;display:flex;justify-content:space-between}
 </style></head><body>
 <div class="b"><span>${k.bagian === "bar" ? "BAR" : "DAPUR"}</span>${opsi.ulang ? '<span class="u">CETAK ULANG</span>' : ""}<span>${jamTeks(k.at)}</span></div>
-<div class="m">${aman(k.meja)}</div>${k.via ? `<div class="a">${aman(k.via)}</div>` : ""}
+<div class="m">${aman(k.meja)}</div>${k.lantai || k.kode ? `<div class="k">${
+  [k.lantai ? `LANTAI ${k.lantai}` : "", k.kode ? `#${aman(k.kode)}` : ""].filter(Boolean).join(" · ")}</div>` : ""}${k.via ? `<div class="a">${aman(k.via)}</div>` : ""}
 ${baris}
 <div class="e"><span>${k.item.reduce((n, t) => n + t.qty, 0)} porsi</span><span>${k.item.length} menu</span></div>
 </body></html>`;

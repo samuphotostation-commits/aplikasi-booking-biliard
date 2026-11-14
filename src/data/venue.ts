@@ -29,7 +29,7 @@ export const VENUE_LABEL: Record<Venue, string> = {
 };
 
 /** Kelas meja. Tarifnya dibedakan per kelas, dan kelas tiap meja bisa diubah
- *  superadmin di tab Atur (tersimpan di `State.tableTypes`). */
+ *  superadmin di Pengaturan (tersimpan di `State.tableTypes`). */
 export type TableType = "regular" | "vip" | "vvip" | "resto";
 
 export type PoolTable = {
@@ -41,6 +41,19 @@ export type PoolTable = {
   venue: Venue;
   /** Hanya Smokehouse: lantai berapa mejanya. */
   lantai?: number;
+  /**
+   * MEJA COMPLIMENT (permintaan pemilik 14 Nov 2026): semua yang dipesan di
+   * meja ini otomatis digratiskan dan dicatat sebagai compliment — untuk
+   * owner & keluarga, atau band/pengisi acara & tamu undangan. Stok tetap
+   * berkurang dan tiket tetap masuk dapur; yang gratis uangnya, bukan barangnya.
+   */
+  compliment?: JenisCompliment;
+};
+
+export type JenisCompliment = "owner" | "entertain";
+export const COMPLIMENT_LABEL: Record<JenisCompliment, string> = {
+  owner: "Owner",
+  entertain: "Entertain (band / tamu undangan)",
 };
 
 export const BILLIARD_TYPES: TableType[] = ["regular", "vip", "vvip"];
@@ -64,8 +77,8 @@ export const CLASS_SHORT: Record<TableType, string> = {
  * menulis "R1" sementara struknya menulis "R01" — satu meja dengan dua nama
  * adalah cara tercepat membuat kasir dan dapur bicara tentang meja berbeda.
  */
-export const tableLabel = (type: TableType, no: number) =>
-  type === "resto" ? `R${String(no).padStart(2, "0")}` : type === "regular" ? String(no) : `V${no}`;
+export const tableLabel = (type: TableType, no: number, name?: string) =>
+  type === "resto" ? (name ?? `R${String(no).padStart(2, "0")}`) : type === "regular" ? String(no) : `V${no}`;
 
 export const TABLES: PoolTable[] = [
   ...Array.from({ length: 40 }, (_, i) => ({
@@ -77,7 +90,7 @@ export const TABLES: PoolTable[] = [
     venue: "spl" as const,
   })),
   // VIP 1–2 bebas asap rokok · VIP 3–4 boleh merokok (VVIP). Kelas tiap ruang bisa
-  // ditukar di tab Atur tanpa mengubah kode.
+  // ditukar di Pengaturan tanpa mengubah kode.
   ...Array.from({ length: 4 }, (_, i) => ({
     id: `V${String(i + 1).padStart(2, "0")}`,
     no: i + 1,
@@ -107,6 +120,15 @@ export const TABLES: PoolTable[] = [
     venue: "smh" as const,
     lantai: 1,
   })),
+  /*
+   * MEJA KHUSUS SMOKEHOUSE (permintaan pemilik 14 Nov 2026): Owner,
+   * Entertain, VIP. Id bukan nomor urut R supaya tidak pernah bertabrakan
+   * dengan meja cadangan R13–R24. Owner & Entertain adalah MEJA COMPLIMENT
+   * (lihat `PoolTable.compliment`); VIP meja makan biasa yang dibayar.
+   */
+  { id: "S1OW", no: 101, name: "Owner", type: "resto" as TableType, capacity: 8, venue: "smh" as const, lantai: 1, compliment: "owner" as const },
+  { id: "S1EN", no: 102, name: "Entertain", type: "resto" as TableType, capacity: 8, venue: "smh" as const, lantai: 1, compliment: "entertain" as const },
+  { id: "S1VP", no: 103, name: "VIP", type: "resto" as TableType, capacity: 8, venue: "smh" as const, lantai: 1 },
 ];
 
 /**
@@ -184,6 +206,10 @@ export const CADANGAN: PoolTable[] = [
 /** Meja yang dikenal mesin, termasuk yang belum dijual (lantai 2 & cadangan). */
 export const SEMUA_MEJA: PoolTable[] = [...TABLES, ...LANTAI_2, ...CADANGAN];
 
+/** Jenis meja compliment (Owner / Entertain), atau undefined untuk meja biasa. */
+export const jenisCompliment = (tableId: string): JenisCompliment | undefined =>
+  SEMUA_MEJA.find((t) => t.id === tableId)?.compliment;
+
 /**
  * Nomor WhatsApp venue (diberikan pemilik 12 Okt 2026: 0851-2118-0988).
  *
@@ -229,7 +255,13 @@ export const lantaiVenue = (v: Venue) =>
    Paket Siang                  Rp 50.000  (2 jam + 2 minuman, sampai 16.00) */
 
 export const OPEN_HOUR = 11;
-export const CLOSE_HOUR = 26; // 02:00 dini hari = jam ke-26 hari operasional (PRD KK-19)
+/**
+ * Jam tutup resmi: 06.00 pagi = jam ke-30 hari operasional (keputusan pemilik
+ * 14 Nov 2026; sebelumnya 02.00). Hari operasional pun berganti pukul 06.00
+ * (`BATAS_HARI_JAM` di occupancy.ts), jadi tamu yang main sampai subuh tetap
+ * tercatat di hari yang sama.
+ */
+export const CLOSE_HOUR = 30;
 export const DAY_RATE_END = 18;
 
 export const RATES = {
@@ -239,7 +271,18 @@ export const RATES = {
   vvip: 60_000,
 } as const;
 
-export type Rates = { regularDay: number; regularNight: number; vip: number; vvip: number };
+/**
+ * Tarif per jam. Kunci `…We` = tarif WEEKEND (Sabtu & Minggu menurut hari
+ * operasional; permintaan pemilik 14 Nov 2026). Kosong/0 = sama dengan tarif
+ * weekday, jadi data lama tetap terbaca apa adanya.
+ */
+export type Rates = {
+  regularDay: number; regularNight: number; vip: number; vvip: number;
+  regularDayWe?: number; regularNightWe?: number; vipWe?: number; vvipWe?: number;
+};
+
+/** Hari operasional yang memakai tarif weekend: Sabtu (6) & Minggu (0). */
+export const HARI_TARIF_WEEKEND = [6, 0];
 
 /**
  * PAKET MEJA — harga blok tetap + jatah minuman gratis.
@@ -288,7 +331,36 @@ export type Paket = {
    * pilih. `isi` menyebutkan barangnya.
    */
   isi?: PaketIsi[];
+  /**
+   * ── ATURAN PAKET SPL (permintaan pemilik 14 Nov 2026) ──────────────
+   *
+   * Semua isian di bawah boleh kosong. Kosong = perilaku paket lama, jadi
+   * paket yang tersimpan sebelum tanggal ini tetap terbaca apa adanya
+   * (migrasi lunak — tidak ada data yang perlu diubah).
+   *
+   * Kelas meja yang boleh memakai paket ini. Kosong = meja reguler.
+   */
+  kelas?: "regular" | "vip";
+  /** Hari aktif, 0 = Minggu … 6 = Sabtu, menurut HARI OPERASIONAL
+   *  (main jam 01.00 Sabtu dini hari masih ikut hari Jumat). Kosong = tiap hari. */
+  hari?: number[];
+  /** Jam paling cepat mulai main (indeks 11..25). Kosong = jam buka. */
+  jamMulai?: number;
+  /** Jam paling lambat SELESAI main (indeks 12..26). Kosong = `lastStartHour + hours`. */
+  jamSelesai?: number;
+  /** Hari yang memakai harga weekend. Kosong = Sabtu & Minggu. */
+  hariWeekend?: number[];
+  /**
+   * Harga, jatah minuman, dan isi khusus hari weekend. Kosong = sama
+   * dengan harga biasa (weekday) di atas.
+   */
+  weekend?: { price: number; freeDrinks: number; isi?: PaketIsi[] };
+  /** Dihapus dari panel. Tetap disimpan supaya bill lama yang memakainya terbaca. */
+  dihapus?: true;
 };
+
+/** Hari weekend bawaan: Sabtu (6) & Minggu (0). */
+export const HARI_WEEKEND_BAWAAN = [6, 0];
 
 /** Id-nya SENGAJA "siang": sesi lama menyimpan nilai itu di `paket`. */
 export const PAKET_SIANG: Paket = {

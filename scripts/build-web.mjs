@@ -12,7 +12,7 @@
  * Alamat di-hash (#/admin) supaya bisa dihosting di path mana pun tanpa
  * pengaturan server khusus.
  */
-import { readFileSync, writeFileSync, readdirSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, mkdirSync, copyFileSync, rmSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -281,6 +281,46 @@ if (tamu) copyFileSync("public/og-spl.jpg", join(OUT, "og-spl.jpg"));
 copyFileSync("public/privasi.html", join(OUT, "privasi.html"));
 copyFileSync("public/ketentuan.html", join(OUT, "ketentuan.html"));
 
+// Halaman pasang firmware lampu (ESP Web Tools) — hanya di situs kasir.
+// Berkas firmware diambil dari hasil kompilasi terakhir di paket rilis.
+if (!tamu) {
+  const FW = "release/Paket-Lampu-ESP32/2-ESP32/bin/lampu-esp32.ino.merged.bin";
+  // Dikosongkan dulu: firmware versi lama tidak boleh ikut terbit.
+  rmSync(join(OUT, "pasang-lampu"), { recursive: true, force: true });
+  mkdirSync(join(OUT, "pasang-lampu"), { recursive: true });
+  for (const f of ["index.html", "manifest.json"]) copyFileSync(`public/pasang-lampu/${f}`, join(OUT, "pasang-lampu", f));
+  // Pustaka pemasang (esp-web-tools) ikut disimpan di situs sendiri: CDN luar
+  // terbukti lambat (>20 detik) dan di lokasi tidak boleh jadi penghalang.
+  mkdirSync(join(OUT, "pasang-lampu", "ewt"), { recursive: true });
+  for (const f of readdirSync("public/pasang-lampu/ewt")) {
+    copyFileSync(`public/pasang-lampu/ewt/${f}`, join(OUT, "pasang-lampu", "ewt", f));
+  }
+  /* merged.bin berukuran 4 MB dan mengisi 0x9000–0xDFFF (NVS) dengan FF.
+     Ditulis utuh, ia MENGHAPUS Wi-Fi, kunci alat, dan nomor board yang
+     sudah diisi di lokasi. Jadi dipotong dua: bootloader + tabel partisi
+     (0x0–0x8FFF) dan otadata + aplikasi (0xE000 sampai akhir aplikasi).
+     NVS di antaranya tidak disentuh. Letak partisi dibaca dari tabelnya
+     sendiri; kalau bentuknya lain dari dugaan, build berhenti. */
+  try {
+    const m = readFileSync(FW);
+    const pt = m.subarray(0x8000, 0x9000);
+    const part = {};
+    for (let i = 0; i + 32 <= pt.length && pt[i] === 0xaa && pt[i + 1] === 0x50; i += 32) {
+      part[pt.subarray(i + 12, i + 28).toString("latin1").replace(/\0+$/, "")] = pt.readUInt32LE(i + 4);
+    }
+    if (part.nvs !== 0x9000 || part.otadata !== 0xe000 || part.app0 !== 0x10000) {
+      throw new Error(`tabel partisi tak terduga: ${JSON.stringify(part)}`);
+    }
+    let akhir = m.length;
+    while (akhir > 0x10000 && m[akhir - 1] === 0xff) akhir--;
+    akhir = Math.ceil(akhir / 16) * 16;
+    writeFileSync(join(OUT, "pasang-lampu", "spl-lampu-awal.bin"), m.subarray(0, 0x9000));
+    writeFileSync(join(OUT, "pasang-lampu", "spl-lampu-aplikasi.bin"), m.subarray(0xe000, akhir));
+  } catch (e) {
+    console.warn(`PERINGATAN: firmware lampu tidak bisa disiapkan (${e.message}). Halaman pasang-lampu tanpa firmware.`);
+  }
+}
+
 // Tipe berkas & izin juru simpan untuk host statis (Netlify membaca berkas _headers ini).
 writeFileSync(join(OUT, "_headers"), `/manifest.webmanifest
   Content-Type: application/manifest+json; charset=utf-8
@@ -290,12 +330,73 @@ writeFileSync(join(OUT, "_headers"), `/manifest.webmanifest
   Cache-Control: no-cache
 /index.html
   Cache-Control: no-cache
+/versi.json
+  Cache-Control: no-cache
+  Access-Control-Allow-Origin: *
 `);
 
 // Tautan bersih: semua alamat diantar ke aplikasi, lalu main.tsx memindahkan
 // jalurnya ke rute hash yang setara. Tanpa ini `/smokehouse` jadi 404 sebelum
 // aplikasinya sempat jalan, dan tautan yang dibagikan pemilik mati.
 copyFileSync("public/_redirects", join(OUT, "_redirects"));
+
+/*
+ * VERSI.JSON — penanda pembaruan (permintaan pemilik 14 Nov 2026).
+ *
+ * Aplikasi Windows menyimpan salinan situs ini DI DALAM installernya, jadi
+ * tidak ikut berubah saat situs dipasang ulang. Berkas ini memberi tahu
+ * perangkat yang terpasang bahwa ada versi baru, dan memberi aplikasi
+ * Windows daftar berkas + sidik jari SHA-256 untuk mengunduhnya sendiri
+ * (lihat electron/main.cjs). Browser & APK Android cukup memuat ulang.
+ *
+ * `build` = nama berkas masuk JS; nama itu ber-hash dari isinya, jadi
+ * berganti tepat ketika kodenya berubah.
+ */
+if (!tamu && existsSync("release/SPL-Kasir-debug.apk")) {
+  // APK kasir memuat situs langsung, jadi tidak pernah basi — cukup satu tautan unduh.
+  mkdirSync(join(OUT, "unduh"), { recursive: true });
+  copyFileSync("release/SPL-Kasir-debug.apk", join(OUT, "unduh", "SPL-Kasir.apk"));
+}
+if (!tamu && existsSync("public/unduh/windows.html")) {
+  // Halaman unduh installer Windows (pemilik 15 Nov 2026): menyatukan bagian
+  // installer dari Supabase Storage, memeriksa SHA-256, lalu menyimpan .exe.
+  mkdirSync(join(OUT, "unduh"), { recursive: true });
+  copyFileSync("public/unduh/windows.html", join(OUT, "unduh", "windows.html"));
+}
+{
+  // Halaman hukum tidak dibutuhkan aplikasi kasir, dan Cloudflare MENGUBAH isinya
+  // saat dilayani (pelindung alamat email) — sidik jarinya tidak akan pernah cocok,
+  // dan satu berkas yang tidak cocok membatalkan seluruh pembaruan.
+  const LEWATI = new Set(["versi.json", "_headers", "_redirects", "privasi.html", "ketentuan.html"]);
+  const LEWATI_FOLDER = new Set(["pasang-lampu", "unduh", "pembaruan"]);
+  const berkas = [];
+  const jelajah = (rel) => {
+    for (const f of readdirSync(join(OUT, rel))) {
+      const r = rel ? `${rel}/${f}` : f;
+      if (statSync(join(OUT, r)).isDirectory()) { if (!LEWATI_FOLDER.has(r)) jelajah(r); continue; }
+      if (LEWATI.has(r)) continue;
+      const isi = readFileSync(join(OUT, r));
+      berkas.push({ p: r, h: createHash("sha256").update(isi).digest("hex"), n: isi.length });
+    }
+  };
+  jelajah("");
+  /* index.html DIUNDUH DARI SALINAN TEKS. Cloudflare Web Analytics menyisipkan
+     skrip pelacak ke setiap halaman HTML yang diminta browser — termasuk
+     aplikasi Windows — jadi sidik jari index.html yang dilayani tidak pernah
+     sama dengan aslinya, dan pembaruannya selalu ditolak. Salinan .txt
+     dilayani apa adanya. */
+  mkdirSync(join(OUT, "pembaruan"), { recursive: true });
+  copyFileSync(join(OUT, "index.html"), join(OUT, "pembaruan", "index.txt"));
+  for (const b of berkas) if (b.p === "index.html") b.u = "pembaruan/index.txt";
+  const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+  writeFileSync(join(OUT, "versi.json"), JSON.stringify({
+    build: satuBerkas ? versi : jsFile,
+    aplikasi: pkg.version,
+    dibuat: Date.now(),
+    ...(existsSync(join(OUT, "unduh", "SPL-Kasir.apk")) ? { android: "unduh/SPL-Kasir.apk" } : {}),
+    berkas,
+  }));
+}
 
 const mb = (Buffer.byteLength(html) / 1024 / 1024).toFixed(2);
 console.log(`${OUT}/index.html ${mb} MB · manifest + sw (${versi}) + ikon siap diunggah`);

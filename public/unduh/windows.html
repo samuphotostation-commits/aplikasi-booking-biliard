@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unduh SPL Kasir untuk Windows</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --ink:#0d0d0d; --ink2:#161616; --line:#2a2a2a; --cream:#f3ead8; --mute:#a59f93; --dim:#6f6a62; --amber:#e8a33d; --hijau:#34d399; --merah:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--ink); color:var(--cream);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:16px; }
+  .kartu { width:100%; max-width:440px; background:var(--ink2); border:1px solid var(--line); border-radius:20px; padding:24px; }
+  h1 { margin:0 0 4px; font-size:22px; letter-spacing:.02em; }
+  .ket { color:var(--mute); font-size:13px; line-height:1.5; margin:0 0 18px; }
+  .info { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:18px; }
+  .info div { background:var(--ink); border:1px solid var(--line); border-radius:12px; padding:10px; }
+  .info small { display:block; color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.12em; }
+  .info b { font-size:15px; }
+  .bar { height:10px; background:var(--ink); border:1px solid var(--line); border-radius:99px; overflow:hidden; }
+  .isi { height:100%; width:0; background:linear-gradient(90deg,#c9842a,var(--amber)); transition:width .2s; }
+  #status { margin:10px 0 16px; font-size:13px; color:var(--mute); min-height:20px; }
+  #status.ok { color:var(--hijau); } #status.galat { color:var(--merah); }
+  button { width:100%; min-height:48px; border:0; border-radius:14px; background:var(--amber); color:var(--ink); font-weight:700; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.4; cursor:default; }
+  .langkah { margin:16px 0 0; padding-left:18px; color:var(--mute); font-size:12px; line-height:1.6; }
+</style>
+</head>
+<body>
+<main class="kartu">
+  <h1>SPL Kasir · Windows</h1>
+  <p class="ket">Installer aplikasi kasir untuk PC Windows. Unduhan dimulai otomatis dan diperiksa keutuhannya sebelum disimpan.</p>
+  <div class="info">
+    <div><small>Versi</small><b id="versi">…</b></div>
+    <div><small>Ukuran</small><b id="ukuran">…</b></div>
+  </div>
+  <div class="bar"><div class="isi" id="isi"></div></div>
+  <div id="status">Menyiapkan…</div>
+  <button id="tombol" disabled>Unduh</button>
+  <ol class="langkah">
+    <li>Buka berkas <b>SPL-Kasir-Setup-…exe</b> yang terunduh.</li>
+    <li>Kalau Windows memperingatkan, pilih <b>More info → Run anyway</b>.</li>
+    <li>Ikuti petunjuk pemasangan, lalu buka <b>SPL Kasir</b> dari desktop.</li>
+  </ol>
+</main>
+<script>
+/* Installer disimpan di Supabase Storage dalam beberapa bagian (batas 50 MB
+   per berkas). Halaman ini mengunduh semua bagian, menyatukannya, memeriksa
+   sidik jari SHA-256-nya, lalu menyimpan SATU berkas .exe. */
+const DAFTAR = "https://fhoxdsxabpohafilqxoz.supabase.co/storage/v1/object/public/app/unduh/terbaru.json";
+const $ = (id) => document.getElementById(id);
+const status = (teks, kelas) => { $("status").textContent = teks; $("status").className = kelas || ""; };
+let info = null, sibuk = false;
+
+async function muatDaftar() {
+  const r = await fetch(DAFTAR + "?t=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error("daftar installer tidak terbaca (" + r.status + ")");
+  info = await r.json();
+  $("versi").textContent = info.versi;
+  $("ukuran").textContent = Math.round(info.ukuran / 1048576) + " MB";
+}
+
+async function unduh() {
+  if (sibuk || !info) return;
+  sibuk = true; $("tombol").disabled = true;
+  try {
+    const potong = []; let didapat = 0;
+    for (let i = 0; i < info.bagian.length; i++) {
+      const b = info.bagian[i];
+      const r = await fetch(b.url, { cache: "no-store" });
+      if (!r.ok || !r.body) throw new Error("bagian " + (i + 1) + " gagal diunduh (" + r.status + ")");
+      const baca = r.body.getReader();
+      for (;;) {
+        const { done, value } = await baca.read();
+        if (done) break;
+        potong.push(value); didapat += value.length;
+        const persen = Math.min(100, Math.floor(didapat / info.ukuran * 100));
+        $("isi").style.width = persen + "%";
+        status("Mengunduh… " + persen + "% (" + Math.round(didapat / 1048576) + " / " + Math.round(info.ukuran / 1048576) + " MB)");
+      }
+    }
+    status("Memeriksa keutuhan berkas…");
+    const blob = new Blob(potong, { type: "application/vnd.microsoft.portable-executable" });
+    if (blob.size !== info.ukuran) throw new Error("ukuran berkas tidak cocok — coba lagi");
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await blob.arrayBuffer())))
+      .map((x) => x.toString(16).padStart(2, "0")).join("");
+    if (hash !== info.sha256) throw new Error("berkas rusak di perjalanan — coba lagi");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = info.nama;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    status("Selesai — " + info.nama + " tersimpan di folder Unduhan.", "ok");
+    $("tombol").textContent = "Unduh lagi";
+  } catch (e) {
+    status("Gagal: " + (e && e.message ? e.message : e), "galat");
+    $("tombol").textContent = "Coba lagi";
+  } finally {
+    sibuk = false; $("tombol").disabled = false;
+  }
+}
+
+$("tombol").addEventListener("click", unduh);
+muatDaftar().then(unduh).catch((e) => { status("Gagal: " + e.message, "galat"); $("tombol").disabled = false; });
+</script>
+</body>
+</html>

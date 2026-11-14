@@ -52,7 +52,21 @@ export type PublicVenue = {
   menuPrices: State["menuPrices"];
   /** Barang tambahan pemilik — tanpa ini pelanggan tidak bisa memesannya. */
   customItems: State["customItems"];
+  /** Menu yang hanya dijual di satu venue — HP tamu menyaringnya juga. */
+  menuVenue?: State["menuVenue"];
+  /** Kategori menu yang diatur pemilik — HP tamu memakai susunan yang sama. */
+  aturKategori?: State["aturKategori"];
+  /** Kategori meja — HP tamu menyembunyikan meja compliment buatan pemilik juga. */
+  kategoriMejaBaru?: State["kategoriMejaBaru"];
+  mejaKategori?: State["mejaKategori"];
   promos: State["promos"];
+  /**
+   * PAKET MEJA (14 Nov 2026). Sebelumnya tidak ikut diterbitkan, jadi HP tamu
+   * hanya mengenal Paket Siang bawaan — paket buatan pemilik (VIP, Regular,
+   * harga weekend) tidak pernah tampil, dan harga yang dihitung HP bisa beda
+   * dengan yang ditagih mesin. Opsional: ringkasan lama belum membawanya.
+   */
+  packages?: State["packages"];
 };
 
 /**
@@ -113,6 +127,11 @@ export function publicVenue(s: State, now: number, days = 14): PublicVenue {
     mejaPakai: { ...(s.mejaPakai ?? {}) },
     menuPrices: { ...s.menuPrices },
     customItems: [...(s.customItems ?? [])],
+    menuVenue: { ...(s.menuVenue ?? {}) },
+    ...(s.aturKategori ? { aturKategori: s.aturKategori } : {}),
+    ...(s.kategoriMejaBaru ? { kategoriMejaBaru: s.kategoriMejaBaru } : {}),
+    ...(s.mejaKategori ? { mejaKategori: s.mejaKategori } : {}),
     promos: s.promos.map((p) => ({ ...p })),
+    packages: (s.packages ?? []).map((p) => ({ ...p })),
   };
 }

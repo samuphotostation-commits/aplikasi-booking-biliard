@@ -17,7 +17,7 @@ import { venueStore } from "./venueStore";
 import { ringkasLampu } from "./lampuStatus";
 import type { LampuInfo } from "./supabaseRemote";
 
-export { ringkasLampu, jamTerakhir, buatKunciAlat } from "./lampuStatus";
+export { ringkasLampu, jamTerakhir, buatKunciAlat, tampilKunciAlat } from "./lampuStatus";
 export type { RingkasLampu, StatusJembatan } from "./lampuStatus";
 
 type StoreLampu = {

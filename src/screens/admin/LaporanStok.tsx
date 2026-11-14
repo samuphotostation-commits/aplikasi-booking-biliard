@@ -20,7 +20,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  useAdmin, recap, stockDateOf, priceOf, itemOf, shiftDate, rangeDays, MAX_REKAP_HARI, STOCK_DAY_HOUR,
+  useAdmin, recap, stockDateOf, priceOf, itemOf, shiftDate, rangeDays, MAX_STOK_HARI, STOCK_DAY_HOUR,
   periodeRange,
 } from "../../lib/adminStore";
 import { venueStore } from "../../lib/venueStore";
@@ -52,7 +52,7 @@ const labelHari = (d: string) => {
 /** Daftar tanggal dari..sampai (inklusif). */
 function deretHari(dari: string, sampai: string): string[] {
   const out: string[] = [];
-  for (let d = dari; d <= sampai && out.length <= MAX_REKAP_HARI; d = shiftDate(d, 1)) out.push(d);
+  for (let d = dari; d <= sampai && out.length <= MAX_STOK_HARI; d = shiftDate(d, 1)) out.push(d);
   return out;
 }
 
@@ -255,7 +255,7 @@ export default function LaporanStok() {
 
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+      <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
         Laporan stok · {JAM} → {JAM}
       </h2>
 
@@ -302,7 +302,7 @@ export default function LaporanStok() {
         <p className="mt-2 text-[11px] leading-relaxed text-dim">
           {rangeDays(dari, sampai)} hari · {fmtDateLong(dari)} – {fmtDateLong(sampai)}.
           {" "}Hari stok dihitung dari jam {JAM} pagi sampai jam yang sama besoknya —
-          beda dari hari uang yang tutup jam 02.00, supaya barang dihitung setelah semua tab selesai.
+          sama dengan pergantian hari operasional, supaya barang dihitung setelah semua tab selesai.
         </p>
       </div>
 

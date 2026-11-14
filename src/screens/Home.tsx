@@ -17,6 +17,7 @@ import { FOTO_SPORT, fotoVenue } from "../data/fotoVenue";
 import { fmtHour } from "../data/venue";
 import {
   CLOSE_IDX, OPEN_IDX, classOf, hourIdx, mejaDijual, namaMinumanPaket, paketAktif, useAdmin,
+  hargaPaket, kelasPaket, jamMulaiPaket, mulaiTerakhirPaket, paketHariIni,
 } from "../lib/adminStore";
 import { tableFreeForRange } from "../lib/occupancy";
 import { rupiah } from "../lib/core";
@@ -78,14 +79,17 @@ export default function Home() {
   const buka = jam >= OPEN_IDX && jam < CLOSE_IDX;
 
   // Kalau pemilik mematikan paket di panel, bloknya hilang dengan sendirinya.
-  const paket = paketAktif(venue).filter((p) => (p.venue ?? "spl") === "spl" && p.hours > 0).slice(0, 1);
+  // Yang tampil: paket yang berlaku HARI INI, dengan harga hari ini (weekday/weekend).
+  const paket = paketAktif(venue)
+    .filter((p) => (p.venue ?? "spl") === "spl" && p.hours > 0 && paketHariIni(p, nowTs)).slice(0, 3);
   const minumanPaket = useMemo(() => namaMinumanPaket(venue), [venue]);
 
+  // `we` = tarif weekend (Sabtu & Minggu). Kosong/sama = tidak ditulis.
   const TARIF = [
-    { nama: "Reguler siang", ket: "11.00 sampai 18.00", harga: R.regularDay },
-    { nama: "Reguler malam", ket: "18.00 sampai tutup", harga: R.regularNight },
-    { nama: "VIP Room", ket: "ruang tertutup, bebas asap rokok", harga: R.vip },
-    { nama: "VVIP Room", ket: "ruang tertutup, boleh merokok", harga: R.vvip },
+    { nama: "Reguler siang", ket: "11.00 sampai 18.00", harga: R.regularDay, we: R.regularDayWe },
+    { nama: "Reguler malam", ket: "18.00 sampai tutup", harga: R.regularNight, we: R.regularNightWe },
+    { nama: "VIP Room", ket: "ruang tertutup, bebas asap rokok", harga: R.vip, we: R.vipWe },
+    { nama: "VVIP Room", ket: "ruang tertutup, boleh merokok", harga: R.vvip, we: R.vvipWe ?? R.vipWe },
   ];
 
   const TANYA = [
@@ -140,6 +144,9 @@ export default function Home() {
                     <div className="shrink-0 whitespace-nowrap">
                       <span className="font-display text-[1.7rem] leading-none tabular-nums text-amber">{rupiah(t.harga)}</span>
                       <span className="ml-1 text-[11px] text-cream/60">/jam</span>
+                      {t.we && t.we > 0 && t.we !== t.harga && (
+                        <div className="text-right text-[11.5px] text-cream/65">Sabtu–Minggu {rupiah(t.we)}/jam</div>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -149,13 +156,16 @@ export default function Home() {
                 Rinciannya ditampilkan sebelum kamu membayar.
               </p>
             </Muncul>
-            {paket.map((p) => {
-              const hemat = p.hours * R.regularDay - p.price;
+            {paket.map((p0) => {
+              const hp = hargaPaket(p0, nowTs);
+              const p = { ...p0, price: hp.price, freeDrinks: hp.freeDrinks };
+              const hemat = p.hours * (kelasPaket(p0) === "vip" ? R.vip : R.regularDay) - p.price;
               return (
                 <Muncul key={p.id} i={1}>
                   <div className="mt-8 border-l-2 border-amber pl-5">
                     <span className="font-display text-[11px] uppercase tracking-[0.18em] text-amber">
-                      Sesi dimulai paling lambat {fmtHour(p.lastStartHour)} WIB
+                      {kelasPaket(p0) === "vip" ? "Meja VIP · " : ""}{hp.weekend ? "Harga weekend · " : ""}
+                      Mulai {fmtHour(jamMulaiPaket(p0))}–{fmtHour(mulaiTerakhirPaket(p0))} WIB
                     </span>
                     <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-5">
                       <h3 className="font-serif text-[1.6rem] font-bold leading-tight text-cream">{p.name}</h3>

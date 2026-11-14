@@ -121,6 +121,7 @@ export type VenueStoreOptions = {
     masukNip?: (nip: string, pin: string) => Promise<MasukNipHasil>;
     aturPin?: (token: string, pin: string) => Promise<string | null>;
     daftarNip?: () => Promise<Record<string, { nip: string | null; terkunci: boolean }>>;
+    daftarStafServer?: () => Promise<{ id: string; nama: string; peran: string; aktif: boolean }[]>;
     removeStaff?: (id: string) => Promise<string | null>;
     /** Gmail staf: tautan, sesi hasil masuk Google, dan siapa yang sudah terbukti. */
     setStaffEmail?: (staffId: string, email: string) => Promise<string | null>;
@@ -265,7 +266,10 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
       // "belum tersambung" yang tampil.
       genesis = { at: 0, seed: false };
     } else {
-      genesis = { at: Date.now(), seed: true };
+      // Build "SPL Kasir Offline" (VITE_MULAI_KOSONG=1) dipakai untuk transaksi
+      // sungguhan saat PC kasir tanpa internet: mulai tanpa data contoh.
+      const kosong = !!((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_MULAI_KOSONG);
+      genesis = { at: Date.now(), seed: !kosong };
       write(K_GENESIS, genesis);
     }
     snap = storedSnapshot();
@@ -806,6 +810,8 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
     aturPin: (token: string, pin: string) => (remote?.aturPin?.(token, pin) ?? Promise.resolve("Butuh sambungan ke server.")),
     /** NIP tiap akun menurut server (layar Atur). */
     daftarNip: () => (remote?.daftarNip?.() ?? Promise.resolve({} as Record<string, { nip: string | null; terkunci: boolean }>)),
+    /** Akun di tabel staf server — untuk menemukan akun yang belum tercatat di mesin. */
+    daftarStafServer: () => (remote?.daftarStafServer?.() ?? Promise.resolve([] as { id: string; nama: string; peran: string; aktif: boolean }[])),
     /** Sesi venue dari masuk lewat Google: pasang lalu tarik jejak dari server. */
     async signInGoogle(token: string) {
       remote?.pakaiToken?.(token);

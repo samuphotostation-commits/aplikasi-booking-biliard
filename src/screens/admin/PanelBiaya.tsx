@@ -12,7 +12,14 @@ import type { Venue } from "../../data/venue";
 
 const LABEL_SUMBER: Record<Biaya["sumber"], string> = { laci: "Laci kasir", rekening: "Rekening" };
 
-export function PanelBiaya({ bizDate, venue, bisaTambah }: { bizDate: string; venue: Venue; bisaTambah: boolean }) {
+export function PanelBiaya({ bizDate, venue, bisaTambah, polos, lipat }: {
+  bizDate: string; venue: Venue; bisaTambah: boolean;
+  /** Tanpa bingkai sendiri — dipakai di dalam kartu Rekap. */
+  polos?: boolean;
+  /** Formulir catat disembunyikan di balik tombol "+ Catat biaya" (Rekap). */
+  lipat?: boolean;
+}) {
+  const [buka, setBuka] = useState(!lipat);
   const { a, dispatchA, allow, peek } = useAdmin();
   const [keterangan, setKeterangan] = useState("");
   const [nilai, setNilai] = useState("");
@@ -36,7 +43,7 @@ export function PanelBiaya({ bizDate, venue, bisaTambah }: { bizDate: string; ve
   }
 
   return (
-    <div className="rounded-xl border border-line bg-ink-2 p-3">
+    <div className={polos ? "" : "rounded-xl border border-line bg-ink-2 p-3"}>
       {daftar.length > 0 ? (
         <table className="w-full text-[12px]">
           <thead>
@@ -69,7 +76,13 @@ export function PanelBiaya({ bizDate, venue, bisaTambah }: { bizDate: string; ve
         <p className="text-[12px] text-dim">Belum ada biaya tercatat.</p>
       )}
 
-      {bisaTambah && allow("catatBiaya") && (
+      {bisaTambah && allow("catatBiaya") && !buka && (
+        <button onClick={() => setBuka(true)}
+          className="mt-2 min-h-[38px] w-full rounded-lg border border-dashed border-line-2 text-[12px] font-semibold text-mute hover:border-amber hover:text-amber">
+          + Catat biaya
+        </button>
+      )}
+      {bisaTambah && allow("catatBiaya") && buka && (
         <div className="mt-2 space-y-2 border-t border-line pt-2">
           <input value={keterangan} onChange={(e) => setKeterangan(e.target.value)} maxLength={80}
             placeholder="Deskripsi, misalnya beli es batu"

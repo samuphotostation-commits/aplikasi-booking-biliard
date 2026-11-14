@@ -22,8 +22,11 @@ export type Payment = {
   /** Mesin EDC yang dipakai (mis. "Mandiri", "BRI"). Hanya untuk `channel: "edc"`. */
   mesin?: string;
   by?: string;
-  /** Kalau bayar per pesanan: kunci baris yang dilunasi orang ini. */
+  /** Kalau bayar per pesanan: kunci baris yang dilunasi orang ini (seluruh jumlahnya). */
   keys?: string[];
+  /** Bayar per JUMLAH (13 Nov 2026): kunci baris → berapa porsi yang dibayar orang ini.
+   *  Mis. Es Teh ×4, satu orang bayar 1 → { "k3": 1 }. */
+  qty?: Record<string, number>;
   /** Mis. "Orang 2" atau nama yang ditulis kasir. */
   label?: string;
 };
@@ -74,6 +77,9 @@ export type LiveSession = {
   /** Nilai compliment yang dibekukan saat tab ditutup — untuk laporan.
    *  Yang sedang berjalan dihitung dari barisnya lewat `complimentOf`. */
   settledCompliment?: number;
+  /** Jenis compliment meja (owner/entertain) DIBEKUKAN saat tab ditutup — kategori
+   *  meja yang diganti kemudian tidak mengubah laporan hari itu. */
+  settledComplimentJenis?: "owner" | "entertain";
   /** Bagian diskon yang diberikan manual (persen), bukan dari promo. */
   settledDiskonManual?: number;
   /**
@@ -86,6 +92,8 @@ export type LiveSession = {
    * tidak punya ini; pembacanya jatuh ke pajak venue tunggal.
    */
   settledLini?: { biliar: number; bar: number; resto: number };
+  /** Dibuka kasir DI LUAR jam resmi selama shift buka (lembur, 14 Nov 2026). */
+  lembur?: true;
   /** Paket Siang: sisa jatah minuman gratis. */
   freeDrinks?: number;
   /** Id paket yang dibeli. Sesi lama memakai "siang" — id paket bawaan
@@ -131,6 +139,10 @@ export type Ticket = {
   at: number;
   /** Asal pesanan bila bukan dari kasir, mis. "QR · Andi" atau "Takeaway · Sari". */
   via?: string;
+  /** Lantai meja (Smokehouse) — tertulis di checker & kertas dapur (pemilik 15 Nov 2026). */
+  lantai?: number;
+  /** Kode pesanan/transaksi — kode booking, kode pesanan HP, atau nomor bill. */
+  kode?: string;
   /** Catatan tamu, mis. "ayam bagian dada, pedas". DIBAWA ke dapur — catatan
    *  yang cuma tersimpan di bill tidak pernah sampai ke yang memasak. */
   note?: string;

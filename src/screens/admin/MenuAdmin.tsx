@@ -1,7 +1,15 @@
+import { KepalaHalaman, TombolAksi } from "./Tata";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import type { MenuItem } from "../../data/menu";
-import { useAdmin, priceOf, kategoriJual } from "../../lib/adminStore";
+import { useAdmin, priceOf, kategoriJual, venueTerdampakMenu } from "../../lib/adminStore";
+import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
+import { VENUE_LABEL, type Venue } from "../../data/venue";
+import KategoriMenu from "./KategoriMenu";
+
+/** Pilihan "Dijual di" — `null` = kedua venue (bawaan semua menu lama). */
+const PILIHAN_VENUE: [Venue | null, string][] = [["spl", "SPL"], ["smh", "Smokehouse"], [null, "Keduanya"]];
+const labelDijual = (v?: Venue) => (v ? `${VENUE_LABEL[v]} saja` : "Kedua venue");
 import { rupiah } from "../../lib/core";
 
 /* Ketersediaan menu + stok barang.
@@ -17,7 +25,17 @@ export default function MenuAdmin() {
   const { a, dispatchA, allow } = useAdmin();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"semua" | "habis" | "stok">("semua");
-  const MENU = kategoriJual(a, { staf: true });
+  /** Daftar menu, atau pengaturan kategori (pemilik 15 Nov 2026). */
+  const [lihat, setLihat] = useState<"menu" | "kategori">("menu");
+  /*
+   * PEMISAHAN VENUE (pemilik 14 Nov 2026), sama dengan Pengaturan & Promo.
+   * Daftar menampilkan menu yang dijual di venue terpilih (termasuk menu
+   * kedua venue). Menu khusus venue sebelah disembunyikan, jumlahnya disebut.
+   */
+  const venue = useVenueAktif();
+  const venueAkun = a.me?.venue;
+  const MENU = kategoriJual(a, { staf: true, venue });
+  const jumlahSemua = kategoriJual(a, { staf: true }).reduce((n, c) => n + c.items.length, 0);
   /** Borang tambah/ubah barang milik pemilik sendiri. */
   const [form, setForm] = useState<
     { id?: string; name: string; price: string; station: "kitchen" | "bar" | "billiard" } | null
@@ -49,22 +67,72 @@ export default function MenuAdmin() {
         return true;
       }),
     })).filter((c) => c.items.length > 0);
-  }, [q, tab, a.soldOut, a.stock]);
+  }, [q, tab, a.soldOut, a.stock, venue, a.menuVenue, a.customItems]);
 
   const habisCount = a.soldOut.length;
   const menipis = a.stock.filter((r) => r.qty !== null && r.qty <= r.lowAt);
 
+  const semuaItem = MENU.flatMap((c) => c.items);
+  const tersembunyi = jumlahSemua - semuaItem.length;
+  const khusus = semuaItem.filter((i) => a.menuVenue?.[i.id] === venue).length;
+
+  function ubahVenue(itemId: string, name: string, v: Venue | null) {
+    const alasan = dispatchA({ t: "setMenuVenue", itemId, venue: v });
+    bilang(alasan ?? (v === null ? `"${name}" dijual di kedua venue.`
+      : v === venue ? `"${name}" sekarang hanya dijual di ${VENUE_LABEL[v]}.`
+      : `"${name}" dipindah ke ${VENUE_LABEL[v]} — tidak tampil lagi di daftar ${VENUE_LABEL[venue]}.`));
+  }
   return (
     <div className="pb-6">
+      {/* ── KEPALA MENU & STOK (perapian 14 Nov 2026) ── */}
+      <div className="mb-4">
+        <KepalaHalaman judul="Menu & Stok"
+          ket={<>Harga, ketersediaan, stok, dan venue tempat tiap menu dijual — sekarang menampilkan
+            menu <span className="text-cream">{VENUE_LABEL[venue]}</span>.</>}
+          aksi={<>
+            {venueAkun ? (
+              <span className="rounded-lg border border-amber/50 bg-amber/10 px-3 py-1.5 text-[12px] font-bold text-amber">
+                {VENUE_LABEL[venueAkun]}
+              </span>
+            ) : (
+              <div className="inline-flex gap-0.5 rounded-xl border border-line bg-ink p-0.5" role="radiogroup" aria-label="Venue menu">
+                {(["spl", "smh"] as const).map((v) => (
+                  <button key={v} role="radio" aria-checked={venue === v} onClick={() => setVenueAktif(v)}
+                    className={`min-h-[34px] rounded-lg px-3 text-[12px] font-bold ${
+                      venue === v ? "bg-amber text-ink" : "text-mute hover:text-cream"
+                    }`}>{VENUE_LABEL[v]}</button>
+                ))}
+              </div>
+            )}
+            {allow("ubahTarif") && (
+              <div className="inline-flex gap-0.5 rounded-xl border border-line bg-ink p-0.5" role="radiogroup" aria-label="Tampilan">
+                {([["menu", "Daftar menu"], ["kategori", "Atur kategori"]] as const).map(([k, l]) => (
+                  <button key={k} role="radio" aria-checked={lihat === k} onClick={() => setLihat(k)}
+                    className={`min-h-[34px] rounded-lg px-3 text-[12px] font-bold ${
+                      lihat === k ? "bg-cream text-ink" : "text-mute hover:text-cream"
+                    }`}>{l}</button>
+                ))}
+              </div>
+            )}
+            {allow("ubahTarif") && !form && lihat === "menu" && (
+              <TombolAksi utama onClick={() => setForm({ name: "", price: "", station: "kitchen" })}>+ Tambah menu baru</TombolAksi>
+            )}
+          </>}
+          angka={[
+            { label: `Menu ${VENUE_LABEL[venue]}`, nilai: semuaItem.length },
+            { label: "Khusus venue ini", nilai: khusus },
+            { label: "Ditandai habis", nilai: habisCount, nada: habisCount ? "merah" : undefined },
+            { label: "Stok menipis", nilai: menipis.length, nada: menipis.length ? "amber" : undefined },
+          ]} />
+      </div>
+
+      {lihat === "kategori" ? <KategoriMenu /> : (<>
       {/* Tambah barang sendiri — tanpa ini pemilik harus menunggu aplikasi
           dibangun ulang hanya untuk menjual satu menu baru. */}
-      {allow("ubahTarif") && (
-        <div className="mb-3 rounded-xl border border-line bg-ink-2 p-3">
+      {allow("ubahTarif") && (form || (a.customItems ?? []).length > 0 || kabar) && (
+        <div className="mb-4 rounded-2xl border border-line bg-ink-2 p-3">
           {!form ? (
-            <button onClick={() => setForm({ name: "", price: "", station: "kitchen" })}
-              className="min-h-[42px] w-full rounded-xl border border-amber/50 bg-amber/10 text-[13px] font-bold text-amber">
-              + Tambah menu baru
-            </button>
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">Menu tambahan pemilik</div>
           ) : (
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">
@@ -104,6 +172,7 @@ export default function MenuAdmin() {
                   <span className={`flex-1 truncate ${it.aktif === false ? "text-dim line-through" : "text-cream"}`}>
                     {it.name}
                   </span>
+                  <span className="shrink-0 text-[10px] text-dim">{labelDijual(a.menuVenue?.[it.id])}</span>
                   <span className="tabular-nums text-mute">{rupiah(priceOf(a, it.id))}</span>
                   <button onClick={() => setForm({ id: it.id, name: it.name, price: String(priceOf(a, it.id)), station: it.station })}
                     className="min-h-[30px] rounded-lg border border-line px-2 text-[11px] text-mute">ubah</button>
@@ -159,7 +228,8 @@ export default function MenuAdmin() {
         </div>
       </div>
 
-      <div className="mt-4 space-y-5">
+      {/* Kategori: dua kolom di layar lebar supaya daftar tidak memanjang ke bawah. */}
+      <div className="mt-4 grid items-start gap-5 lg:grid-cols-2">
         {cats.map((c) => (
           <section key={c.id}>
             <h2 className="mb-2 font-display text-lg uppercase tracking-wide text-cream">{c.name}</h2>
@@ -204,6 +274,30 @@ export default function MenuAdmin() {
                         </span>
                       </button>
                     </div>
+
+                    {/* DIJUAL DI — venue tempat menu ini muncul di kasir & HP tamu. */}
+                    {allow("ubahTarif") ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-line pt-2">
+                        <span className="text-[11px] text-dim">Dijual di</span>
+                        {PILIHAN_VENUE.map(([v, label]) => {
+                          const kini = a.menuVenue?.[it.id] ?? null;
+                          const pilih = kini === v;
+                          const boleh = !venueAkun || venueTerdampakMenu(kini, v).every((x) => x === venueAkun);
+                          return (
+                            <button key={label} aria-pressed={pilih} disabled={pilih || !boleh}
+                              onClick={() => ubahVenue(it.id, it.name, v)}
+                              className={`h-8 rounded-lg border px-2.5 text-[11px] font-semibold disabled:cursor-default ${
+                                pilih ? (v ? "border-amber bg-amber/15 text-amber" : "border-sky-400/50 bg-sky-400/10 text-sky-300")
+                                  : "border-line text-mute hover:border-amber hover:text-amber disabled:opacity-35"
+                              }`}>{label}</button>
+                          );
+                        })}
+                      </div>
+                    ) : a.menuVenue?.[it.id] && (
+                      <div className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-amber">
+                        {labelDijual(a.menuVenue[it.id])}
+                      </div>
+                    )}
 
                     {/* Harga menu — superadmin saja */}
                     {allow("ubahTarif") && <PriceEditor item={it} />}
@@ -256,7 +350,16 @@ export default function MenuAdmin() {
         )}
       </div>
 
+      {tersembunyi > 0 && (
+        <p className="mt-4 text-[11px] leading-relaxed text-dim">
+          {tersembunyi} menu khusus {VENUE_LABEL[venue === "spl" ? "smh" : "spl"]} tidak ditampilkan — pilih venue itu di atas untuk melihatnya.
+        </p>
+      )}
       <p className="mt-4 text-[11px] leading-relaxed text-dim">
+        "Dijual di" menentukan menu tampil di kasir, waiter, dan HP tamu venue mana. Menu lama
+        bawaannya dijual di kedua venue. Harga, habis/ada, dan stok tetap satu untuk kedua venue.
+      </p>
+      <p className="mt-2 text-[11px] leading-relaxed text-dim">
         Barang berstok otomatis ditandai habis saat mencapai 0, dan tersedia lagi
         begitu stoknya diisi. Masakan dapur tidak dilacak stoknya — cukup
         ditandai habis manual.
@@ -267,6 +370,7 @@ export default function MenuAdmin() {
           pesanan baru. Pesanan yang sudah masuk tetap memakai harga saat dipesan.
         </p>
       )}
+      </>)}
     </div>
   );
 }

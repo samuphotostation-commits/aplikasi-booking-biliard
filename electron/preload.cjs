@@ -26,3 +26,14 @@ contextBridge.exposeInMainWorld("splCetak", {
   /** Cetak kertas dapur ke printer tertentu tanpa menyentuh layar. */
   cetakHtml: (html, printer) => ipcRenderer.invoke("spl:cetak-html", html, printer),
 });
+
+/**
+ * Pembaruan mandiri (14 Nov 2026): versi yang dipakai, versi terbaru di
+ * server, dan perintah mengunduhnya. Unduhannya dikerjakan Electron dari
+ * situs kasir sendiri — halaman tidak bisa menunjuk alamat lain.
+ */
+contextBridge.exposeInMainWorld("splAplikasi", {
+  versi: () => ipcRenderer.invoke("spl:versi"),
+  cekPembaruan: () => ipcRenderer.invoke("spl:cek-pembaruan"),
+  perbarui: () => ipcRenderer.invoke("spl:perbarui"),
+});

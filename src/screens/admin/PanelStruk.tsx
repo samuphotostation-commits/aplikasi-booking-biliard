@@ -110,7 +110,7 @@ export default function PanelStruk({ onTutup }: { onTutup: () => void }) {
   return (
     <div className="rounded-xl border border-line bg-ink-2 p-3">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-cream before:bg-amber">
           Struk — lihat &amp; cetak ulang
         </h2>
         <button onClick={onTutup} className="text-[12px] text-dim">tutup</button>

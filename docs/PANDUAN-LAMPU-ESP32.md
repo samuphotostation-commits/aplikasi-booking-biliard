@@ -92,7 +92,14 @@ select versi, updated_at, data from public.lampu_state;
 
 `versi` harus bertambah dan `data` berisi `{"T01": true, ...}`.
 
-### Langkah 3 — buat kunci alat (2 menit)
+### Langkah 3 — buat kunci alat (2 menit) — SUDAH DIKERJAKAN
+
+> **Sudah terpasang 13 Nov 2026.** Kunci alat venue ini sudah dibuat dan
+> hash-nya tersimpan di server. Kuncinya ada di catatan serah terima; kalau
+> hilang, buat yang baru lewat langkah di bawah dan masukkan ulang ke kedua
+> board. Langkah ini hanya perlu diulang kalau kuncinya diganti.
+
+
 
 Di panel kasir (masuk sebagai pemilik/superadmin):
 
@@ -218,8 +225,15 @@ Monitor Arduino IDE saat alat menyala.
 Halaman itu menampilkan tiap meja, GPIO-nya, nyala/mati, versi status, dan
 kapan terakhir berhasil menghubungi server. Berguna saat mencari gangguan.
 
-**Mengubah pengaturan nanti:** buka halaman alat → **Pengaturan**, atau tahan
-tombol **BOOT** 3 detik saat alat menyala untuk memunculkan hotspot lagi.
+**Mengubah pengaturan nanti:** buka halaman alat → **Pengaturan**. Dari
+jaringan venue, menyimpan perubahan **menuntut kunci alat** diketik ulang di
+kolom "Kunci alat sekarang" — tanpa itu tidak ada yang berubah. Ini bukan
+basa-basi: Wi-Fi venue juga dipakai tamu, dan tanpa penjaga itu siapa pun
+yang menebak IP alat bisa mengarahkannya ke server lain.
+
+Lupa kuncinya? Tahan tombol **BOOT** 3 detik kapan saja (tanpa menekan RESET) — hotspot
+pengaturan terbuka tanpa kunci, karena di situ memang butuh akses fisik ke
+panel.
 
 **Menguji satu relay** tanpa menyentuh aplikasi (untuk teknisi saat memasang
 kabel):
@@ -274,7 +288,70 @@ di firmware yang mematikan relay karena kegagalan jaringan.
 
 ---
 
-## 7. Berkas yang terkait
+## 7. Apa yang sudah diuji, dan apa yang belum
+
+Jujur soal ini penting: lampu menggantung di atas kepala tamu.
+
+**Sudah diuji otomatis (`npm test`):**
+
+| Uji | Isi |
+|---|---|
+| `test/lampu.test.ts` | panel kasir membedakan "alat mati" dari "tidak tahu" (18 pemeriksaan) |
+| `test/lampu-firmware.test.ts` | perilaku firmware menerjemahkan jawaban server jadi relay (34) |
+| `test/lampu-terbit.test.ts` | fungsi `terbit` yang asli menghitung peta lampu dari jejak (19) |
+
+Yang dijaga uji-uji itu, antara lain: buka meja menyalakan lampunya; tombol
+"nyalakan semua" mengenai 44 meja dan **tidak satu pun meja resto**; jawaban
+server yang kosong, rusak, atau terpotong **tidak pernah memadamkan lampu**;
+mati listrik memulihkan keadaan; dan peta pin di `.ino` tidak punya GPIO
+kembar, tidak memakai pin terlarang ESP32-S3, dan setiap mejanya memang ada
+di denah aplikasi.
+
+Peta pin dibaca uji **langsung dari berkas `.ino`**, jadi kalau teknisi
+memindahkan satu meja ke GPIO lain, uji ikut berubah.
+
+**Sudah diuji lewat jaringan sungguhan:** header dan kunci yang dipakai
+firmware diterima server Supabase (PostgREST menjawab dengan galat fungsi,
+bukan menolak kuncinya).
+
+**Sudah diuji di server venue yang sebenarnya (13 Nov 2026):**
+
+- `schema-lampu.sql` dijalankan di project `spl-venue` — **Success, tanpa galat**.
+- `lampu_sinkron` dipanggil dengan kunci salah → `401 kunci alat salah`.
+  Dipanggil sebelum kunci dipasang → `401 kunci alat belum dipasang`.
+  **Gagal tertutup bekerja.**
+- Dipanggil dengan kunci benar → `200` dan badan `"v=0"`; panggilan kedua
+  dengan versi yang sama → `"v=0\nsama=1"`. Jalur hemat kuota bekerja.
+- Denyut nadi tercatat di `lampu_alat`: nama alat, IP, RSSI, versi firmware,
+  jumlah relay, dan jamnya. Indikator online di panel kasir akan terisi.
+
+**SATU CACAT BESAR DITEMUKAN DI UJI INI, dan sudah diperbaiki:** firmware
+semula meminta `Accept: text/plain`, dan PostgREST di Supabase menolaknya
+dengan `406 None of these media types are available: text/plain`. Kalau tidak
+ketahuan sebelum alat dipasang, **tidak satu lampu pun akan pernah menyala**,
+dan gejalanya di panel kasir cuma "alat mati" — teknisi akan membongkar kabel
+yang sebenarnya tidak apa-apa. Firmware sekarang memakai
+`Accept: application/json` dan mengupas bungkus string JSON-nya.
+
+**BELUM diuji:**
+
+- Firmware **belum pernah dikompilasi**. Script `scripts/kompilasi-lampu.ps1`
+  sudah siap, tapi unduhan core ESP32 dari GitHub di koneksi ini selalu
+  diputus di tengah jalan (lewat IPv6 NAT64). Jalankan di koneksi lain:
+
+  ```
+  powershell -ExecutionPolicy Bypass -File scripts\kompilasi-lampu.ps1
+  ```
+
+  Hasilnya tercatat di `release/kompilasi-lampu.log`.
+- **Belum diuji di alat sungguhan.** Relay, SSR, dan kabel 220V hanya bisa
+  dibuktikan di tempat — daftar periksanya ada di Langkah 5.
+- **Edge Function `terbit` belum dipasang ulang.** Selama belum,
+  `lampu_state.data` tetap `{}` dan alat menerima `v=0` tanpa satu meja pun —
+  artinya lampu tidak akan menyala walau semuanya yang lain sudah benar.
+  Ini langkah yang tersisa, dan Langkah 2 menjelaskannya.
+
+## 8. Berkas yang terkait
 
 | Berkas | Isi |
 |---|---|
@@ -285,3 +362,5 @@ di firmware yang mematikan relay karena kegagalan jaringan.
 | `src/lib/lampuAlat.ts` | denyut nadi alat untuk panel kasir |
 | `src/screens/admin/Pengaturan.tsx` | Atur → Lampu meja (kunci alat) |
 | `src/screens/admin/Board.tsx` | tanda online di papan meja |
+| `scripts/kompilasi-lampu.ps1` | pasang core ESP32 lalu kompilasi firmware |
+| `test/lampu*.test.ts` | uji otomatis, ikut `npm test` |

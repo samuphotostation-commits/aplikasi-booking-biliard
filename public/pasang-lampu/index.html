@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Pasang Firmware Lampu SPL</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0e0d0b; color:#efe9dc; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.55; }
+  main { max-width:620px; margin:0 auto; padding:28px 16px 48px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:#a39c8c; font-size:14px; margin:0 0 22px; }
+  .kartu { background:#17150f; border:1px solid #2e2a20; border-radius:14px; padding:16px 18px; margin:14px 0; }
+  .no { display:inline-block; width:26px; height:26px; line-height:26px; text-align:center; border-radius:50%; background:#e0a83a; color:#111; font-weight:700; margin-right:8px; font-size:14px; }
+  h2 { font-size:16px; margin:0 0 8px; }
+  p, li { font-size:14.5px; color:#d6cfbf; }
+  ol, ul { padding-left:20px; margin:6px 0; }
+  code { background:#241f15; padding:1px 6px; border-radius:6px; color:#f3d48a; font-size:14px; }
+  .tombol { margin:14px 0 4px; }
+  esp-web-install-button button, .btn { background:#e0a83a; color:#111; border:0; border-radius:12px; padding:14px 22px; font-size:16px; font-weight:700; cursor:pointer; min-height:48px; }
+  .awas { border-color:#7a5a1a; background:#1f1908; }
+  .salah { border-color:#7a2a2a; background:#1f0d0d; color:#f1b3b3; display:none; }
+  .kecil { font-size:12.5px; color:#8f8878; }
+</style>
+<!-- esp-web-tools 10.4.0 (Apache-2.0), disimpan di situs sendiri: lihat ewt/ASAL.txt -->
+<script type="module" src="ewt/install-button.js"></script>
+</head>
+<body>
+<main>
+  <h1>Pasang firmware lampu meja</h1>
+  <p class="sub">SPL Sports Pool Lounge · untuk ESP32-S3 · versi spl-lampu-2.3</p>
+
+  <div class="kartu salah" id="tidakbisa">
+    Browser ini tidak bisa memasang firmware. Buka halaman ini di <b>Google Chrome</b> atau <b>Microsoft Edge</b> di PC/laptop (bukan HP, bukan aplikasi SPL Kasir).
+  </div>
+
+  <div class="kartu">
+    <h2><span class="no">1</span>Sambungkan ESP32 ke PC</h2>
+    <p>Pakai kabel USB-C yang bisa data (bukan kabel cas saja). Colok ke port bertulisan <b>USB</b> atau <b>COM</b> di board.</p>
+  </div>
+
+  <div class="kartu">
+    <h2><span class="no">2</span>Tekan tombol di bawah</h2>
+    <p>Muncul jendela kecil berisi daftar perangkat. Pilih yang bertulisan <b>USB JTAG</b>, <b>USB Serial</b>, <b>CP210x</b>, atau <b>CH340</b> (COM…), lalu <b>Connect</b> → <b>Install SPL Lampu Meja</b> → <b>Install</b>. Tunggu ±1 menit sampai 100%.</p>
+    <div class="tombol">
+      <esp-web-install-button manifest="manifest.json">
+        <button slot="activate">Sambungkan &amp; pasang firmware</button>
+        <span slot="unsupported"></span>
+        <span slot="not-allowed">Halaman ini harus dibuka lewat https.</span>
+      </esp-web-install-button>
+    </div>
+    <p class="kecil">Daftar perangkat kosong? Tahan tombol <b>BOOT</b> di board, tekan <b>RESET</b> sekali, lepas <b>BOOT</b>, lalu tekan tombol kuning lagi. Kalau tetap kosong, ganti kabel USB.</p>
+  </div>
+
+  <div class="kartu">
+    <h2><span class="no">3</span>Sesudah 100%: atur alatnya dari HP</h2>
+    <p><b>Alat yang sudah pernah diatur</b> (Wi-Fi, kunci, nomor board) tidak perlu diatur ulang — pengaturannya tetap tersimpan. Cukup tekan RESET dan cek halamannya. Langkah di bawah untuk alat baru, atau kalau ingin mengubah isian.</p>
+    <ol>
+      <li>Tekan <b>RESET</b> sekali dan lepas. Tunggu 5 detik, lalu <b>tahan tombol BOOT 3 detik</b> sampai hotspot muncul. (Alat baru membuka hotspot sendiri tanpa menahan BOOT.) Jangan menahan BOOT sambil menekan RESET.</li>
+      <li>Di HP, sambung ke Wi-Fi <code>SPL-Lampu-XXXX</code>, sandi <code>pasanglampu</code>.</li>
+      <li>Buka <code>http://192.168.4.1</code> di browser HP.</li>
+      <li>Isi <b>Wi-Fi venue + password</b>, <b>Kunci alat</b>, dan <b>Nomor board</b> (1 atau 2). Bagian <b>Lanjutan — server</b> biarkan kosong.</li>
+      <li>Tekan <b>Simpan</b>. Ulangi semua langkah untuk board kedua dengan kunci yang sama.</li>
+    </ol>
+  </div>
+
+  <div class="kartu awas">
+    <h2>Kunci alat didapat dari mana?</h2>
+    <p>Buka <b>kasir.sportspoollounge.com</b> di Chrome, masuk sebagai superadmin → <b>Atur</b> → <b>Lampu meja</b> → <b>Buat kunci baru</b> (satu kali saja) → <b>Pasang kunci ini di server</b>. Foto kuncinya, lalu ketik kunci yang sama di kedua board.</p>
+  </div>
+
+  <div class="kartu">
+    <h2>Cara memastikan sudah jalan</h2>
+    <ul>
+      <li>Di aplikasi kasir, <b>Atur → Lampu meja</b> menampilkan <b>alat online (2)</b>.</li>
+      <li>Halaman alat (<code>http://lampu-spl1.local</code> atau IP-nya) menulis <b>ok</b> dan "terakhir tersambung 1 detik lalu".</li>
+      <li>Kalau tertulis <b>KUNCI ALAT SALAH</b>: ketik ulang kunci (langkah 3). <b>ANON KEY SALAH</b>: kosongkan bagian Lanjutan lalu Simpan.</li>
+    </ul>
+  </div>
+
+  <p class="kecil">Memasang firmware ini <b>tidak</b> menghapus pengaturan yang sudah diisi di alat. Lampu fisik dan kabel relay tidak berubah.<br>CV SMOKE HOUSE RESTO</p>
+</main>
+<script>
+  if (!("serial" in navigator)) document.getElementById("tidakbisa").style.display = "block";
+</script>
+</body>
+</html>

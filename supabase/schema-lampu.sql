@@ -90,13 +90,21 @@ create or replace function public.publish_lampu_server(
   p_genesis bigint default null
 ) returns bigint
 language plpgsql security definer set search_path = public as $$
-declare v_lama jsonb; v_versi bigint;
+declare v_lama jsonb; v_versi bigint; v_world bigint;
 begin
   if p_lampu is null or jsonb_typeof(p_lampu) <> 'object' then
     raise exception 'status lampu tidak sah' using errcode = '22023';
   end if;
   if pg_column_size(p_lampu) > 65536 then
     raise exception 'status lampu terlalu besar' using errcode = '22023';
+  end if;
+
+  -- Reset data = dunia baru. Penerbitan yang masih melayang dari dunia lama
+  -- diabaikan, sama seperti publish_public_state_server — kalau tidak,
+  -- lampu bisa menyala mengikuti sesi yang sudah tidak ada lagi.
+  select genesis_at into v_world from public.venue_world where one_row;
+  if p_genesis is not null and v_world is not null and p_genesis <> v_world then
+    return (select versi from public.lampu_state where one_row);
   end if;
 
   select data, versi into v_lama, v_versi from public.lampu_state where one_row;

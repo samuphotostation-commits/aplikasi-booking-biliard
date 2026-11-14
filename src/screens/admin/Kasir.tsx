@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { KonfirmasiBayar } from "./KonfirmasiBayar";
 import { QrisKasir } from "./QrisKasir";
-import PesanTanpaMeja from "./PesanTanpaMeja";
+import { LayarCounter } from "./PesanTanpaMeja";
 import PanelStruk from "./PanelStruk";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../components/UI";
@@ -11,13 +11,14 @@ import { shiftDi,
   type GuestOrder, type State,
 } from "../../lib/adminStore";
 import { VOID_REASONS } from "../../data/staff";
-import { TABLES, CLASS_SHORT, tableLabel, venueDari } from "../../data/venue";
+import { TABLES, CLASS_SHORT, VENUE_LABEL, tableLabel, venueDari } from "../../data/venue";
 import { useVenueAktif } from "../../lib/venueAktif";
 
 import { rupiah } from "../../lib/core";
 import type { LiveSession } from "../../data/live";
 import { Countdown, Elapsed, jam } from "./AdminShell";
 import ClashAlert from "./ClashAlert";
+import { JudulBagian, Kelompok, KepalaHalaman, TombolAksi } from "./Tata";
 
 /** Hasil void dibaca dari data sesudah aksi: berlaku, menunggu superadmin, atau ditolak mesin. */
 function voidOutcome(before: State, after: State, what: string, refund: boolean) {
@@ -26,6 +27,9 @@ function voidOutcome(before: State, after: State, what: string, refund: boolean)
   if (req.status === "menunggu") return `Void ${what} diajukan ke superadmin.`;
   return `${what} di-void${refund && req.amount > 0 ? ", dana dicatat untuk dikembalikan" : ""}.`;
 }
+
+type TabKasir = "booking" | "meja" | "pesanan";
+const KUNCI_TAB = "spl:v1:kasir-tab";
 
 export default function Kasir() {
   const { a, dispatchA, byTable, tick, allow, peek } = useAdmin();
@@ -38,6 +42,12 @@ export default function Kasir() {
   /** Pesanan takeaway dan metode yang menunggu konfirmasi kasir. */
   const [lunasi, setLunasi] = useState<{ id: string; ch: "cash" | "edc" | "qris_online"; label: string; mesin?: string } | null>(null);
   const [strukBuka, setStrukBuka] = useState(false);
+  /** Tab yang terakhir dibuka di perangkat ini — kasir kembali ke tempat yang sama. */
+  const [tab, setTab] = useState<TabKasir>(() => {
+    try { const v = localStorage.getItem(KUNCI_TAB); return v === "meja" || v === "pesanan" ? v : "booking"; }
+    catch { return "booking"; }
+  });
+  const pilihTab = (t: TabKasir) => { setTab(t); try { localStorage.setItem(KUNCI_TAB, t); } catch { /* mode privat */ } };
 
   const now = Date.now();
   const today = businessDateOf(now);
@@ -66,7 +76,19 @@ export default function Kasir() {
     .filter((o) => businessDateOf(o.at) === today
       && (o.tableId ? diVenue(o.tableId) : (o.venue ?? "spl") === venue))
     .slice(0, 20);
-  const openRefunds = a.refunds.filter((r) => !r.settledAt);
+  // Dana yang belum dikembalikan, ikut venue lewat kode booking/pesanannya.
+  // Yang tidak bisa dipetakan tetap tampil — lebih baik terlihat di dua venue daripada hilang.
+  const venueRefund = (kode: string) => {
+    const sesi = a.sessions.find((x) => x.bookingCode === kode);
+    if (sesi?.tableId) return venueDari(sesi.tableId);
+    const o = a.orders.find((x) => x.code === kode);
+    return o ? (o.tableId ? venueDari(o.tableId) : o.venue ?? "spl") : null;
+  };
+  const openRefunds = a.refunds.filter((r) => {
+    if (r.settledAt) return false;
+    const v = venueRefund(r.bookingCode);
+    return v === null || v === venue;
+  });
 
   const running = a.sessions
     .filter((s) => s.status === "running" && diVenue(s.tableId))
@@ -79,7 +101,7 @@ export default function Kasir() {
     // Lewat `tableLabel`, bukan rumus sendiri: ini salinan KETIGA dari aturan
     // yang sama, dan salinan yang tertinggal menulis "R1" sementara papan dan
     // struk menulis "R01" — satu meja dengan dua nama.
-    return { no: tableLabel(k, t.no), type: CLASS_SHORT[k] };
+    return { no: tableLabel(k, t.no, t.name), type: CLASS_SHORT[k] };
   };
   // Tab yang masih terbuka dari hari operasional sebelumnya: biasanya karena komputer
   // mati atau kasir lupa menutup. Meterannya sudah berhenti di jam tutup hari itu.
@@ -88,8 +110,9 @@ export default function Kasir() {
   const pesananBaru = orders.filter((o) => o.status === "diterima" && now - o.at < 15 * 60_000 &&
     !a.tickets.some((t) => t.sessionId === (o.sessionId ?? o.id) && t.status === "served"));
   // Takeaway (pesan makanan saja, tanpa meja) yang menunggu diambil & dibayar.
+  // Ikut venue (perbaikan 14 Nov 2026): dulu takeaway SPL ikut tampil di kasir Smokehouse.
   const takeawayBelumBayar = a.orders.filter((o) => o.status === "diterima" && !o.sessionId &&
-    !o.payment && o.paidOnline === 0);
+    !o.payment && o.paidOnline === 0 && (o.tableId ? diVenue(o.tableId) : (o.venue ?? "spl") === venue));
 
   const flash = (text: string) => {
     setVoidMsg(text);
@@ -157,124 +180,77 @@ export default function Kasir() {
     flash(voidOutcome(before, peek(), what, o.pay === "online"));
   }
 
+  const shiftIni = shiftDi(a, venue, now);
+  const jumlahTab: Record<TabKasir, number> = {
+    booking: pending.length + holds.length,
+    meja: running.length,
+    pesanan: orders.length + takeawayBelumBayar.length,
+  };
+  const adaTindakan = tabTertinggal.length > 0 || lapsed.length > 0 || lateGuests.length > 0
+    || takeawayBelumBayar.length > 0 || (allow("lihatLaporanKeuangan") && openRefunds.length > 0);
+
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-5 pb-6">
       <ClashAlert />
 
-      {/* ── Pesan tanpa meja: tamu beli makanan/minuman/rokok saja ── */}
-      {allow("tutupTab") && (
-        <section>
-          {!pesanBuka ? (
-            <button onClick={() => setPesanBuka(true)}
-              className="min-h-[46px] w-full rounded-xl border border-amber/50 bg-amber/10 text-[13px] font-bold text-amber">
-              + Pesan tanpa meja · makanan, minuman, rokok
-            </button>
-          ) : (
-            <div className="rounded-xl border border-line bg-ink-2 p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-dim">Pesan tanpa meja</h2>
-                <button onClick={() => setPesanBuka(false)} className="text-[12px] text-dim">tutup</button>
-              </div>
-              <PesanTanpaMeja onDone={(kode) => {
-                setPesanBuka(false);
-                if (kode) flash(`Pesanan ${kode} dibuat — tagih di daftar takeaway di bawah.`);
-              }} />
-            </div>
-          )}
-        </section>
-      )}
+      {/* ── KEPALA KASIR (susunan ulang 14 Nov 2026): venue, shift, aksi ── */}
+      <KepalaHalaman judul="Kasir" venue={venue}
+        ket={shiftIni
+          ? <>Shift <span className="text-cream">{shiftIni.employeeName}</span> sejak {jam(shiftIni.openedAt)} ·
+            check-in tamu, meja yang jalan, dan pesanan.</>
+          : <span className="text-red-300">Shift {VENUE_LABEL[venue]} belum buka — buka di menu Shift sebelum melayani tamu.</span>}
+        aksi={allow("tutupTab") && (<>
+          <TombolAksi utama onClick={() => { setPesanBuka(!pesanBuka); setStrukBuka(false); }}>
+            {pesanBuka ? "Tutup pesan tanpa meja" : "+ Pesan tanpa meja"}
+          </TombolAksi>
+          <TombolAksi onClick={() => { setStrukBuka(!strukBuka); setPesanBuka(false); }}>
+            {strukBuka ? "Tutup struk" : "Struk lama · cetak ulang"}
+          </TombolAksi>
+        </>)}
+        angka={[
+          { label: "Booking hari ini", nilai: pending.length, nada: pending.length ? "amber" : undefined },
+          { label: venue === "smh" ? "Meja terisi" : "Sedang main", nilai: running.length },
+          { label: "Pesanan HP", nilai: pesananBaru.length ? `${orders.length} · ${pesananBaru.length} baru` : orders.length,
+            nada: pesananBaru.length ? "amber" : undefined },
+          { label: "Meja kosong", nilai: mejaDijual(a).filter((t) => diVenue(t.id) && !byTable.get(t.id)).length, nada: "hijau" },
+        ]} />
+
+      {/* ── Counter: pesan tanpa meja, layar hampir penuh (panduan pemilik 15 Nov 2026) ── */}
+      <AnimatePresence>
+        {allow("tutupTab") && pesanBuka && (
+          <LayarCounter onTutup={() => setPesanBuka(false)} onDone={(kode) => {
+            setPesanBuka(false);
+            if (kode) { flash(`Pesanan ${kode} dibuat — tagih di tab Pesanan.`); pilihTab("pesanan"); }
+          }} />
+        )}
+      </AnimatePresence>
 
       {/* ── Panel struk: lihat & cetak ulang yang sudah lewat ────── */}
-      {allow("tutupTab") && (
-        <section>
-          {!strukBuka ? (
-            <button onClick={() => setStrukBuka(true)}
-              className="min-h-[46px] w-full rounded-xl border border-line bg-ink-2 text-[13px] text-cream">
-              Struk · lihat &amp; cetak ulang yang sudah lewat
-            </button>
-          ) : (
-            <PanelStruk onTutup={() => setStrukBuka(false)} />
-          )}
-        </section>
+      {allow("tutupTab") && strukBuka && <PanelStruk onTutup={() => setStrukBuka(false)} />}
+
+      {voidMsg && (
+        <p role="status" className="rounded-xl border border-amber/40 bg-amber/8 px-3 py-2 text-[12px] text-amber">
+          {voidMsg}
+        </p>
       )}
 
-      {/* ── Takeaway menunggu diambil & dibayar ─────────── */}
+      {/* ── PERLU TINDAKAN: hanya muncul kalau ada yang harus diurus ── */}
+      {adaTindakan && (
+        <Kelompok judul="Perlu tindakan" ket="Urus ini lebih dulu." nada="merah">
       {takeawayBelumBayar.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-amber">
-            Takeaway menunggu diambil · {takeawayBelumBayar.length} ·{" "}
+        <button onClick={() => pilihTab("pesanan")}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-amber/50 bg-amber/10 px-3 py-2.5 text-left">
+          <span className="text-[13px] text-amber">
+            {takeawayBelumBayar.length} takeaway menunggu diambil &amp; dibayar ·{" "}
             {rupiah(takeawayBelumBayar.reduce((n, o) => n + o.value, 0))}
-          </h2>
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-amber/40 bg-amber/5">
-            {takeawayBelumBayar.map((o) => {
-              const tk = a.tickets.filter((t) => t.sessionId === o.id);
-              const siap = tk.length > 0 && tk.every((t) => t.status === "ready" || t.status === "served");
-              return (
-                <div key={o.id} className="px-3 py-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-[13px] text-cream">
-                        {o.guest} · <span className="font-mono text-mute">{o.code}</span>
-                      </div>
-                      <div className="text-[11px] text-dim">
-                        {jam(o.at)} · {o.lines.reduce((n, l) => n + l.qty, 0)} porsi ·{" "}
-                        {siap ? <span className="text-emerald-400">siap diambil</span> : "dapur sedang menyiapkan"}
-                        {o.phone && ` · ${o.phone}`}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right font-serif text-[13px] tabular-nums text-cream">
-                      {rupiah(o.value)}
-                    </div>
-                  </div>
-                  {allow("tutupTab") && (
-                    <div className="mt-1.5 space-y-1.5">
-                      {/* QR dinamis bernominal tepat untuk pesanan ini; yang menandai
-                          lunas tetap tombol di bawahnya, ditekan kasir. */}
-                      <QrisKasir amount={o.value} ringkas={`Pesanan ${o.code}`} kode={o.code} />
-                    {lunasi?.id === o.id ? (
-                      <KonfirmasiBayar judul={`Tandai ${o.code} lunas?`} total={o.value} metode={lunasi.label}
-                        tombol="Ya, lunas" onBatal={() => setLunasi(null)}
-                        onYa={() => {
-                          const { ch, label, mesin } = lunasi;
-                          const tolak = dispatchA({ t: "settleOrder", id: o.id, channel: ch, ...(mesin ? { mesin } : {}) });
-                          const lunas = !!peek().orders.find((x) => x.id === o.id)?.payment;
-                          setLunasi(null);
-                          flash(lunas
-                            ? `${o.code} lunas ${rupiah(o.value)} (${label}).`
-                            : tolak ?? "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
-                        }} />
-                    ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {([
-                        ["cash", "Tunai", undefined],
-                        ["qris_online", "QRIS", undefined],
-                        ...mesinEdc(a).map((m) => ["edc", `EDC ${m}`, m] as const),
-                      ] as const).map(([ch, label, mesin]) => (
-                        <button key={`${ch}-${mesin ?? ""}`}
-                          onClick={() => setLunasi({ id: o.id, ch, label, ...(mesin ? { mesin } : {}) })}
-                          className="min-h-[36px] rounded-lg border border-line bg-ink px-3 text-[12px] font-semibold text-cream">
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
-            Pesanan makanan tanpa meja. Uangnya baru masuk laporan setelah ditandai lunas di sini —
-            jadi angka rekap tidak pernah menghitung pesanan yang belum diambil.
-          </p>
-        </section>
+          </span>
+          <span className="shrink-0 text-[12px] font-semibold text-amber">Buka tab Pesanan →</span>
+        </button>
       )}
-
       {/* ── Tab yang tertinggal terbuka dari hari sebelumnya ── */}
       {tabTertinggal.length > 0 && (
         <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-red-300">
+          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-red-300 before:bg-red-400">
             Tab belum ditutup dari hari sebelumnya · {tabTertinggal.length}
           </h2>
           <div className="space-y-2">
@@ -287,13 +263,81 @@ export default function Kasir() {
                   </span>
                 </div>
                 <p className="mt-1 text-[12px] leading-snug text-red-200/90">
-                  Meterannya sudah berhenti otomatis pukul {jam(meterEndOf(s, now))} (batas meteran 05.00 pagi), jadi tamu tidak
+                  Meterannya sudah berhenti otomatis pukul {jam(meterEndOf(s, now, a))} (06.00, tidak ada shift yang buka), jadi tamu tidak
                   ditagih semalaman. Tagihan sekarang {rupiah(settlementOf(s, a).due)} — tutup tabnya di tab Papan,
                   atau minta superadmin mengoreksi jam berhentinya kalau tamu memang pulang lebih awal.
                 </p>
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* ── Booking yang jadwalnya habis tanpa bisa masuk ── */}
+      {lapsed.length > 0 && (
+        <section>
+          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-red-300 before:bg-red-400">
+            Perlu keputusan · {lapsed.length}
+          </h2>
+          <div className="space-y-2">
+            {lapsed.map((s) => (
+              <div key={s.id} className="rounded-xl border border-red-500/40 bg-red-500/8 p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-sm font-semibold text-cream">{nameOf(s.tableId)} · {s.guest}</span>
+                  <span className="shrink-0 text-[11px] text-dim">
+                    {new Date(s.startsAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })} {jam(s.startsAt)}–{jam(s.endsAt)}
+                  </span>
+                </div>
+                <p className="mt-1 text-[12px] leading-snug text-red-200/90">
+                  Jadwalnya habis sementara meja masih terpakai, jadi tamu tidak pernah bisa check-in.
+                  Ini bukan no-show: {rupiah(s.paidOnline)} belum diakui sebagai pendapatan.
+                </p>
+                <button
+                  onClick={() => voidBooking(s)}
+                  className="mt-2 min-h-[40px] rounded-lg border border-red-500/50 px-3 text-[12px] font-semibold text-red-200">
+                  {allow("setujuiVoid") ? "Void & catat refund" : "Ajukan void & refund"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Tamu yang terlanjur dilepas tapi datang ──────── */}
+      {lateGuests.length > 0 && (
+        <section>
+          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
+            Dilepas (tidak datang) · {lateGuests.length}
+          </h2>
+          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
+            {lateGuests.map((s) => {
+              const problem = restoreProblem(a, s.id);
+              const bisa = !problem && !!shiftDi(a, venue, Date.now()) && allow("bukaMeja");
+              return (
+                <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] text-cream">{nameOf(s.tableId)} · {s.guest}</div>
+                    <div className="text-[11px] text-dim">
+                      {jam(s.startsAt)}–{jam(s.endsAt)} · kode {s.checkin}
+                      {problem && <span className="text-red-300"> · {problem}</span>}
+                      {!problem && !shiftDi(a, venue, Date.now()) && <span className="text-amber"> · buka shift dulu</span>}
+                    </div>
+                  </div>
+                  <button
+                    disabled={!bisa}
+                    onClick={() => restore(s)}
+                    className="min-h-[40px] shrink-0 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3
+                      text-[12px] font-semibold text-emerald-300 disabled:opacity-35">
+                    Pulihkan &amp; check-in
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
+            Untuk tamu yang ternyata datang setelah dilepas otomatis — hanya bisa selama jadwalnya belum
+            habis dan mejanya belum dipakai orang lain.
+          </p>
         </section>
       )}
 
@@ -304,11 +348,12 @@ export default function Kasir() {
         </p>
       )}
 
+        </Kelompok>
+      )}
+
       {/* ── Check-in ─────────────────────────────────────── */}
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Check-in tamu
-        </h2>
+        <JudulBagian judul="Check-in tamu" aksi={<span className="text-[11px] text-dim">ketik 6 digit kode dari tamu, lalu Enter</span>} />
         <div className="rounded-2xl border border-line bg-ink-2 p-4">
           <div className="flex gap-2">
             <input
@@ -336,45 +381,35 @@ export default function Kasir() {
         </div>
       </section>
 
-      {voidMsg && (
-        <p role="status" className="rounded-xl border border-amber/40 bg-amber/8 px-3 py-2 text-[12px] text-amber">
-          {voidMsg}
-        </p>
-      )}
 
-      {/* ── Booking yang jadwalnya habis tanpa bisa masuk ── */}
-      {lapsed.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-red-300">
-            Perlu keputusan · {lapsed.length}
-          </h2>
-          <div className="space-y-2">
-            {lapsed.map((s) => (
-              <div key={s.id} className="rounded-xl border border-red-500/40 bg-red-500/8 p-3">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate text-sm font-semibold text-cream">{nameOf(s.tableId)} · {s.guest}</span>
-                  <span className="shrink-0 text-[11px] text-dim">
-                    {new Date(s.startsAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })} {jam(s.startsAt)}–{jam(s.endsAt)}
-                  </span>
-                </div>
-                <p className="mt-1 text-[12px] leading-snug text-red-200/90">
-                  Jadwalnya habis sementara meja masih terpakai, jadi tamu tidak pernah bisa check-in.
-                  Ini bukan no-show: {rupiah(s.paidOnline)} belum diakui sebagai pendapatan.
-                </p>
-                <button
-                  onClick={() => voidBooking(s)}
-                  className="mt-2 min-h-[40px] rounded-lg border border-red-500/50 px-3 text-[12px] font-semibold text-red-200">
-                  {allow("setujuiVoid") ? "Void & catat refund" : "Ajukan void & refund"}
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* ── TAB: satu urusan per layar, tidak lagi semua ditumpuk ── */}
+      <div className="sticky top-[104px] z-20 -mx-4 border-b border-line bg-ink/95 px-4 py-2 backdrop-blur-md">
+        <div className="flex gap-1 rounded-xl border border-line bg-ink p-1" role="tablist" aria-label="Bagian kasir">
+          {([
+            ["booking", "Booking"],
+            ["meja", venue === "smh" ? "Meja terisi" : "Meja jalan"],
+            ["pesanan", "Pesanan"],
+          ] as const).map(([k, l]) => (
+            <button key={k} role="tab" aria-selected={tab === k} onClick={() => pilihTab(k)}
+              className={`flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-[13px] font-semibold ${
+                tab === k ? "bg-amber text-ink" : "text-mute hover:text-cream"
+              }`}>
+              {l}
+              <span className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${
+                tab === k ? "bg-ink/20"
+                  : k === "pesanan" && (pesananBaru.length || takeawayBelumBayar.length) ? "bg-amber text-ink" : "bg-ink-2"
+              }`}>{jumlahTab[k]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
+      {tab === "booking" && (
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="min-w-0 space-y-6">
       {/* ── Akan datang (hari operasional ini) ───────────── */}
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
           Booking hari ini · {pending.length}
         </h2>
         {pending.length === 0 ? (
@@ -453,48 +488,12 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
         )}
       </section>
 
-      {/* ── Tamu yang terlanjur dilepas tapi datang ──────── */}
-      {lateGuests.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-            Dilepas (tidak datang) · {lateGuests.length}
-          </h2>
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
-            {lateGuests.map((s) => {
-              const problem = restoreProblem(a, s.id);
-              const bisa = !problem && !!shiftDi(a, venue, Date.now()) && allow("bukaMeja");
-              return (
-                <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] text-cream">{nameOf(s.tableId)} · {s.guest}</div>
-                    <div className="text-[11px] text-dim">
-                      {jam(s.startsAt)}–{jam(s.endsAt)} · kode {s.checkin}
-                      {problem && <span className="text-red-300"> · {problem}</span>}
-                      {!problem && !shiftDi(a, venue, Date.now()) && <span className="text-amber"> · buka shift dulu</span>}
-                    </div>
-                  </div>
-                  <button
-                    disabled={!bisa}
-                    onClick={() => restore(s)}
-                    className="min-h-[40px] shrink-0 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3
-                      text-[12px] font-semibold text-emerald-300 disabled:opacity-35">
-                    Pulihkan &amp; check-in
-                  </button>
-                </div>
-              );
-            })}
           </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
-            Untuk tamu yang ternyata datang setelah dilepas otomatis — hanya bisa selama jadwalnya belum
-            habis dan mejanya belum dipakai orang lain.
-          </p>
-        </section>
-      )}
-
+          <div className="min-w-0 space-y-6">
       {/* ── Pembayaran QRIS yang sedang berjalan ─────────── */}
       {holds.length > 0 && (
         <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
             Sedang membayar QRIS · {holds.length}
           </h2>
           <div className="divide-y divide-line overflow-hidden rounded-xl border border-dashed border-amber/40 bg-amber/5">
@@ -511,9 +510,20 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
         </section>
       )}
 
+      <p className="rounded-xl border border-dashed border-line px-3 py-2.5 text-[11px] leading-relaxed text-dim">
+        Booking yang sudah dibayar online masuk ke sini. Tamu datang → minta kode 6 digit → ketik di kotak check-in di atas.
+        Tamu yang datang terlambat setelah dilepas muncul di "Perlu tindakan".
+      </p>
+          </div>
+        </div>
+      )}
+
+      {tab === "meja" && (
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="min-w-0">
       {/* ── Sedang jalan, urut paling cepat habis ────────── */}
       <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
           {venue === "smh" ? "Meja terisi" : "Sedang main"} · {running.length}
         </h2>
         {running.length === 0 ? (
@@ -564,9 +574,110 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
         </p>
       </section>
 
+          </div>
+          <div className="min-w-0">
+      {/* ── Ringkas: meja kosong siap dipakai ────────────── */}
+      <section>
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
+          Meja kosong
+        </h2>
+        <div className="flex flex-wrap gap-1.5">
+          {/* Ikut venue, seperti seluruh daftar lain di layar ini. Tanpa ini
+              kasir Smokehouse membaca deretan "1 2 3 … 27" — nomor meja
+              biliar — sebagai meja makannya yang kosong. */}
+          {mejaDijual(a).filter((t) => diVenue(t.id) && !byTable.get(t.id)).map((t) => (
+            <span
+              key={t.id}
+              className="rounded-lg border border-emerald-500/40 bg-emerald-500/8 px-2.5 py-1
+                text-[13px] font-semibold text-emerald-300"
+            >{classOf(a, t.id) === "resto" ? t.name
+              : classOf(a, t.id) === "regular" ? t.no
+                : `${CLASS_SHORT[classOf(a, t.id)]} ${t.no}`}</span>
+          ))}
+        </div>
+      </section>
+          </div>
+        </div>
+      )}
+
+      {tab === "pesanan" && (
+        <div className="space-y-6">
+      {/* ── Takeaway menunggu diambil & dibayar ─────────── */}
+      {takeawayBelumBayar.length > 0 && (
+        <section>
+          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-amber before:bg-amber">
+            Takeaway menunggu diambil · {takeawayBelumBayar.length} ·{" "}
+            {rupiah(takeawayBelumBayar.reduce((n, o) => n + o.value, 0))}
+          </h2>
+          <div className="divide-y divide-line overflow-hidden rounded-xl border border-amber/40 bg-amber/5">
+            {takeawayBelumBayar.map((o) => {
+              const tk = a.tickets.filter((t) => t.sessionId === o.id);
+              const siap = tk.length > 0 && tk.every((t) => t.status === "ready" || t.status === "served");
+              return (
+                <div key={o.id} className="px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] text-cream">
+                        {o.guest} · <span className="font-mono text-mute">{o.code}</span>
+                      </div>
+                      <div className="text-[11px] text-dim">
+                        {jam(o.at)} · {o.lines.reduce((n, l) => n + l.qty, 0)} porsi ·{" "}
+                        {siap ? <span className="text-emerald-400">siap diambil</span> : "dapur sedang menyiapkan"}
+                        {o.phone && ` · ${o.phone}`}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right font-serif text-[13px] tabular-nums text-cream">
+                      {rupiah(o.value)}
+                    </div>
+                  </div>
+                  {allow("tutupTab") && (
+                    <div className="mt-1.5 space-y-1.5">
+                      {/* QR dinamis bernominal tepat untuk pesanan ini; yang menandai
+                          lunas tetap tombol di bawahnya, ditekan kasir. */}
+                      <QrisKasir amount={o.value} ringkas={`Pesanan ${o.code}`} kode={o.code} />
+                    {lunasi?.id === o.id ? (
+                      <KonfirmasiBayar judul={`Tandai ${o.code} lunas?`} total={o.value} metode={lunasi.label}
+                        tombol="Ya, lunas" onBatal={() => setLunasi(null)}
+                        onYa={() => {
+                          const { ch, label, mesin } = lunasi;
+                          const tolak = dispatchA({ t: "settleOrder", id: o.id, channel: ch, ...(mesin ? { mesin } : {}) });
+                          const lunas = !!peek().orders.find((x) => x.id === o.id)?.payment;
+                          setLunasi(null);
+                          flash(lunas
+                            ? `${o.code} lunas ${rupiah(o.value)} (${label}).`
+                            : tolak ?? "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
+                        }} />
+                    ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {([
+                        ["cash", "Tunai", undefined],
+                        ["qris_online", "QRIS", undefined],
+                        ...mesinEdc(a).map((m) => ["edc", `EDC ${m}`, m] as const),
+                      ] as const).map(([ch, label, mesin]) => (
+                        <button key={`${ch}-${mesin ?? ""}`}
+                          onClick={() => setLunasi({ id: o.id, ch, label, ...(mesin ? { mesin } : {}) })}
+                          className="min-h-[36px] rounded-lg border border-line bg-ink px-3 text-[12px] font-semibold text-cream">
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
+            Pesanan makanan tanpa meja. Uangnya baru masuk laporan setelah ditandai lunas di sini —
+            jadi angka rekap tidak pernah menghitung pesanan yang belum diambil.
+          </p>
+        </section>
+      )}
+
       {/* ── Pesanan dari HP tamu ─────────────────────────── */}
       <section>
-        <h2 className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-cream before:bg-amber">
           Pesanan dari HP · {orders.length}
           {pesananBaru.length > 0 && (
             <span className="rounded-full bg-amber px-2 py-0.5 text-[10px] font-bold text-ink">
@@ -651,26 +762,8 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
         </p>
       </section>
 
-      {/* ── Ringkas: meja kosong siap dipakai ────────────── */}
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Meja kosong
-        </h2>
-        <div className="flex flex-wrap gap-1.5">
-          {/* Ikut venue, seperti seluruh daftar lain di layar ini. Tanpa ini
-              kasir Smokehouse membaca deretan "1 2 3 … 27" — nomor meja
-              biliar — sebagai meja makannya yang kosong. */}
-          {mejaDijual(a).filter((t) => diVenue(t.id) && !byTable.get(t.id)).map((t) => (
-            <span
-              key={t.id}
-              className="rounded-lg border border-emerald-500/40 bg-emerald-500/8 px-2.5 py-1
-                text-[13px] font-semibold text-emerald-300"
-            >{classOf(a, t.id) === "resto" ? t.name
-              : classOf(a, t.id) === "regular" ? t.no
-                : `${CLASS_SHORT[classOf(a, t.id)]} ${t.no}`}</span>
-          ))}
         </div>
-      </section>
+      )}
     </div>
   );
 }

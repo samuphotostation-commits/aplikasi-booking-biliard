@@ -1,0 +1,14 @@
+{
+  "name": "SPL Lampu Meja",
+  "version": "spl-lampu-2.3",
+  "new_install_prompt_erase": false,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "spl-lampu-awal.bin", "offset": 0 },
+        { "path": "spl-lampu-aplikasi.bin", "offset": 57344 }
+      ]
+    }
+  ]
+}

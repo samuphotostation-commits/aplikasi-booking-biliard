@@ -116,7 +116,8 @@ console.log("\n-- Sesi bermenit ganjil tetap sinkron dengan grid jam --");
   // Open bill (tanpa jam selesai): tidak ada yang tahu kapan tamunya pulang, jadi
   // sisa hari itu ditutup untuk BOOKING ONLINE — permintaan pemilik.
   const busy = [...occ.busyHoursFromSessions(sess, "T09", iso, tNow)].sort((a, b) => a - b);
-  t("open bill: sisa hari tertutup untuk online", busy.length, 15);
+  // Jam buka resmi 11.00–06.00 (19 jam) sejak 14 Nov 2026.
+  t("open bill: sisa hari tertutup untuk online", busy.length, 19);
   t("open bill: jam 15 pun tidak ditawarkan online", busy.includes(15), true);
 
   t("kasir tetap boleh menjadwalkan 15.00 di meja open bill",

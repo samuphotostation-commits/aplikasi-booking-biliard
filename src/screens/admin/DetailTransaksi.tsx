@@ -18,7 +18,8 @@
  */
 import { useState } from "react";
 import { rupiah, fmtDateLong } from "../../lib/core";
-import { cetakStruk } from "../../lib/cetak";
+import { cetakHtmlStruk } from "../../lib/cetak";
+import { htmlDetailTransaksi } from "../../lib/strukRekap";
 import { unduhExcel } from "../../lib/excel";
 import type { OmzetShift } from "../../lib/adminStore";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
@@ -82,14 +83,17 @@ export default function DetailTransaksi({ os, pilih, nama, bizDate, venue }: {
   }
 
   async function cetak() {
-    const hasil = await cetakStruk();
+    // Format 80 mm dari panduan pemilik (14 Nov 2026) — sama dengan tab Kas Kasir.
+    const hasil = await cetakHtmlStruk(htmlDetailTransaksi({
+      venue: venue ?? null, bizDate, kasir: pilih === null ? "SEMUA SHIFT" : nama.toUpperCase(), baris,
+    }));
     if (!hasil.ok) bilang(`Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
   }
 
   return (
     <section>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-cream before:bg-amber">
           Detail transaksi · {baris.length} pembayaran
         </h2>
         <div className="flex gap-1.5">
@@ -286,7 +290,7 @@ export default function DetailTransaksi({ os, pilih, nama, bizDate, venue }: {
             muncul dua kali. Begitulah laporan kas harus dibaca — yang dicocokkan adalah
             uang yang masuk, bukan banyaknya meja.
             {" "}Kolom EDC dipisah per mesin sesuai yang dipilih kasir saat membayar.
-            Mesinnya diatur di <span className="text-mute">Atur → Mesin EDC</span>.
+            Mesinnya diatur di <span className="text-mute">Pengaturan → Pembayaran</span>.
           </p>
         </>
       )}

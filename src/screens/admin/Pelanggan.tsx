@@ -8,6 +8,7 @@
  * Data ini hanya terbuka untuk perangkat dengan sesi PIN — HP pelanggan tidak
  * bisa membacanya sama sekali (dijaga server, lihat supabase/schema-pelanggan.sql).
  */
+import { KepalaHalaman } from "./Tata";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin } from "../../lib/adminStore";
 import { venueStore } from "../../lib/venueStore";
@@ -66,23 +67,24 @@ export default function PelangganScreen() {
 
   if (sync.mode !== "server") {
     return (
-      <div className="rounded-xl border border-line bg-ink-2 p-4 text-sm text-mute">
-        Daftar pelanggan tersimpan di pusat data, dan perangkat ini sedang belum tersambung.
-        Sambungkan dulu, daftarnya muncul sendiri.
-      </div>
+      <KepalaHalaman judul="Pelanggan"
+        ket="Daftar pelanggan tersimpan di pusat data, dan perangkat ini sedang belum tersambung. Sambungkan dulu, daftarnya muncul sendiri." />
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
+      {/* ── KEPALA PELANGGAN (perapian 14 Nov 2026) ── */}
+      <KepalaHalaman judul="Pelanggan" ket="Riwayat kunjungan tamu dan member aplikasi." />
+      {/* Tab bergaris bawah — sama dengan tab di Rekap. */}
+      <nav className="flex gap-1 border-b border-line" role="tablist">
         {([["kunjungan", "Kunjungan"], ["member", "Member aplikasi"]] as const).map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k}
-            className={`min-h-[40px] rounded-xl border text-[13px] font-semibold ${
-              tab === k ? "border-amber bg-amber/10 text-amber" : "border-line bg-ink-2 text-mute"
+          <button key={k} onClick={() => setTab(k)} aria-selected={tab === k} role="tab"
+            className={`-mb-px border-b-2 px-4 py-2.5 text-[13px] font-semibold ${
+              tab === k ? "border-amber text-amber" : "border-transparent text-mute hover:text-cream"
             }`}>{label}</button>
         ))}
-      </div>
+      </nav>
 
       {tab === "member" ? <DaftarMember /> : (<>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

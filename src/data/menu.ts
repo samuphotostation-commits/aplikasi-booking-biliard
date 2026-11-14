@@ -61,6 +61,9 @@ export type MenuCategory = {
    *  counter biliar: rokok tidak boleh dipesan lewat HP tanpa ada yang
    *  memeriksa umur pembelinya. Kasir menyerahkannya langsung. */
   staffOnly?: boolean;
+  /** Kelompok di layar pemesanan (Dapur / Bar / Counter), diatur pemilik.
+   *  Kosong = ditebak dari station menu-menunya. */
+  grup?: "kitchen" | "bar" | "billiard";
   items: MenuItem[];
 };
 

@@ -92,7 +92,7 @@ export default function LaporanProduk({ dari, sampai, venue }: {
   return (
     <section>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+        <h2 className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-cream before:bg-amber">
           Penjualan per produk
         </h2>
         {baris.length > 0 && (

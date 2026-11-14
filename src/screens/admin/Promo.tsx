@@ -1,7 +1,10 @@
+import { KepalaHalaman, TombolAksi } from "./Tata";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdmin } from "../../lib/adminStore";
-import { businessDow, promoApplies, type Promo, type PromoScope } from "../../lib/billing";
+import { businessDow, promoApplies, promoDiVenue, type Promo, type PromoScope } from "../../lib/billing";
+import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
+import { VENUE_LABEL, type Venue } from "../../data/venue";
 import { rupiah } from "../../lib/core";
 import { Button } from "../../components/UI";
 
@@ -17,16 +20,30 @@ const SCOPE_LABEL: Record<PromoScope, string> = {
   billiard: "Meja biliar", fnb: "Makanan & minuman", all: "Semua",
 };
 
-const kosong = (): Promo => ({
+/** Label cakupan promo: venue tertentu, atau kedua venue (promo lama tanpa venue). */
+const labelBerlaku = (p: Pick<Promo, "venue">) => (p.venue ? VENUE_LABEL[p.venue] : "Kedua venue");
+const kelasBerlaku = (p: Pick<Promo, "venue">) => (p.venue
+  ? "border-amber/50 bg-amber/10 text-amber" : "border-sky-400/40 bg-sky-400/10 text-sky-300");
+
+const kosong = (venue?: Venue): Promo => ({
   // ID unik walau dua superadmin membuat promo pada milidetik yang sama di perangkat berbeda.
   id: `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, code: "", name: "",
   kind: "percent", value: 10, scope: "all",
   daysOfWeek: [0, 1, 2, 3, 4, 5, 6], startHour: 11, endHour: 26,
   minSpend: 0, maxDiscount: 0, active: true, autoApply: false,
+  // Promo baru bawaannya untuk venue yang sedang dipilih — bukan kedua venue.
+  ...(venue ? { venue } : {}),
 });
 
 export default function PromoScreen() {
   const { a, dispatchA, peek } = useAdmin();
+  /*
+   * PEMISAHAN VENUE (pemilik 14 Nov 2026): sama dengan Pengaturan. Daftar
+   * menampilkan promo venue yang dipilih + promo kedua venue; promo khusus
+   * venue sebelah disembunyikan (jumlahnya disebut).
+   */
+  const venue = useVenueAktif();
+  const venueAkun = a.me?.venue;
   const [edit, setEdit] = useState<Promo | null>(null);
   const [hapus, setHapus] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -44,19 +61,46 @@ export default function PromoScreen() {
     setTimeout(() => setNote(null), 4000);
   }
 
+  const daftar = a.promos.filter((p) => promoDiVenue(p, venue));
+  const tersembunyi = a.promos.length - daftar.length;
+  const aktif = daftar.filter((p) => p.active);
   return (
     <div className="space-y-4 pb-6">
+      {/* ── KEPALA PROMO (perapian 14 Nov 2026) ── */}
+      <KepalaHalaman judul="Promo"
+        ket={<>Happy hour (otomatis) dan kode promo untuk <span className="text-cream">{VENUE_LABEL[venue]}</span>.
+          Promo yang berlaku sekarang ditandai hijau.</>}
+        aksi={<>
+          {venueAkun ? (
+            <span className="rounded-lg border border-amber/50 bg-amber/10 px-3 py-1.5 text-[12px] font-bold text-amber">
+              {VENUE_LABEL[venueAkun]}
+            </span>
+          ) : (
+            <div className="inline-flex gap-0.5 rounded-xl border border-line bg-ink p-0.5" role="radiogroup" aria-label="Venue promo">
+              {(["spl", "smh"] as const).map((v) => (
+                <button key={v} role="radio" aria-checked={venue === v} onClick={() => setVenueAktif(v)}
+                  className={`min-h-[34px] rounded-lg px-3 text-[12px] font-bold ${
+                    venue === v ? "bg-amber text-ink" : "text-mute hover:text-cream"
+                  }`}>{VENUE_LABEL[v]}</button>
+              ))}
+            </div>
+          )}
+          {!edit && <TombolAksi utama onClick={() => setEdit(kosong(venue))}>+ Buat promo baru</TombolAksi>}
+        </>}
+        angka={[
+          { label: `Promo ${VENUE_LABEL[venue]}`, nilai: daftar.length },
+          { label: "Aktif", nilai: aktif.length },
+          { label: "Berlaku sekarang", nilai: aktif.filter((p) => promoApplies(p, now, dow)).length, nada: "hijau" },
+        ]} />
       {!edit && (
         <>
-          <Button full onClick={() => setEdit(kosong())}>+ Buat Promo Baru</Button>
-
-          <div className="space-y-2">
-            {a.promos.length === 0 && (
-              <div className="rounded-xl border border-line bg-ink-2 px-4 py-8 text-center text-sm text-dim">
-                Belum ada promo.
+          <div className="grid items-start gap-2 lg:grid-cols-2">
+            {daftar.length === 0 && (
+              <div className="rounded-xl border border-line bg-ink-2 px-4 py-8 text-center text-sm text-dim lg:col-span-2">
+                Belum ada promo untuk {VENUE_LABEL[venue]}.
               </div>
             )}
-            {a.promos.map((p) => {
+            {daftar.map((p) => {
               const berlaku = promoApplies(p, now, dow);
               return (
                 <motion.div key={p.id} layout
@@ -80,6 +124,9 @@ export default function PromoScreen() {
                       <div className="mt-0.5 text-[12px] text-dim">
                         {p.kind === "percent" ? `${p.value}%` : rupiah(p.value)} · {SCOPE_LABEL[p.scope]}
                       </div>
+                      <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${kelasBerlaku(p)}`}>
+                        Berlaku: {labelBerlaku(p)}
+                      </span>
                       <div className="mt-0.5 text-[11px] text-dim">
                         {p.daysOfWeek.length === 7 ? "Setiap hari" : p.daysOfWeek.map((d) => HARI[d]).join(" ")}
                         {" · "}{String(p.startHour % 24).padStart(2, "0")}.00–{String(p.endHour % 24).padStart(2, "0")}.00
@@ -130,7 +177,13 @@ export default function PromoScreen() {
             })}
           </div>
 
+          {tersembunyi > 0 && (
+            <p className="text-[11px] text-dim">
+              {tersembunyi} promo khusus {VENUE_LABEL[venue === "spl" ? "smh" : "spl"]} tidak ditampilkan — pilih venue itu di atas untuk melihatnya.
+            </p>
+          )}
           <p className="text-[11px] leading-relaxed text-dim">
+            Promo hanya dipakai di venue yang tertulis di labelnya; "Kedua venue" berlaku di SPL Sport dan Smokehouse.
             Promo tidak bertumpuk. Kalau ada beberapa yang berlaku bersamaan,
             sistem memakai yang paling menguntungkan tamu — sekali saja.
           </p>
@@ -143,6 +196,7 @@ export default function PromoScreen() {
         {edit && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <Editor
+              venueAkun={venueAkun}
               promo={edit}
               others={a.promos.filter((x) => x.id !== edit.id)}
               onChange={setEdit}
@@ -157,8 +211,8 @@ export default function PromoScreen() {
 }
 
 function Editor({
-  promo, others, onChange, onSave, onCancel,
-}: { promo: Promo; others: Promo[]; onChange: (p: Promo) => void; onSave: () => void; onCancel: () => void }) {
+  promo, others, onChange, onSave, onCancel, venueAkun,
+}: { promo: Promo; others: Promo[]; onChange: (p: Promo) => void; onSave: () => void; onCancel: () => void; venueAkun?: Venue }) {
   // Promo yang tersimpan tapi tidak pernah bisa berlaku adalah jebakan: dicegah di sini.
   const code = promo.code.trim().toUpperCase();
   const problems = [
@@ -176,6 +230,24 @@ function Editor({
   return (
     <div className="space-y-3 rounded-2xl border border-line bg-ink-2 p-4">
       <h2 className="font-display text-lg uppercase tracking-wide text-cream">Promo</h2>
+
+      {/* BERLAKU DI — venue tempat promo dipakai. Akun yang terikat satu venue
+          hanya bisa membuat promo untuk venuenya sendiri. */}
+      <Field label="Berlaku di">
+        <div className="grid grid-cols-3 gap-2">
+          {([["spl", VENUE_LABEL.spl], ["smh", VENUE_LABEL.smh], ["dua", "Kedua venue"]] as const).map(([k, label]) => {
+            const pilih = k === "dua" ? !promo.venue : promo.venue === k;
+            const boleh = !venueAkun || k === venueAkun;
+            return (
+              <button key={k} disabled={!boleh} aria-pressed={pilih}
+                onClick={() => { const { venue: _v, ...sisa } = promo; onChange(k === "dua" ? sisa : { ...sisa, venue: k }); }}
+                className={`min-h-[44px] rounded-xl border text-[13px] font-semibold disabled:opacity-35 ${
+                  pilih ? "border-amber bg-amber text-ink" : "border-line bg-ink text-cream"
+                }`}>{label}</button>
+            );
+          })}
+        </div>
+      </Field>
 
       <Field label="Nama promo">
         <input value={promo.name} onChange={(e) => set({ name: e.target.value })}

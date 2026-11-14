@@ -14,10 +14,10 @@
    — dengan urutan terima acak — dan hasilnya harus identik.
    ═══════════════════════════════════════════════════════════════════ */
 import {
-  reducer, init, setClock, resetIds, nextId, recap, billiardTotalOf, fnbTotalOf, lineValue, gudangDari,
+  reducer, init, shiftDi, setClock, resetIds, nextId, recap, billiardTotalOf, fnbTotalOf, lineValue, gudangDari,
   priceLines, priceOf, settlementOf, tickState, applyAction, applyEntry, replay, entryOrder, slotProblem,
   shiftCashExpected, classOf, omzetPerShift, penjualanProduk, rekapTigaJenis, bolehDariCentral, mesinEdc, punyaLampu,
-  grupSesi, tagihanGrup, venueOrder,
+  grupSesi, tagihanGrup, venueOrder, rekapSaring, menuSaring, ringkasSaring, menuShift, shiftHariItu,
   HOLD_MIN, HOLD_GRACE_MIN, PAKET_FREE_DRINKS, PAKET_FREE_CATEGORIES, NO_SHOW_RELEASE_MIN,
   type State, type Action, type Entry, type Genesis,
 } from "../src/lib/engine";
@@ -63,7 +63,7 @@ const INV: Record<string, string> = {
   "INV-18": "Booking online dihargai tarif terkini, atau harga beku saat hold",
   "INV-19": "Check-in tidak memperpanjang jam selesai booking",
   "INV-20": "Pesanan online masuk tiket dapur saat check-in",
-  "INV-21": "Meja tidak bisa dibuka di luar jam operasional",
+  "INV-21": "Di luar jam resmi (11.00–06.00) meja hanya dibuka kasir saat shift venue buka, dan ditandai lembur",
   "INV-22": "Booking online yang berebut slot ditolak & dananya tercatat",
   "INV-23": "Tutup tab hanya untuk sesi yang sedang berjalan",
   "INV-24": "Rekap hari ini hanya hari operasional ini (termasuk takeaway)",
@@ -80,7 +80,7 @@ const INV: Record<string, string> = {
   "INV-35": "Tanda habis manual tidak dicabut oleh void, no-show, atau koreksi stok",
   "INV-36": "Refund dicatat atas nama pembayarnya: tiap pesanan QR dengan kodenya sendiri",
   "INV-37": "Mengubah tarif tidak menagih ulang waktu open bill yang sudah berjalan",
-  "INV-38": "Perpanjangan tidak melewati jam tutup 02.00; jam setelah 02.00 bertarif malam",
+  "INV-38": "Perpanjangan melewati jam tutup 06.00 hanya saat shift venue buka; jam lewat tutup bertarif malam",
   "INV-39": "Tamu yang mejanya masih dipakai sesi lain tidak dilepas sebagai no-show",
   "INV-40": "No-show yang dipulihkan langsung berjalan, pra-order masuk dapur, yang sudah habis dikembalikan dananya",
   "INV-41": "Refund tidak pernah hilang/berubah nominal, dan dicatat dikembalikan tepat sekali (waktu, petugas, metode)",
@@ -88,9 +88,10 @@ const INV: Record<string, string> = {
   "INV-43": "Kejadian rusak/tidak dikenal di jejak bersama tidak membuat mesin crash dan tidak mengubah data",
   "INV-44": "Split bill: bayar sebagian tidak pernah melebihi sisa tagihan & tidak ada baris dibayar dua kali",
   "INV-45": "Koreksi pesanan/pindah meja: nilai & tiket ikut pindah, yang sudah dibayar/diserahkan tidak tersentuh",
-  "INV-46": "Meteran berhenti di jam tutup & 5 menit pertama tidak ditagih",
+  "INV-46": "Meteran berhenti 06.00 hanya bila tidak ada shift buka (lanjut selama shift buka) & 5 menit pertama tidak ditagih",
   "INV-48": "Selalu ada superadmin aktif; PIN & email staf tidak pernah kembar",
   "INV-49": "Buka meja paket per jam: harga blok tetap, punya jam selesai, tidak bermeteran",
+  "INV-59": "Rekap disaring (venue · shift · rekening · menu) cocok persis dengan uang yang masuk, dan tidak berubah saat tutup buku",
   "INV-50": "Takeaway bayar di kasir: uang diakui tepat sekali, sesuai nilai pesanannya",
   "INV-52": "Barang counter biliar (rokok, botolan) tidak pernah membuat tiket dapur/bar",
   "INV-53": "Mengubah persen PPN/service tidak pernah menggeser uang — hanya pemecahan laporan",
@@ -171,10 +172,32 @@ const BILLIARD = TABLES.filter((t) => t.type !== "resto");
 /** Meja Smokehouse. Sebagian walk-in dibuka di sini supaya pemisahan dua
  *  venue benar-benar dilewati 100 simulasi — bukan cuma uji khususnya. */
 const SMOKEHOUSE = TABLES.filter((t) => t.type === "resto");
-/** Batas meteran: jam 05.00 pagi sesudah hari operasional sesi itu (aplikasi bisa mati semalaman). */
+/** Batas meteran dasar: 06.00 sesudah hari operasional sesi itu (hari berganti 06.00 sejak 14 Nov 2026). */
 const closeAfter = (ts: number) => {
-  const b = wibDate(ts - 2 * 3_600_000);
-  return wibTs(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate() + 1, 5);
+  const b = wibDate(ts - 6 * 3_600_000);
+  return wibTs(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate() + 1, 6);
+};
+/**
+ * Oracle batas meteran (aturan pemilik 14 Nov 2026), ditulis ulang di sini:
+ * di 06.00 meteran berhenti kalau tidak ada shift venue itu yang buka; selama
+ * ada, meteran lanjut sampai shift itu ditutup tanpa pengganti (serah terima
+ * ≤ 15 menit dianggap bersambung).
+ */
+const oracleBatas = (st: Pick<State, "shift" | "shiftSmh" | "shiftHistory">, s: LiveSession) => {
+  let cap = closeAfter(s.startsAt);
+  const v = venueDari(s.tableId);
+  const semua = [st.shift, st.shiftSmh, ...st.shiftHistory]
+    .filter((x): x is NonNullable<typeof x> => !!x && (x.venue ?? "spl") === v);
+  for (let i = 0; i < 100; i++) {
+    const buka = semua.find((sh) => sh.openedAt <= cap && cap < (sh.closedAt ?? Infinity));
+    if (!buka) return cap;
+    if (buka.closedAt === undefined) return Infinity;
+    const tutup = buka.closedAt;
+    const lanjut = semua.find((sh) => sh.openedAt >= tutup && sh.openedAt <= tutup + 15 * 60_000);
+    if (!lanjut) return tutup;
+    cap = lanjut.openedAt;
+  }
+  return cap;
 };
 /** Akhir waktu yang BENAR-BENAR ditagih untuk open bill — cerminan meterEndOf di mesin.
  *  Dipakai juga untuk menilai promo: tab yang lupa ditutup tidak boleh kebagian
@@ -185,13 +208,13 @@ const kemarinDari = (iso: string) => {
   return tanggalWib(dariWib(y, m, d - 1, 12));
 };
 
-const oracleMeterEnd = (s: LiveSession, now: number) =>
+const oracleMeterEnd = (s: LiveSession, now: number, st: Pick<State, "shift" | "shiftSmh" | "shiftHistory">) =>
   s.stoppedAt !== undefined
     ? Math.max(s.startsAt, s.stoppedAt)
-    : Math.max(s.startsAt, Math.min(now, closeAfter(s.startsAt)));
+    : Math.max(s.startsAt, Math.min(now, oracleBatas(st, s)));
 
 /** Tagihan open bill: 5 menit pertama gratis, lalu minimum 30 menit per menit, berhenti di jam tutup, ke atas Rp 1.000. */
-const oracleOpenBill = (s: LiveSession, rates: State["rates"], end: number) => {
+const oracleOpenBill = (s: LiveSession, rates: State["rates"], end: number, st: Pick<State, "shift" | "shiftSmh" | "shiftHistory">) => {
   const type = sessType(s);
   if (type === "resto") return 0;                        // meja resto tidak punya meteran
   if (s.blockHours) {                                    // paket per jam: harga blok, bukan meteran
@@ -199,7 +222,7 @@ const oracleOpenBill = (s: LiveSession, rates: State["rates"], end: number) => {
     return Math.ceil(Math.max(0, sampai - s.startsAt) / 60_000) <= 5 ? 0 : s.tableAmount;
   }
   const r = s.rates ?? rates;
-  const stop = s.stoppedAt ?? Math.min(end, closeAfter(s.startsAt));
+  const stop = s.stoppedAt ?? Math.min(end, oracleBatas(st, s));
   const played = Math.ceil(Math.max(0, stop - s.startsAt) / 60_000);
   if (played <= 5) return 0;                             // toleransi batal 5 menit
   const billed = Math.max(30, played);
@@ -411,6 +434,11 @@ function runSim(sim: number) {
         const prev = b.history.find((x) => x.bizDate === h.bizDate);
         if (prev && JSON.stringify(prev) === JSON.stringify(h)) continue;
         if (money(recap(releasedOnly, h.bizDate)) !== money(recap(a, h.bizDate))) f("INV-42", `rekap ${h.bizDate} berubah saat tutup buku`);
+        // INV-57 — ringkasan saringan yang dibekukan = hitungan saat harinya masih buka.
+        const urut = (o: Record<string, number>) => JSON.stringify(Object.entries(o).filter(([, v]) => v !== 0).sort());
+        if (h.saring && urut(h.saring) !== urut(ringkasSaring(releasedOnly, h.bizDate))) {
+          f("INV-59", `saringan ${h.bizDate} berubah saat tutup buku`);
+        }
         const ids = new Set(h.sessions.map((x) => x.id));
         for (const x of b.sessions) {
           if ((x.status === "done" || x.status === "noshow") && businessDateOf(x.startsAt) === h.bizDate && !ids.has(x.id) && !live.sessions.has(x.id)) {
@@ -608,7 +636,7 @@ function runSim(sim: number) {
       if (sess && sess.status === "running" && ok) {
         const done = a.sessions.find((x) => x.id === act.id)!;
         // Oracle meteran ditulis ulang per menit dengan bilangan bulat — bukan memanggil mesin.
-        const bill = sess.source === "walkin" ? oracleOpenBill(sess, b.rates, now) : sess.tableAmount;
+        const bill = sess.source === "walkin" ? oracleOpenBill(sess, b.rates, now, b) : sess.tableAmount;
         const fnb = fnbTotalOf(sess);
         const counterB = sess.source === "walkin" ? bill : (extraTable[sess.id] ?? 0);
         const counterF = sess.fnb.filter((l) => !prepaid.has(`${sess.id}|${l.key}`)).reduce((n, l) => {
@@ -618,7 +646,7 @@ function runSim(sim: number) {
         const dibayarDulu = splitPaid(sess);
         // Sama dengan mesin: promo dinilai pada akhir waktu yang ditagih.
         const akhirTagih = sess.source === "walkin" && !sess.blockHours && sess.status === "running"
-          ? oracleMeterEnd(sess, now) : now;
+          ? oracleMeterEnd(sess, now, b) : now;
         // Diskon manual (SMH-11b) ditulis ulang di sini, bukan dipanggil dari
         // mesin: persen di luar 0-100 dijinakkan, dan diskon manual TIDAK
         // ditumpuk dengan promo -- yang dipakai hanya yang lebih besar.
@@ -649,10 +677,10 @@ function runSim(sim: number) {
       if (ok && s0 && s1) {
         const pays = s1.payments ?? [];
         const p = pays[pays.length - 1];
-        const counterB = s0.source === "walkin" ? oracleOpenBill(s0, b.rates, now) : (extraTable[s0.id] ?? 0);
+        const counterB = s0.source === "walkin" ? oracleOpenBill(s0, b.rates, now, b) : (extraTable[s0.id] ?? 0);
         const counterF = s0.fnb.filter((l) => !prepaid.has(`${s0.id}|${l.key}`)).reduce((n, l) => n + lineValue(l), 0);
         const akhirTagih2 = s0.source === "walkin" && !s0.blockHours && s0.status === "running"
-          ? oracleMeterEnd(s0, now) : now;
+          ? oracleMeterEnd(s0, now, b) : now;
         const disc = bestPromo(b.promos, counterB, counterF, akhirTagih2)?.discount ?? 0;
         const sisa = Math.max(0, counterB + counterF - disc - splitPaid(s0));
         if (!p) f("INV-44", `bayar sebagian ${act.id} tidak tercatat`);
@@ -723,8 +751,8 @@ function runSim(sim: number) {
 
     // INV-46 meteran: berhenti di jam tutup, 5 menit pertama tidak ditagih
     for (const s of a.sessions.filter(isOpenBill)) {
-      const mesin = billiardTotalOf(s, a.rates, now).amount;
-      const oracle = oracleOpenBill(s, a.rates, now);
+      const mesin = billiardTotalOf(s, a.rates, now, a).amount;
+      const oracle = oracleOpenBill(s, a.rates, now, a);
       if (mesin !== oracle) f("INV-46", `meteran ${s.id} ${mesin}, seharusnya ${oracle} (mulai ${wibDate(s.startsAt).getUTCHours()}.xx)`);
     }
     if (act.t === "stopMeter" && ok) {
@@ -855,6 +883,46 @@ function runSim(sim: number) {
     if (os.semua.sewaMeja + os.semua.barang - os.semua.diskon !== r.gross) {
       f("INV-55", `lini usaha per shift tidak menjumlah ke omzet ${r.gross}`);
     }
+
+    // INV-57 rekap disaring. Unit = venue (Bar ikut venuenya). Yang dijaga:
+    // saringan tidak pernah menambah/menghilangkan uang dibanding laporan
+    // per shift, dan pecahan rekening/shiftnya menjumlah tepat.
+    const rsG = rekapSaring(a, { dari: today, sampai: today, unit: "semua" });
+    let rsJumlah = 0;
+    for (const v of ["spl", "smh"] as const) {
+      const rs = rekapSaring(a, { dari: today, sampai: today, unit: v });
+      const ov = omzetPerShift(a, today, v).semua;
+      rsJumlah += rs.total;
+      if (rs.total !== ov.diterima + ov.prabayar) f("INV-59", `${v}: saring ${rs.total} ≠ uang masuk ${ov.diterima + ov.prabayar}`);
+      if ((rs.perKanal.tunai ?? 0) !== ov.tunai) f("INV-59", `${v}: cash ${rs.perKanal.tunai ?? 0} ≠ ${ov.tunai}`);
+      if ((rs.perKanal.qris ?? 0) !== ov.qris) f("INV-59", `${v}: QRIS ${rs.perKanal.qris ?? 0} ≠ ${ov.qris}`);
+      if ((rs.perKanal.prabayar ?? 0) !== ov.prabayar) f("INV-59", `${v}: prabayar ${rs.perKanal.prabayar ?? 0} ≠ ${ov.prabayar}`);
+      for (const [m, nilai] of Object.entries(ov.edcPer)) {
+        if ((rs.perKanal[`edc:${m}`] ?? 0) !== nilai) f("INV-59", `${v}: EDC ${m} ${rs.perKanal[`edc:${m}`] ?? 0} ≠ ${nilai}`);
+      }
+      if (rs.perShift.pagi + rs.perShift.sore !== rs.total) f("INV-59", `${v}: pagi + sore ≠ total`);
+      const pagi = rekapSaring(a, { dari: today, sampai: today, unit: v, shift: "pagi" }).total;
+      const sore = rekapSaring(a, { dari: today, sampai: today, unit: v, shift: "sore" }).total;
+      if (pagi + sore !== rs.total) f("INV-59", `${v}: saring pagi ${pagi} + sore ${sore} ≠ ${rs.total}`);
+      const cash = rekapSaring(a, { dari: today, sampai: today, unit: v, kanal: ["tunai"] }).total;
+      const daftarRek = Object.keys(rs.perKanal).filter((k) => k !== "tunai");
+      // Daftar kosong berarti "semua" bagi saringan — jadi tanpa rekening, nilainya 0.
+      const rek = daftarRek.length ? rekapSaring(a, { dari: today, sampai: today, unit: v, kanal: daftarRek }).total : 0;
+      if (cash + rek !== rs.total) f("INV-59", `${v}: cash ${cash} + rekening ${rek} ≠ ${rs.total}`);
+      // Rekap per menu (isi struk KAS KASIR) = laporan produk venue itu.
+      const lpv = penjualanProduk(a, today, today, v);
+      const ms = menuSaring(a, { dari: today, sampai: today, unit: v }).baris.reduce((n, b) => n + b.total, 0);
+      if (ms !== lpv.total) f("INV-59", `${v}: menu struk ${ms} ≠ laporan produk ${lpv.total}`);
+      const msShift = (["pagi", "sore"] as const).reduce((n, sh) =>
+        n + menuSaring(a, { dari: today, sampai: today, unit: v, shift: sh }).baris.reduce((m, b) => m + b.total, 0), 0);
+      if (msShift !== ms) f("INV-59", `${v}: menu pagi + sore ${msShift} ≠ ${ms}`);
+      // Closing per shift kasir: menu semua shift menjumlah ke menu sehari.
+      const tot = (xs: { total: number }[]) => xs.reduce((m, b) => m + b.total, 0);
+      const idShift = [...shiftHariItu(a, today).map((x) => x.id), "tanpa-shift"];
+      const perShiftKasir = idShift.reduce((m, id) => m + tot(menuShift(a, today, v, id).baris), 0);
+      if (perShiftKasir !== tot(menuShift(a, today, v, null).baris)) f("INV-59", `${v}: menu per shift kasir ${perShiftKasir} ≠ menu sehari`);
+    }
+    if (rsJumlah !== rsG.total) f("INV-59", `gabungan ${rsG.total} ≠ SPL + Smokehouse ${rsJumlah}`);
 
     // INV-56 laporan produk. Hari ini belum tutup buku, jadi angkanya harus
     // sama persis dengan nilai barang di rekap tiga jenis — dan compliment
@@ -1048,7 +1116,12 @@ function runSim(sim: number) {
     // INV-21 jam operasional
     if (act.t === "walkin" && ok) {
       const h = hourIdx(now);
-      if (h < 11 || h >= 26) f("INV-21", `meja dibuka pukul ${wibDate(now).getUTCHours()}.xx (di luar jam buka)`);
+      const s1 = a.sessions.find((x) => x.status === "running" && x.startsAt === now && !b.sessions.some((y) => y.id === x.id));
+      const luar = h < 11 || h >= 30;
+      if (luar && !b.jamBebas && !shiftDi(b, venueDari(act.tableId), now)) {
+        f("INV-21", `meja dibuka pukul ${wibDate(now).getUTCHours()}.xx tanpa shift venue yang buka`);
+      }
+      if (s1 && !b.jamBebas && !!s1.lembur !== luar) f("INV-21", `tanda lembur salah (pukul ${wibDate(now).getUTCHours()}.xx)`);
     }
 
     // INV-26 perpanjangan
@@ -1357,7 +1430,9 @@ function runSim(sim: number) {
     // INV-38 jam tutup
     if (act.t === "extend" && ok) {
       const s1 = a.sessions.find((x) => x.id === act.id)!;
-      if (hourIdx(s1.endsAt - 1) >= 26) f("INV-38", `${s1.id} diperpanjang sampai ${wibDate(s1.endsAt).getUTCHours()}.00, melewati jam tutup`);
+      if (hourIdx(s1.endsAt - 1) >= 30 && !shiftDi(b, venueDari(s1.tableId), now)) {
+        f("INV-38", `${s1.id} diperpanjang sampai ${wibDate(s1.endsAt).getUTCHours()}.00 tanpa shift yang buka`);
+      }
     }
 
     // INV-40 pulihkan no-show

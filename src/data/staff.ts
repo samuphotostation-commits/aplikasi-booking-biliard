@@ -88,7 +88,7 @@ export const EMPLOYEES: Employee[] = [
   { id: "u-owner", name: "Pak Budi (Pemilik)", pin: "9999", role: "superadmin", active: true, nip: "SPL001" },
   { id: "u-manager", name: "Sinta (Manajer)", pin: "8888", role: "superadmin", active: true, nip: "SPL002" },
   // Kru lantai TERIKAT venuenya. Pemilik bisa memindahkan atau melepas
-  // ikatannya di tab Atur; yang tidak bisa dilepas hanya kunci induk di atas.
+  // ikatannya di Pengaturan; yang tidak bisa dilepas hanya kunci induk di atas.
   { id: "u-rian", name: "Rian", pin: "1234", role: "kru_kasir", active: true, venue: "spl", nip: "SPL003" },
   { id: "u-yoga", name: "Yoga", pin: "2345", role: "kru_kasir", active: true, venue: "spl", nip: "SPL004" },
   { id: "u-dewi", name: "Dewi", pin: "3456", role: "kru_kasir", active: true, venue: "smh", nip: "SPL005" },

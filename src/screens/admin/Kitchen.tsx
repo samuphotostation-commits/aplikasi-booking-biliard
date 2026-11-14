@@ -7,6 +7,8 @@ import type { Ticket } from "../../data/live";
 import { cetakKertas, tandaiTercetak, tiketTercetak } from "../../lib/cetak";
 import { htmlKertas, kelompokkan, kunciTiket, type KertasDapur } from "../../lib/cetakDapur";
 import { galatCetakDapur } from "../../lib/pantauCetak";
+import { useVenueAktif } from "../../lib/venueAktif";
+import Checker from "./Checker";
 
 /* Kitchen Display sederhana (PRD KK-15).
    Empat status, tombol besar, tanpa routing per-station yang rumit —
@@ -32,7 +34,18 @@ import { galatCetakDapur } from "../../lib/pantauCetak";
    kartu meja di Papan memakai yang sama persis, dan dua layar yang
    menuliskan sendiri kata "ready" adalah cara tercepat keduanya berbeda. */
 
-export default function Kitchen() {
+/**
+ * Tab "Checker" (dulu "Dapur") — permintaan pemilik 14 Nov 2026: dapur tidak
+ * memakai monitor, jadi kedua venue memakai CHECKER. Layar dapur empat status
+ * di bawah (`KitchenDisplay`) disimpan tanpa dipasang, kalau suatu hari
+ * dapur memakai monitor lagi.
+ */
+export default function Dapur() {
+  // Checker selalu menampilkan KEDUA venue (pemilik 14 Nov 2026) — tidak ikut pilihan venue perangkat.
+  return <Checker />;
+}
+
+export function KitchenDisplay() {
   const { a, dispatchA, tick } = useAdmin();
   void tick;
   const [station, setStation] = useState<"all" | "kitchen" | "bar">("all");

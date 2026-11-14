@@ -58,7 +58,7 @@ export default function QrisPanel() {
 
   return (
     <section>
-      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
+      <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
         QRIS dinamis (Midtrans / DOKU)
       </h2>
 

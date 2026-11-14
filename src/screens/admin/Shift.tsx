@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useAdmin, shiftCashExpected, biayaLaci, omzetPerShift, businessDateOf, shiftDi } from "../../lib/adminStore";
 import { PanelBiaya } from "./PanelBiaya";
+import { JudulBagian, KepalaHalaman, Kosong, TombolAksi } from "./Tata";
 import { rupiah } from "../../lib/core";
-import { Button } from "../../components/UI";
-import { cetakStruk } from "../../lib/cetak";
+import CetakKasKasir from "./StrukSettlement";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
 import type { Shift } from "../../data/staff";
 import { useVenueAktif } from "../../lib/venueAktif";
@@ -12,36 +12,79 @@ import { jam } from "./AdminShell";
 
 /* Tutup shift = mencocokkan uang di laci dengan catatan sistem.
    Selisihnya (variance) adalah angka paling penting bagi pemilik:
-   selisih kecil wajar, selisih berulang dari orang yang sama tidak. */
+   selisih kecil wajar, selisih berulang dari orang yang sama tidak.
+
+   SUSUNAN (perapian 14 Nov 2026, "masih tidak ramah user dan berantakan"):
+     · Kepala: venue, siapa yang membuka, berapa lama, dan angka laci.
+     · Kiri : TIGA LANGKAH tutup shift — cetak, hitung laci, tutup.
+     · Kanan: biaya yang keluar dari laci hari ini.
+     · Bawah: riwayat shift VENUE INI SAJA, dikelompokkan per hari. */
+
+/** Selisih ≤ ini dianggap wajar (kuning), di atasnya merah. */
+const SELISIH_WAJAR = 20_000;
+
+const nadaSelisih = (v: number) => (v === 0 ? "hijau" : Math.abs(v) <= SELISIH_WAJAR ? "amber" : "merah");
+const WARNA = { hijau: "text-emerald-400", amber: "text-amber", merah: "text-red-400" } as const;
+const BINGKAI = {
+  hijau: "border-emerald-500/40 bg-emerald-500/10",
+  amber: "border-amber/40 bg-amber/10",
+  merah: "border-red-500/40 bg-red-500/10",
+} as const;
+const tandaRp = (v: number) => `${v > 0 ? "+" : ""}${rupiah(v)}`;
+const lamanya = (ms: number) => {
+  const m = Math.max(0, Math.floor(ms / 60000));
+  return m < 60 ? `${m} menit` : `${Math.floor(m / 60)} jam ${m % 60} menit`;
+};
 
 export default function ShiftScreen() {
-  const { a } = useAdmin();
+  const { a, dispatchA } = useAdmin();
   const venue = useVenueAktif();
   const shift = shiftDi(a, venue, Date.now());
-  if (!shift) {
-    return (
-      <div className="rounded-2xl border border-line bg-ink-2 px-4 py-10 text-center text-sm text-dim">
-        Shift {VENUE_LABEL[venue]} belum buka.
+  if (shift) return <ShiftBerjalan shift={shift} venue={venue} />;
+
+  const bolehBuka = !!a.me && a.me.role !== "waiter";
+  return (
+    <div className="space-y-6 pb-6">
+      <KepalaHalaman judul="Shift" venue={venue}
+        ket={<>Belum ada shift yang buka di {VENUE_LABEL[venue]}. Tanpa shift, meja dan pembayaran belum bisa dipakai.</>}
+        aksi={bolehBuka && (
+          <TombolAksi utama onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}>
+            Buka shift {VENUE_LABEL[venue]}
+          </TombolAksi>
+        )} />
+      <div className="rounded-2xl border border-dashed border-line p-4">
+        <JudulBagian judul="Alur satu shift" />
+        <ol className="grid gap-2 sm:grid-cols-3">
+          {[
+            ["Buka shift", "Kasir yang bertugas menekan Buka shift. Namanya tercatat di semua transaksi."],
+            ["Jalankan", "Semua pembayaran tunai masuk hitungan laci. Biaya dari laci dicatat di sini."],
+            ["Tutup shift", "Cetak struk closing, hitung uang di laci, lalu tutup. Selisihnya tersimpan."],
+          ].map(([j, k], i) => (
+            <li key={j} className="rounded-xl bg-ink-2 p-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber/15 text-[12px] font-bold text-amber">{i + 1}</span>
+                <span className="text-[13px] font-semibold text-cream">{j}</span>
+              </div>
+              <p className="mt-1 text-[11px] leading-snug text-dim">{k}</p>
+            </li>
+          ))}
+        </ol>
       </div>
-    );
-  }
-  return <ShiftBerjalan shift={shift} venue={venue} />;
+      <RiwayatShift venue={venue} />
+    </div>
+  );
 }
 
 function ShiftBerjalan({ shift, venue }: { shift: Shift; venue: Venue }) {
   const { a, dispatchA } = useAdmin();
+  /** Angka hitungan laci, hanya digit (tampilannya diberi titik ribuan). */
   const [hitung, setHitung] = useState("");
   const [konfirmasi, setKonfirmasi] = useState(false);
-  /** Lembar cetak yang sedang disiapkan: ringkas atau rinci. */
-  const [cetak, setCetak] = useState<null | { jenis: "ringkas" | "rinci"; at: number }>(null);
-  const [kabarCetak, setKabarCetak] = useState<string | null>(null);
   /** Alasan shift gagal ditutup. Dulu tidak ada: tombolnya ditekan, tidak
    *  terjadi apa-apa, dan kasir menekannya lagi (temuan audit 21 Okt 2026). */
   const [kabarTutup, setKabarTutup] = useState<string | null>(null);
 
   const serahTerima = !!a.me && shift.employeeId !== a.me.id;
-  const tanggal = (ts: number) => new Date(ts).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
-  const hariIni = new Date().toDateString();
   // Hanya tunai yang diterima DI SHIFT INI. Menjumlah semua shift membuat kasir
   // shift kedua terlihat kurang/lebih uang padahal hitungannya benar.
   const seharusnya = shiftCashExpected(a, shift);
@@ -49,9 +92,7 @@ function ShiftBerjalan({ shift, venue }: { shift: Shift; venue: Venue }) {
   const tunaiMasuk = seharusnya - shift.openingCash + keluarLaci;
   const dihitung = Number(hitung) || 0;
   const selisih = dihitung - seharusnya;
-
-  const durasiMenit = Math.floor((Date.now() - shift.openedAt) / 60000);
-  const durasi = `${Math.floor(durasiMenit / 60)}j ${durasiMenit % 60}m`;
+  const nada = nadaSelisih(selisih);
 
   /**
    * Angka cetaknya diambil dari `omzetPerShift` — SUMBER YANG SAMA dengan
@@ -66,262 +107,221 @@ function ShiftBerjalan({ shift, venue }: { shift: Shift; venue: Venue }) {
   const baris = omzet.shift.find((x) => x.id === shift.id);
   const trx = omzet.rincian.filter((r) => r.shiftId === shift.id);
 
-  async function cetakLembar(jenis: "ringkas" | "rinci") {
-    setCetak({ jenis, at: Date.now() });
-    // Satu putaran gambar supaya lembarnya sudah ada di DOM saat dicetak.
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const hasil = await cetakStruk();
-    setKabarCetak(hasil.ok ? "Perintah cetak terkirim." : `Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
-    setTimeout(() => setKabarCetak(null), 4000);
-    setCetak(null);
+  function tutup() {
+    const tolak = dispatchA({ t: "closeShift", countedCash: dihitung, venue });
+    if (tolak) setKabarTutup(tolak);
   }
 
   return (
-    <div className="space-y-5 pb-6">
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Shift berjalan
-        </h2>
-        <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-ink-2">
-          <Row k="Karyawan" v={shift.employeeName} />
-          <Row k="Dibuka" v={`${jam(shift.openedAt)} · ${durasi} lalu`} />
-          {/* MODAL AWAL DIHILANGKAN dari layar (permintaan pemilik 18 Okt
-              2026). Laci memang selalu dikosongkan tiap ganti shift, jadi
-              barisnya cuma menambah satu angka nol yang harus dibaca tiap
-              malam.
-
-              Barisnya TETAP muncul untuk shift lama yang modalnya bukan nol:
-              kalau disembunyikan, kas shift itu terlihat tidak cocok dan
-              tidak ada yang bisa menjelaskan kenapa. */}
-          {shift.openingCash > 0 && (
-            <Row k="Modal awal laci (shift lama)" v={rupiah(shift.openingCash)} />
-          )}
-          <Row k="Penjualan tunai" v={rupiah(tunaiMasuk)} />
-          {keluarLaci > 0 && <Row k="Biaya dari laci" v={`− ${rupiah(keluarLaci)}`} />}
-          <div className="flex items-baseline justify-between bg-amber/10 px-4 py-3">
-            <span className="font-semibold text-cream">Kas seharusnya</span>
-            <span className="font-serif text-xl font-bold tabular-nums text-amber">
-              {rupiah(seharusnya)}
-            </span>
-          </div>
-        </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Hanya pembayaran <span className="text-mute">tunai</span> yang masuk hitungan laci.
-          QRIS dan EDC tidak menambah uang fisik.
+    <div className="space-y-6 pb-6">
+      <KepalaHalaman judul="Shift berjalan" venue={venue}
+        ket={<><span className="text-cream">{shift.employeeName}</span> · dibuka {jam(shift.openedAt)} ·
+          berjalan {lamanya(Date.now() - shift.openedAt)}</>}
+        angka={[
+          { label: "Kas seharusnya di laci", nilai: rupiah(seharusnya), nada: "amber" },
+          { label: "Penjualan tunai", nilai: rupiah(tunaiMasuk) },
+          { label: "Biaya dari laci", nilai: keluarLaci > 0 ? `− ${rupiah(keluarLaci)}` : rupiah(0) },
+          { label: "Transaksi shift ini", nilai: trx.length },
+        ]}>
+        <p className="text-[11px] leading-relaxed text-dim">
+          {/* MODAL AWAL DIHILANGKAN dari layar (permintaan pemilik 18 Okt 2026);
+              tetap ditulis untuk shift lama yang modalnya bukan nol. */}
+          {shift.openingCash > 0 && <>Modal awal laci (shift lama) {rupiah(shift.openingCash)}. </>}
+          Kas seharusnya = penjualan <span className="text-mute">tunai</span> − biaya dari laci.
+          QRIS, EDC, dan transfer tidak menambah uang fisik di laci.
         </p>
-      </section>
+      </KepalaHalaman>
 
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Biaya hari ini
-        </h2>
-        <PanelBiaya bizDate={businessDateOf(Date.now())} venue={venue} bisaTambah />
-      </section>
+      {Date.now() - shift.openedAt > 12 * 3_600_000 && (
+        <p role="alert" className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-[12px] leading-snug text-red-200">
+          Shift ini sudah berjalan {lamanya(Date.now() - shift.openedAt)} — kemungkinan lupa ditutup.
+          Tutup shift ini lalu buka shift baru supaya kas tiap kasir tidak tercampur.
+        </p>
+      )}
 
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Tutup shift
-        </h2>
-        <div className="rounded-2xl border border-line bg-ink-2 p-4">
-          <label className="mb-1 block text-[12px] text-mute">
-            Hitung uang di laci sekarang
-          </label>
-          <div className="flex items-center gap-2 rounded-xl border border-line bg-ink px-4 py-3">
-            <span className="text-dim">Rp</span>
-            <input type="number" inputMode="numeric" min={0} step={10000}
-              value={hitung} onChange={(e) => { setHitung(e.target.value); setKonfirmasi(false); }}
-              placeholder="0"
-              className="w-full bg-transparent text-right font-serif text-xl tabular-nums
-                text-cream focus:outline-none" />
-          </div>
+      {serahTerima && (
+        <p className="rounded-xl border border-amber/40 bg-amber/10 px-4 py-2.5 text-[12px] leading-snug text-amber">
+          Shift ini dibuka oleh <span className="font-bold">{shift.employeeName}</span>. Menutupnya berarti serah terima:
+          hitung laci bersama {shift.employeeName}. Anda tercatat sebagai penutup shift.
+        </p>
+      )}
 
-          {hitung !== "" && (
-            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-              className={`mt-3 rounded-xl border px-4 py-3 ${
-                selisih === 0 ? "border-emerald-500/40 bg-emerald-500/10"
-                  : Math.abs(selisih) <= 20_000 ? "border-amber/40 bg-amber/10"
-                  : "border-red-500/40 bg-red-500/10"
-              }`}>
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm text-cream">Selisih</span>
-                <span className={`font-serif text-2xl font-bold tabular-nums ${
-                  selisih === 0 ? "text-emerald-400"
-                    : Math.abs(selisih) <= 20_000 ? "text-amber" : "text-red-400"
-                }`}>
-                  {selisih > 0 ? "+" : ""}{rupiah(selisih)}
-                </span>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        {/* ── KIRI: TIGA LANGKAH TUTUP SHIFT ── */}
+        <section className="min-w-0">
+          <JudulBagian judul="Tutup shift" />
+          <ol className="space-y-3">
+            <Langkah no={1} judul="Cetak struk closing" ket="Dua struk 80 mm: Rekap Penjualan dan Detail Transaksi shift ini.">
+              {/* CLOSING SHIFT — dibuat oleh komponen yang SAMA dengan Rekap → Kas
+                  Kasir, jadi kertas closing dan kertas rekap tidak pernah berbeda. */}
+              <CetakKasKasir dari={businessDateOf(Date.now())} sampai={businessDateOf(Date.now())} venue={venue}
+                shiftId={shift.id} namaShift={`${baris?.nama ?? "Shift"} · ${shift.employeeName}`} kecil />
+              <p className="mt-2 text-[11px] leading-snug text-dim">
+                Lupa mencetak? Shift yang sudah ditutup bisa dicetak ulang dari Rekap → Kas Kasir, pilih shift-nya.
+              </p>
+            </Langkah>
+
+            <Langkah no={2} judul="Hitung uang di laci" ket="Hitung uang fisik, lalu ketik jumlahnya.">
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-ink px-4 py-3 focus-within:border-amber">
+                <span className="text-dim">Rp</span>
+                <input inputMode="numeric" value={hitung === "" ? "" : Number(hitung).toLocaleString("id-ID")}
+                  onChange={(e) => { setHitung(e.target.value.replace(/[^0-9]/g, "").slice(0, 10)); setKonfirmasi(false); setKabarTutup(null); }}
+                  placeholder="0" aria-label="Uang di laci"
+                  className="w-full bg-transparent text-right font-serif text-2xl tabular-nums text-cream placeholder:text-dim focus:outline-none" />
               </div>
-              <p className="mt-1 text-[12px] leading-snug text-dim">
-                {selisih === 0 ? "Pas. Laci cocok dengan catatan sistem."
-                  : selisih > 0 ? "Uang di laci LEBIH dari catatan — cek transaksi yang belum diinput."
-                  : "Uang di laci KURANG dari catatan — cek kembalian atau transaksi yang tidak tercatat."}
-              </p>
-            </motion.div>
-          )}
-
-          {serahTerima && (
-            <p className="mt-3 rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-[12px] leading-snug text-amber">
-              Ini shift milik {shift.employeeName}. Menutupnya berarti serah terima: hitung laci bersama
-              {" "}{shift.employeeName}. Anda tercatat sebagai penutup shift.
-            </p>
-          )}
-          {!konfirmasi ? (
-            <Button full disabled={hitung === ""} onClick={() => setKonfirmasi(true)}>
-              {serahTerima ? `Tutup Shift ${shift.employeeName}` : "Tutup Shift"}
-            </Button>
-          ) : (
-            <div className="mt-3 space-y-2">
-              <p className="text-center text-[13px] text-cream">
-                Tutup shift {serahTerima ? `${shift.employeeName} ` : ""}dengan selisih {selisih > 0 ? "+" : ""}{rupiah(selisih)}?
-              </p>
-              <Button full variant="brick"
-                onClick={() => {
-                  const tolak = dispatchA({ t: "closeShift", countedCash: dihitung, venue });
-                  if (tolak) setKabarTutup(tolak);
-                }}>
-                Ya, Tutup Shift
-              </Button>
-              {kabarTutup && (
-                <p role="status" className="text-center text-[12px] leading-snug text-amber">{kabarTutup}</p>
+              {hitung !== "" && (
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                  className={`mt-2 rounded-xl border px-4 py-3 ${BINGKAI[nada]}`}>
+                  <div className="grid grid-cols-3 gap-2 text-[11px] text-dim">
+                    <div>Dihitung<div className="font-serif text-[14px] tabular-nums text-cream">{rupiah(dihitung)}</div></div>
+                    <div>Seharusnya<div className="font-serif text-[14px] tabular-nums text-cream">{rupiah(seharusnya)}</div></div>
+                    <div className="text-right">Selisih
+                      <div className={`font-serif text-xl font-bold tabular-nums ${WARNA[nada]}`}>{tandaRp(selisih)}</div>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-[12px] leading-snug text-mute">
+                    {selisih === 0 ? "Pas. Laci cocok dengan catatan sistem."
+                      : selisih > 0 ? "Uang di laci LEBIH dari catatan — cek transaksi yang belum diinput."
+                      : "Uang di laci KURANG dari catatan — cek kembalian atau transaksi yang tidak tercatat."}
+                  </p>
+                </motion.div>
               )}
-              <button onClick={() => setKonfirmasi(false)}
-                className="min-h-[40px] w-full text-sm text-dim">Batal</button>
-            </div>
-          )}
-        </div>
-      </section>
+            </Langkah>
 
-      {/* CETAK TRANSAKSI SHIFT (permintaan pemilik 18 Okt 2026).
-          Dua bentuk, karena dua kebutuhan yang berbeda: yang RINGKAS untuk
-          ditempel di laporan harian, yang RINCI untuk mencocokkan satu per
-          satu kalau angkanya tidak ketemu. */}
-      <section>
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-          Cetak transaksi shift ini
-        </h2>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => void cetakLembar("ringkas")}
-            className="min-h-[46px] rounded-xl border border-line bg-ink-2 text-[13px] text-cream">
-            Cetak ringkas
-          </button>
-          <button onClick={() => void cetakLembar("rinci")}
-            className="min-h-[46px] rounded-xl border border-line bg-ink-2 text-[13px] text-cream">
-            Cetak rinci · {trx.length} transaksi
-          </button>
-        </div>
-        {kabarCetak && <p role="status" className="mt-2 text-[12px] text-amber">{kabarCetak}</p>}
-        <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Ringkas memuat jumlah transaksi dan omzet per cara bayar. Rinci memuat semua
-          transaksi shift ini satu per satu, dengan jam dan nomor strukmya.
-        </p>
-      </section>
-
-      {cetak && (
-        <div id="struk" className="cetak-saja bg-white p-2 text-[11px] text-black">
-          <div className="text-center">
-            <div className="text-[13px] font-bold uppercase">Kas Kasir</div>
-            <div className="text-[11px] font-bold uppercase">{VENUE_LABEL[venue]}</div>
-            <div className="mt-1">{new Date(cetak.at).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
-            <div>Kasir : {shift.employeeName}</div>
-            <div>Shift : {jam(shift.openedAt)} – {jam(cetak.at)}</div>
-          </div>
-          <div className="my-1 border-t border-dashed border-black" />
-
-          <div className="font-bold uppercase">Ringkasan</div>
-          <BarisCetak k="Jumlah transaksi" v={String(trx.length)} />
-          <BarisCetak k="Tunai" v={rupiah(baris?.tunai ?? 0)} />
-          <BarisCetak k="QRIS" v={rupiah(baris?.qris ?? 0)} />
-          <BarisCetak k="EDC" v={rupiah(baris?.edc ?? 0)} />
-          {Object.entries(baris?.edcPer ?? {}).map(([m, n]) => (
-            <BarisCetak key={m} k={`  EDC ${m}`} v={rupiah(n)} />
-          ))}
-          {(baris?.prabayar ?? 0) > 0 && <BarisCetak k="Prabayar" v={rupiah(baris!.prabayar)} />}
-          <div className="my-1 border-t border-dashed border-black" />
-          <BarisCetak k="Sewa meja" v={rupiah(baris?.sewaMeja ?? 0)} />
-          <BarisCetak k="Makanan & minuman" v={rupiah(baris?.barang ?? 0)} />
-          {(baris?.diskon ?? 0) > 0 && <BarisCetak k="Diskon" v={`-${rupiah(baris!.diskon)}`} />}
-          {(baris?.compliment ?? 0) > 0 && <BarisCetak k="Compliment" v={rupiah(baris!.compliment)} />}
-          <div className="my-1 border-t border-black" />
-          <div className="flex justify-between font-bold">
-            <span>TOTAL DITERIMA</span>
-            <span className="tabular-nums">{rupiah(baris?.diterima ?? 0)}</span>
-          </div>
-          <BarisCetak k="Kas seharusnya (tunai)" v={rupiah(seharusnya)} />
-
-          {cetak.jenis === "rinci" && (
-            <>
-              <div className="my-1 border-t border-dashed border-black" />
-              <div className="font-bold uppercase">Rincian transaksi</div>
-              {trx.length === 0 && <div>Belum ada transaksi di shift ini.</div>}
-              {trx.map((r, i) => (
-                <div key={i} className="mt-0.5">
-                  <div className="flex justify-between gap-2">
-                    <span className="min-w-0 truncate">{jam(r.at)} {r.meja}</span>
-                    <span className="shrink-0 tabular-nums">{rupiah(r.jumlah)}</span>
+            <Langkah no={3} judul="Tutup shift" ket={hitung === "" ? "Isi hitungan laci dulu di langkah 2." : "Selisih ikut tersimpan atas nama penutup shift."}>
+              {!konfirmasi ? (
+                <button disabled={hitung === ""} onClick={() => setKonfirmasi(true)}
+                  className="min-h-[48px] w-full rounded-xl bg-amber text-[14px] font-bold text-ink disabled:opacity-35">
+                  {serahTerima ? `Tutup shift ${shift.employeeName}` : "Tutup shift"}
+                </button>
+              ) : (
+                <div className="space-y-2 rounded-xl border border-red-500/40 bg-red-500/5 p-3">
+                  <p className="text-center text-[13px] text-cream">
+                    Tutup shift {serahTerima ? `${shift.employeeName} ` : ""}dengan selisih{" "}
+                    <span className={`font-bold ${WARNA[nada]}`}>{tandaRp(selisih)}</span>?
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => setKonfirmasi(false)}
+                      className="min-h-[46px] rounded-xl border border-line text-[13px] text-mute">Batal</button>
+                    <button onClick={tutup}
+                      className="min-h-[46px] rounded-xl bg-red-500/85 text-[14px] font-bold text-cream">Ya, tutup shift</button>
                   </div>
-                  <div className="text-[10px]">
-                    {r.kode} · {r.kanal}{r.mesin ? ` ${r.mesin}` : ""}
-                    {r.keterangan ? ` · ${r.keterangan}` : ""}
-                  </div>
+                  {kabarTutup && <p role="status" className="text-center text-[12px] leading-snug text-amber">{kabarTutup}</p>}
                 </div>
-              ))}
-            </>
-          )}
-          <div className="mt-2 text-center text-[10px]">
-            Dicetak {jam(cetak.at)} oleh {a.me?.name ?? "-"}
-          </div>
-        </div>
-      )}
-
-      {a.shiftHistory.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-dim">
-            Riwayat shift
-          </h2>
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
-            {a.shiftHistory.map((h) => (
-              <div key={h.id} className="flex items-center justify-between px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="truncate text-[13px] text-cream">{h.employeeName}</div>
-                  <div className="text-[11px] text-dim">
-                    {new Date(h.openedAt).toDateString() !== hariIni && `${tanggal(h.openedAt)} · `}
-                    {jam(h.openedAt)} – {h.closedAt ? jam(h.closedAt) : "?"}
-                    {h.openingCash > 0 && <>{" · modal "}{rupiah(h.openingCash)}</>}
-                    {" · dihitung "}{rupiah(h.countedCash ?? 0)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className={`font-serif text-[13px] font-bold tabular-nums ${
-                    (h.variance ?? 0) === 0 ? "text-emerald-400"
-                      : Math.abs(h.variance ?? 0) <= 20_000 ? "text-amber" : "text-red-400"
-                  }`}>
-                    {(h.variance ?? 0) > 0 ? "+" : ""}{rupiah(h.variance ?? 0)}
-                  </div>
-                  <div className="text-[10px] text-dim">selisih</div>
-                </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </Langkah>
+          </ol>
         </section>
+
+        {/* ── KANAN: BIAYA ── */}
+        <section className="min-w-0">
+          <JudulBagian judul="Biaya hari ini" />
+          <PanelBiaya bizDate={businessDateOf(Date.now())} venue={venue} bisaTambah />
+          <p className="mt-2 text-[11px] leading-snug text-dim">
+            Biaya yang dibayar dari laci mengurangi kas seharusnya, jadi catat sebelum menghitung laci.
+          </p>
+        </section>
+      </div>
+
+      <RiwayatShift venue={venue} />
+    </div>
+  );
+}
+
+/** Satu langkah bernomor di kartu tutup shift. */
+function Langkah({ no, judul, ket, children }: { no: number; judul: string; ket?: string; children: ReactNode }) {
+  return (
+    <li className="rounded-2xl border border-line bg-ink-2 p-4">
+      <div className="mb-3 flex items-start gap-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber text-[13px] font-bold text-ink">{no}</span>
+        <div className="min-w-0">
+          <div className="text-[14px] font-semibold text-cream">{judul}</div>
+          {ket && <div className="text-[11px] leading-snug text-dim">{ket}</div>}
+        </div>
+      </div>
+      {children}
+    </li>
+  );
+}
+
+/**
+ * Riwayat shift VENUE INI SAJA (dulu tercampur SPL & Smokehouse), dikelompokkan
+ * per hari bisnis. Tujuh hari terakhir dulu; sisanya lewat "Tampilkan lebih".
+ */
+function RiwayatShift({ venue }: { venue: Venue }) {
+  const { a } = useAdmin();
+  const [hari, setHari] = useState(7);
+  const daftar = a.shiftHistory.filter((h) => (h.venue ?? "spl") === venue);
+  const perHari = useMemo(() => {
+    const peta = new Map<string, Shift[]>();
+    for (const h of [...daftar].sort((x, y) => y.openedAt - x.openedAt)) {
+      const k = businessDateOf(h.openedAt);
+      peta.set(k, [...(peta.get(k) ?? []), h]);
+    }
+    return [...peta.entries()];
+  }, [daftar]);
+
+  if (daftar.length === 0) {
+    return (
+      <section>
+        <JudulBagian judul={`Riwayat shift ${VENUE_LABEL[venue]}`} />
+        <Kosong teks="Belum ada shift yang ditutup di venue ini." />
+      </section>
+    );
+  }
+  const totalSelisih = daftar.reduce((n, h) => n + (h.variance ?? 0), 0);
+  const tidakPas = daftar.filter((h) => (h.variance ?? 0) !== 0).length;
+  const tanggal = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" });
+
+  return (
+    <section>
+      <JudulBagian judul={`Riwayat shift ${VENUE_LABEL[venue]}`} jumlah={daftar.length}
+        aksi={<span className={`text-[11px] ${tidakPas ? "text-amber" : "text-dim"}`}>
+          {tidakPas} tidak pas · total selisih <span className={`font-bold ${WARNA[nadaSelisih(totalSelisih)]}`}>{tandaRp(totalSelisih)}</span>
+        </span>} />
+      <div className="space-y-4">
+        {perHari.slice(0, hari).map(([iso, isi]) => (
+          <div key={iso}>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-dim">{tanggal(iso)}</div>
+            <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
+              {isi.map((h) => {
+                const v = h.variance ?? 0;
+                const n = nadaSelisih(v);
+                return (
+                  <div key={h.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] text-cream">{h.employeeName}</div>
+                      <div className="text-[11px] text-dim">
+                        {jam(h.openedAt)} – {h.closedAt ? jam(h.closedAt) : "?"}
+                        {h.closedAt && ` · ${lamanya(h.closedAt - h.openedAt)}`}
+                        {h.openingCash > 0 && ` · modal ${rupiah(h.openingCash)}`}
+                      </div>
+                    </div>
+                    <div className="hidden text-right sm:block">
+                      <div className="text-[10px] uppercase tracking-wider text-dim">dihitung</div>
+                      <div className="font-serif text-[13px] tabular-nums text-mute">{rupiah(h.countedCash ?? 0)}</div>
+                    </div>
+                    <div className="w-[110px] shrink-0 text-right">
+                      <div className="text-[10px] uppercase tracking-wider text-dim">{v === 0 ? "pas" : v > 0 ? "lebih" : "kurang"}</div>
+                      <div className={`font-serif text-[14px] font-bold tabular-nums ${WARNA[n]}`}>{tandaRp(v)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {perHari.length > hari && (
+        <button onClick={() => setHari((n) => n + 14)}
+          className="mt-3 min-h-[40px] w-full rounded-xl border border-line text-[12px] text-mute hover:border-amber hover:text-amber">
+          Tampilkan lebih lama ({perHari.length - hari} hari lagi)
+        </button>
       )}
-    </div>
-  );
-}
-
-function BarisCetak({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <span className="min-w-0 truncate">{k}</span>
-      <span className="shrink-0 tabular-nums">{v}</span>
-    </div>
-  );
-}
-
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex items-center justify-between px-4 py-2.5">
-      <span className="text-[13px] text-dim">{k}</span>
-      <span className="font-serif text-[13px] tabular-nums text-cream">{v}</span>
-    </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-dim">
+        Selisih sampai {rupiah(SELISIH_WAJAR)} ditandai kuning, di atasnya merah. Selisih kecil wajar;
+        selisih berulang dari orang yang sama perlu ditindaklanjuti.
+      </p>
+    </section>
   );
 }

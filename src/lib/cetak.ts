@@ -68,6 +68,20 @@ export const simpanPrinterBagian = (b: Bagian, nama: string) => {
   try { window.localStorage.setItem(kunciPrinter(b), nama); } catch { /* mode privat */ }
 };
 
+/**
+ * PRINTER KEDUA per bagian (permintaan pemilik 14 Nov 2026: "untuk SPL,
+ * pastikan bisa pakai 2 printer untuk cetak checker"). Opsional: kalau
+ * dipilih, setiap kertas keluar di DUA printer — mis. satu di checker, satu
+ * di dapur. Kosong = satu printer seperti sebelumnya.
+ */
+const kunciPrinter2 = (b: Bagian) => `spl:v1:printer-${b}-2`;
+export const printerBagian2 = (b: Bagian): string => {
+  try { return window.localStorage.getItem(kunciPrinter2(b)) ?? ""; } catch { return ""; }
+};
+export const simpanPrinterBagian2 = (b: Bagian, nama: string) => {
+  try { window.localStorage.setItem(kunciPrinter2(b), nama); } catch { /* mode privat */ }
+};
+
 export const cetakOtomatis = (): boolean => {
   try { return window.localStorage.getItem(K_OTOMATIS) === "1"; } catch { return false; }
 };
@@ -108,6 +122,25 @@ export async function cetakKertas(html: string, b: Bagian): Promise<{ ok: boolea
   const j = jembatan();
   if (!j) return cetakLewatDialog(html);
   const printer = printerBagian(b);
-  if (!printer) return { ok: false, alasan: `pilih printer ${b === "bar" ? "bar" : "dapur"} di tab Atur` };
+  if (!printer) return { ok: false, alasan: `pilih printer ${b === "bar" ? "bar" : "dapur"} di Pengaturan` };
+  const r1 = (await j.cetakHtml(html, printer)) ?? { ok: false, alasan: "tidak ada jawaban dari printer" };
+  // Printer kedua dicetak sesudah yang pertama berhasil. Kalau yang KEDUA
+  // gagal, kertasnya tetap dianggap keluar (yang utama sudah) — tapi kasir
+  // diberi tahu, supaya tidak dicetak ulang dua-duanya tiap 30 detik.
+  const kedua = printerBagian2(b);
+  if (!r1.ok || !kedua || kedua === printer) return r1;
+  const r2 = (await j.cetakHtml(html, kedua)) ?? { ok: false, alasan: "tidak ada jawaban" };
+  return r2.ok ? r1 : { ok: true, alasan: `printer kedua (${kedua}) gagal: ${r2.alasan ?? "tidak menjawab"}` };
+}
+
+/**
+ * Struk rekap harian (HTML 80 mm utuh, dari `strukRekap.ts`) ke PRINTER STRUK
+ * kasir. Di aplikasi Windows tanpa dialog; di peramban lewat dialog cetak.
+ */
+export async function cetakHtmlStruk(html: string): Promise<{ ok: boolean; alasan?: string }> {
+  const j = jembatan();
+  if (!j) return cetakLewatDialog(html);
+  const printer = printerTersimpan();
+  if (!printer) return { ok: false, alasan: "pilih printer struk dulu di Pengaturan → Printer & layar" };
   return (await j.cetakHtml(html, printer)) ?? { ok: false, alasan: "tidak ada jawaban dari printer" };
 }

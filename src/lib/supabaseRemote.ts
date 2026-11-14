@@ -54,6 +54,8 @@ export type StaffRemote = Remote & {
   aturPin(token: string, pin: string): Promise<string | null>;
   /** NIP dan status kunci tiap akun, untuk layar Atur. */
   daftarNip(): Promise<Record<string, { nip: string | null; terkunci: boolean }>>;
+  /** Semua akun di tabel staf SERVER (tanpa PIN). Hanya superadmin. */
+  daftarStafServer(): Promise<{ id: string; nama: string; peran: string; aktif: boolean }[]>;
   /** Kirim kode 6 angka ke email staf. Mengembalikan alasan kalau gagal. */
   /** Pakai sesi venue hasil masuk lewat Google. */
   pakaiToken(t: string): void;
@@ -239,6 +241,14 @@ export function supabaseRemote(opts: SupabaseRemoteOptions): StaffRemote {
         out[r.staff_id] = { nip: r.nip, terkunci: r.terkunci };
       }
       return out;
+    },
+
+    async daftarStafServer() {
+      if (!token) return [];
+      const { data, error } = await client.rpc("list_staff", { p_token: token });
+      if (error) return [];
+      return ((data ?? []) as { staff_id: string; nama: string; peran: string; aktif: boolean }[])
+        .map((r) => ({ id: r.staff_id, nama: r.nama, peran: r.peran, aktif: r.aktif }));
     },
 
     logout() {
