@@ -215,7 +215,7 @@ export default function Board() {
             <h3 className="mb-2 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
               Lantai {lt} · {rows.filter((t) => t.lantai === lt).length} meja
             </h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
               {rows.filter((t) => t.lantai === lt).map((t) => (
                 <Tile key={t.id} table={t} onOpen={() => setOpen(t.id)} />
               ))}
@@ -364,11 +364,13 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
 
   if (table.venue !== "smh") {
     // ── MEJA BILIAR ──────────────────────────────────────────────
+    // Warna kain (pemilik 15 Nov 2026): Reguler BIRU seperti meja SPL aslinya,
+    // VIP hijau tua, VVIP merah marun.
     const felt = kelas === "vvip"
       ? "radial-gradient(ellipse at 50% 40%, #8a1f3d 0%, #5c1027 70%, #3f0a1b 100%)"
       : kelas === "vip"
-        ? "radial-gradient(ellipse at 50% 40%, #1f5a96 0%, #133d68 70%, #0c2846 100%)"
-        : "radial-gradient(ellipse at 50% 40%, #1b8a57 0%, #0f5f3c 70%, #0a4329 100%)";
+        ? "radial-gradient(ellipse at 50% 40%, #1b8a57 0%, #0f5f3c 70%, #0a4329 100%)"
+        : "radial-gradient(ellipse at 50% 40%, #2a78c7 0%, #18548f 65%, #0e3963 100%)";
     const rusak = status === "maintenance";
     return (
       <motion.button layout whileTap={{ scale: 0.96 }} whileHover={{ y: -2 }} onClick={onOpen}
@@ -416,117 +418,106 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
   }
 
   // ── MEJA MAKAN SMOKEHOUSE ─────────────────────────────────────
-  // Kartu meja restoran (pemilik 15 Nov 2026: "papan Smokehouse jelek sekali"):
-  // kiri gambar meja dari atas dengan kursinya, kanan nama & keadaan meja.
+  // Petaknya ADALAH mejanya (pemilik 15 Nov 2026, sejalan dengan meja biliar
+  // yang sudah disetujui): permukaan kayu walnut, kursi bantalan di
+  // sekelilingnya berwarna status, dan satu strip keterangan di atas meja.
   const delapan = table.capacity >= 8;
-  const warna = status === "running" ? { kursi: "#f87171", garis: "border-l-red-400", latar: "from-red-500/10", chip: "bg-red-500/15 text-red-300" }
-    : status === "booked" || status === "hold" ? { kursi: "#e8a33d", garis: "border-l-amber", latar: "from-amber/10", chip: "bg-amber/15 text-amber" }
-      : status === "maintenance" ? { kursi: "#4b4b4b", garis: "border-l-line-2", latar: "from-transparent", chip: "bg-ink text-dim" }
-        : { kursi: "#3f5a4d", garis: "border-l-emerald-400/70", latar: "from-emerald-500/5", chip: "bg-emerald-500/15 text-emerald-300" };
-  const kursiPos: [number, number, number][] = delapan
-    // [x, y, rotasi] — meja panjang: 3 atas, 3 bawah, 1 kiri, 1 kanan
-    ? [[18, 8, 0], [32, 8, 0], [46, 8, 0], [18, 56, 0], [32, 56, 0], [46, 56, 0], [5, 32, 90], [59, 32, 90]]
-    // meja bulat: 4 kursi
-    : [[32, 7, 0], [32, 57, 0], [7, 32, 90], [57, 32, 90]];
+  const warnaKursi = status === "running" ? "#ef6b6b" : status === "booked" || status === "hold" ? "#e8a33d"
+    : status === "maintenance" ? "#5a5a5a" : "#3fb37f";
+  const cahaya = status === "running" ? "0 0 0 2px rgba(239,107,107,0.55), 0 10px 26px rgba(0,0,0,0.55)"
+    : status === "booked" || status === "hold" ? "0 0 0 2px rgba(232,163,61,0.55), 0 10px 26px rgba(0,0,0,0.55)"
+      : "0 10px 26px rgba(0,0,0,0.5)";
+  const kursi = (n: number) => (
+    <div className="flex justify-center gap-2 px-4">
+      {Array.from({ length: n }, (_, i) => (
+        <span key={i} aria-hidden="true" className="h-[9px] flex-1 max-w-[34px] rounded-full"
+          style={{ background: warnaKursi, boxShadow: "inset 0 -2px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.5)" }} />
+      ))}
+    </div>
+  );
+  const kursiSamping = (
+    <span aria-hidden="true" className="h-[30px] w-[9px] shrink-0 rounded-full"
+      style={{ background: warnaKursi, boxShadow: "inset -2px 0 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.5)" }} />
+  );
+  const tiketBaru = perStatus[0];
   return (
     <motion.button layout whileTap={{ scale: 0.97 }} whileHover={{ y: -2 }} onClick={onOpen}
       aria-label={`${nama} · ${st.label}`}
-      className={`relative flex w-full items-stretch gap-3 overflow-hidden rounded-2xl border border-line border-l-4 ${warna.garis}
-        bg-gradient-to-br ${warna.latar} to-ink-2 p-2.5 text-left shadow-[0_6px_18px_rgba(0,0,0,0.4)]
-        ${tabPanjang ? "ring-2 ring-red-500 animate-pulse" : ""} ${status === "maintenance" ? "opacity-60 grayscale" : ""}`}>
-      {/* Gambar meja dari atas */}
-      <svg viewBox="0 0 64 64" className="h-[68px] w-[68px] shrink-0 self-center" aria-hidden="true">
-        <defs>
-          <radialGradient id={`kayu-${table.id}`} cx="40%" cy="35%" r="75%">
-            <stop offset="0%" stopColor="#a8723f" />
-            <stop offset="60%" stopColor="#7a4b26" />
-            <stop offset="100%" stopColor="#4f2e15" />
-          </radialGradient>
-        </defs>
-        {kursiPos.map(([x, y, r], i) => (
-          <rect key={i} x={x - 6} y={y - 3.5} width="12" height="7" rx="3.5" fill={warna.kursi}
-            transform={`rotate(${r} ${x} ${y})`} />
-        ))}
-        {delapan
-          ? <rect x="9" y="15" width="46" height="34" rx="9" fill={`url(#kayu-${table.id})`} stroke="#c08a52" strokeOpacity="0.35" />
-          : <circle cx="32" cy="32" r="19" fill={`url(#kayu-${table.id})`} stroke="#c08a52" strokeOpacity="0.35" />}
-        {/* piring kecil saat meja terisi */}
-        {status === "running" && (delapan
-          ? [[20, 25], [32, 25], [44, 25], [20, 39], [32, 39], [44, 39]]
-          : [[32, 22], [32, 42], [22, 32], [42, 32]]).map(([x, y], i) => (
-            <circle key={i} cx={x} cy={y} r="3.2" fill="#f4ead8" fillOpacity="0.85" />
-          ))}
-      </svg>
-
-      {/* Nama & keadaan meja */}
-      <div className="min-w-0 flex-1 py-0.5">
-        <div className="flex items-start justify-between gap-1">
-          <span className="truncate font-display text-xl leading-none text-cream">{label}</span>
-          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${warna.chip}`}>{st.label}</span>
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-1">
+      className={`relative flex h-full w-full flex-col py-1 text-left ${status === "maintenance" ? "opacity-60 grayscale" : ""}`}>
+      {kursi(delapan ? 3 : 2)}
+      {/* Kursi samping hanya di meja 8 kursi; meja 4 kursi diberi jarak yang sama
+          supaya semua meja selebar dan setinggi satu sama lain. */}
+      <div className="my-[5px] flex flex-1 items-stretch gap-[5px]">
+        {delapan ? <span className="flex items-center">{kursiSamping}</span> : <span className="w-[9px] shrink-0" aria-hidden="true" />}
+        <div className={`relative flex min-h-[112px] flex-1 flex-col overflow-hidden rounded-[16px] px-2.5 pb-2 pt-2 ${tabPanjang ? "animate-pulse" : ""}`}
+          style={{
+            background: "repeating-linear-gradient(100deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 9px), linear-gradient(155deg, #8a5a33 0%, #6b4223 45%, #4a2c15 100%)",
+            boxShadow: `${cahaya}, inset 0 1px 0 rgba(255,220,170,0.18), inset 0 -10px 18px rgba(0,0,0,0.35)`,
+          }}>
+          {/* pita kategori */}
           {komp ? (
-            <span className="rounded bg-sky-500/20 px-1.5 text-[9px] font-bold uppercase tracking-wider text-sky-200">
+            <span className="absolute right-0 top-2 rounded-l-md bg-sky-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow">
               {katMeja?.nama ?? "Compliment"} · gratis
             </span>
           ) : katMeja && katMeja.id !== "smh-reguler" && (
-            <span className="rounded bg-amber/20 px-1.5 text-[9px] font-bold uppercase tracking-wider text-amber">{katMeja.nama}</span>
-          )}
-          <span className="text-[9px] uppercase tracking-wider text-dim">{table.capacity} kursi</span>
-          {s?.lembur && <span className="rounded bg-amber/20 px-1 text-[9px] font-bold text-amber">lembur</span>}
-        </div>
-
-        {tabPanjang && (
-          <div className="mt-1 text-[9px] font-bold uppercase tracking-wider text-red-300">≥ {PERINGATAN_TAB_JAM} jam — cek tab</div>
-        )}
-        {s?.status === "running" && (
-          <div className="mt-1.5 flex items-baseline justify-between gap-1">
-            <span className="text-[12px] font-semibold text-cream">
-              {s.source === "walkin" && !s.blockHours ? <Elapsed since={s.startsAt} /> : <Countdown endsAt={s.endsAt} />}
+            <span className="absolute right-0 top-2 rounded-l-md bg-amber px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ink shadow">
+              {katMeja.nama}
             </span>
-            {komp ? (
-              <span className="truncate text-[11px] font-bold text-sky-200">Rp 0</span>
-            ) : s.source === "online" && bill <= 0 ? (
-              <span className="truncate text-[11px] font-bold text-emerald-300">LUNAS</span>
-            ) : (
-              <span className="truncate font-serif text-[13px] font-bold text-amber">{rupiah(bill)}</span>
-            )}
+          )}
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-display text-[26px] leading-none text-[#fff4e2] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">{label}</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#f3dcbf]/70">{table.capacity} kursi</span>
           </div>
-        )}
-        {s?.status === "booked" && (
-          <div className="mt-1.5 truncate text-[11px] text-amber">{s.guest}{s.pax ? ` · ${s.pax} org` : ""}</div>
-        )}
-        {s?.status === "hold" && (
-          <div className="mt-1.5 truncate text-[11px] text-amber/80">{s.guest} · bayar…</div>
-        )}
-        {!s && <div className="mt-1.5 text-[11px] text-dim">Siap dipakai — ketuk untuk buka</div>}
+          <div className="min-h-2 flex-1" />
 
-        {/* Pesanan (maks. 2 baris) & keadaan dapur (maks. 2) */}
-        {pesanan.length > 0 && (
-          <div className="mt-1.5 space-y-px border-t border-line/60 pt-1">
-            {pesanan.slice(0, 2).map(([nm, q]) => (
-              <div key={nm} className="truncate text-[10px] leading-tight text-mute">
-                <span className="font-semibold text-cream">{q}×</span> {nm}
-              </div>
-            ))}
-            {pesanan.length > 2 && <div className="text-[10px] leading-tight text-dim">+{pesanan.length - 2} hidangan lagi</div>}
-          </div>
-        )}
-        {perStatus.slice(0, 2).map(({ st, porsi, sejak }) => {
-          const w = STATUS_DAPUR[st];
-          const menit = menitSejak(sejak);
-          return (
-            <div key={st}
-              className={`mt-1 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider ${w.teks}`}>
-              <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${w.titik}`} aria-hidden />
-              <span className="truncate">{porsi}&times; {w.pendek}</span>
-              <span className={`ml-auto shrink-0 tabular-nums ${menit >= 15 ? "text-red-400" : "opacity-75"}`}>
-                {lamaSingkat(menit)}
+          <div className="mt-auto rounded-lg bg-black/40 px-2 py-1.5 backdrop-blur-[1px]">
+            <div className="flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-white/85">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: warnaKursi }} aria-hidden="true" />
+                {st.label}
+                {s?.lembur && <span className="ml-1 rounded bg-amber/30 px-1 text-amber">lembur</span>}
               </span>
+              {s?.status === "running" && (
+                <span className="text-[11px] font-semibold text-white">
+                  {s.source === "walkin" && !s.blockHours ? <Elapsed since={s.startsAt} /> : <Countdown endsAt={s.endsAt} />}
+                </span>
+              )}
             </div>
-          );
-        })}
+            {s?.status === "running" ? (
+              <div className="mt-0.5 flex items-baseline justify-between gap-1">
+                <span className="truncate text-[10px] text-white/70">
+                  {pesanan.length > 0 ? `${pesanan.reduce((n, [, q]) => n + q, 0)} porsi · ${pesanan[0][0]}${pesanan.length > 1 ? ` +${pesanan.length - 1}` : ""}` : "belum pesan"}
+                </span>
+                {komp ? <span className="shrink-0 text-[12px] font-bold text-sky-200">Rp 0</span>
+                  : s.source === "online" && bill <= 0 ? <span className="shrink-0 text-[11px] font-bold text-emerald-300">LUNAS</span>
+                    : <span className="shrink-0 font-serif text-[13px] font-bold text-amber">{rupiah(bill)}</span>}
+              </div>
+            ) : s?.status === "booked" || s?.status === "hold" ? (
+              <div className="mt-0.5 truncate text-[10px] text-amber">{s.guest}{s.pax ? ` · ${s.pax} org` : ""}{s.status === "hold" ? " · bayar…" : ""}</div>
+            ) : (
+              <div className="mt-0.5 text-[10px] text-white/55">{status === "maintenance" ? "tidak dipakai" : "siap — ketuk untuk buka"}</div>
+            )}
+            {tabPanjang && (
+              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-red-300">≥ {PERINGATAN_TAB_JAM} jam — cek tab</div>
+            )}
+            {/* keadaan dapur paling mendesak */}
+            {tiketBaru && (() => {
+              const w = STATUS_DAPUR[tiketBaru.st];
+              const menit = menitSejak(tiketBaru.sejak);
+              return (
+                <div className={`mt-1 flex items-center gap-1 border-t border-white/10 pt-1 text-[9px] font-bold uppercase tracking-wider ${w.teks}`}>
+                  <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${w.titik}`} aria-hidden />
+                  <span className="truncate">{tiketBaru.porsi}&times; {w.pendek}</span>
+                  {perStatus.length > 1 && <span className="text-white/50">+{perStatus.length - 1}</span>}
+                  <span className={`ml-auto shrink-0 tabular-nums ${menit >= 15 ? "text-red-400" : "opacity-80"}`}>{lamaSingkat(menit)}</span>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+        {delapan ? <span className="flex items-center">{kursiSamping}</span> : <span className="w-[9px] shrink-0" aria-hidden="true" />}
       </div>
+      {kursi(delapan ? 3 : 2)}
     </motion.button>
   );
 }
