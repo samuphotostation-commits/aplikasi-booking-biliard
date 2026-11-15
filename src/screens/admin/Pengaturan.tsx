@@ -368,7 +368,7 @@ export default function Pengaturan() {
   const hitung = (k: TableType) => biliar.filter((t) => classOf(a, t.id) === k).length;
   const mejaTerpilih = pilihMeja ? cariMeja(pilihMeja) ?? null : null;
   /** Meja yang dikenal mesin tapi belum dijual — calon "tambah meja". */
-  const mejaCadangan = SEMUA_MEJA.filter((t) => t.venue === venue && !mejaDipakai(a, t.id));
+  const mejaCadangan = SEMUA_MEJA.filter((t) => t.venue === venue && !t.tanpaMeja && !mejaDipakai(a, t.id));
 
   /*
    * PENGATURAN (dirombak 14 Nov 2026, pemilik: "terlalu sulit dicek, SPL dan

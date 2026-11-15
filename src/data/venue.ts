@@ -48,6 +48,8 @@ export type PoolTable = {
    * berkurang dan tiket tetap masuk dapur; yang gratis uangnya, bukan barangnya.
    */
   compliment?: JenisCompliment;
+  /** TAB TANPA MEJA (bayar belakangan) — bukan meja fisik, tidak tampil di denah/booking. */
+  tanpaMeja?: true;
 };
 
 export type JenisCompliment = "owner" | "entertain";
@@ -203,8 +205,30 @@ export const CADANGAN: PoolTable[] = [
   })),
 ];
 
-/** Meja yang dikenal mesin, termasuk yang belum dijual (lantai 2 & cadangan). */
-export const SEMUA_MEJA: PoolTable[] = [...TABLES, ...LANTAI_2, ...CADANGAN];
+/**
+ * TAB TANPA MEJA (pemilik 15 Nov 2026): "untuk orang-orang tertentu yang
+ * pesan tanpa meja dan biasanya bayar di akhir — seperti meja khusus tanpa
+ * identitas meja, bisa nambah pesanan juga."
+ *
+ * Bukan meja fisik: 20 slot per venue yang dipakai seperti meja resto (tanpa
+ * sewa waktu, pesanan langsung ke checker, dibayar saat tab ditutup), tapi
+ * TIDAK pernah tampil di denah, booking tamu, pesanan QR, atau okupansi —
+ * `mejaDijual` hanya memuat meja yang dipakai, dan slot ini tidak pernah
+ * "dipakai" sebagai meja. Identitasnya adalah NAMA ORANGNYA (wajib).
+ */
+export const TAB_TANPA_MEJA: PoolTable[] = (["spl", "smh"] as const).flatMap((venue) =>
+  Array.from({ length: 20 }, (_, i) => ({
+    id: `${venue === "spl" ? "TB" : "TH"}${String(i + 1).padStart(2, "0")}`,
+    no: i + 1,
+    name: `Tab ${i + 1}`,
+    type: "resto" as TableType,
+    capacity: 1,
+    venue,
+    tanpaMeja: true as const,
+  })));
+
+/** Meja yang dikenal mesin, termasuk yang belum dijual (lantai 2 & cadangan) dan tab tanpa meja. */
+export const SEMUA_MEJA: PoolTable[] = [...TABLES, ...LANTAI_2, ...CADANGAN, ...TAB_TANPA_MEJA];
 
 /** Jenis meja compliment (Owner / Entertain), atau undefined untuk meja biasa. */
 export const jenisCompliment = (tableId: string): JenisCompliment | undefined =>

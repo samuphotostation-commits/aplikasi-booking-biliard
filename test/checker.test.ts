@@ -13,7 +13,7 @@
    ═══════════════════════════════════════════════════════════════════ */
 import {
   replay, runningOn, itemOf, mejaDipakai, namaMeja, mejaDijual, clampRange, recapRange,
-  rekapSaring, menuSaring, kategoriJual, susunKategori, kodeSesi, cadanganMeja, lantaiVenue, complimentMeja, kategoriMejaDari, kategoriMejaVenue, TAKEAWAY_BAYAR_DULU, venueTiket, guestOrderProblem, venueTerdampakMenu, kelasShiftJam, shiftDate, menuShift, shiftHariItu, omzetPerShift, slotProblem, rateWith,
+  rekapSaring, menuSaring, kategoriJual, susunKategori, kodeSesi, cadanganMeja, lantaiVenue, complimentMeja, kategoriMejaDari, kategoriMejaVenue, TAKEAWAY_BAYAR_DULU, venueTiket, tabTanpaMeja, settlementOf, guestOrderProblem, venueTerdampakMenu, kelasShiftJam, shiftDate, menuShift, shiftHariItu, omzetPerShift, slotProblem, rateWith,
   type Action, type Entry, type Genesis,
 } from "../src/lib/engine";
 import { htmlKertas, kelompokkan } from "../src/lib/cetakDapur";
@@ -631,6 +631,41 @@ console.log("\n-- 10 · Promo per venue (SPL Sport / Smokehouse / kedua venue) -
   pesan("tk2", "online", harga);
   t("takeaway lunas online: langsung masuk checker", d.st().tickets.some((x) => x.sessionId === "tk2"), true);
   t("…tanpa tanda menunggu bayar", d.st().orders.find((o) => o.id === "tk2")?.menungguBayar, undefined);
+}
+
+// ── 17. TAB TANPA MEJA — bayar belakangan (pemilik 15 Nov 2026) ──
+{
+  console.log("\n-- 17 · Tab tanpa meja: nama wajib, pesanan langsung ke checker, bayar di akhir --");
+  const d = dunia();
+  const { kosong } = tabTanpaMeja(d.st(), "smh");
+  t("ada slot tab kosong di Smokehouse", kosong?.id, "TH01");
+  t("tab tidak tampil di denah/booking", mejaDijual(d.st()).some((x) => x.tanpaMeja), false);
+  t("tab tidak ditawarkan sebagai meja cadangan", cadanganMeja(d.st(), "smh").some((x) => x.tanpaMeja), false);
+
+  d.push(jam(14), { t: "walkin", tableId: "TH01", guest: "  " });
+  t("tab tanpa nama ditolak", !!runningOn(d.st(), "TH01"), false);
+  d.push(jam(14, 1), { t: "walkin", tableId: "TH01", guest: "Pak Andi" });
+  const sesi = runningOn(d.st(), "TH01")!;
+  t("tab dibuka atas nama orangnya", sesi?.guest, "Pak Andi");
+  t("slot berikutnya bergeser", tabTanpaMeja(d.st(), "smh").kosong?.id, "TH02");
+
+  const it = itemOf(d.st(), NASGOR)!;
+  d.push(jam(14, 2), { t: "addFnb", sessionId: sesi.id, name: it.name, station: it.station, line: { key: "a", itemId: NASGOR, qty: 1 } });
+  d.push(jam(15), { t: "addFnb", sessionId: sesi.id, name: it.name, station: it.station, line: { key: "b", itemId: NASGOR, qty: 2 } });
+  const tk = d.st().tickets.filter((x) => x.sessionId === sesi.id);
+  t("pesanan LANGSUNG ke checker (belum bayar)", tk.length >= 2, true);
+  t("di checker tertulis nama orangnya", tk[0]?.tableName, "Tab · Pak Andi");
+  t("tanpa sewa waktu — tagihan = makanan saja", settlementOf(runningOn(d.st(), "TH01")!, d.st()).billiard, 0);
+
+  t("pesanan QR ke tab ditolak",
+    !!guestOrderProblem(d.st(), { mode: "meja", tableId: "TH02", pay: "kasir", lines: [{ key: "q", itemId: NASGOR, qty: 1 }] } as never, jam(15, 1)), true);
+  t("tab tidak bisa dibooking", !!slotProblem(d.st(), { tableId: "TH02", startsAt: jam(20), hours: 1 }, jam(15, 2)), true);
+
+  d.push(jam(16), { t: "settle", id: sesi.id, channel: "cash" });
+  t("dibayar di akhir: tab tertutup", d.st().sessions.find((x) => x.id === sesi.id)?.status, "done");
+  t("slot tab kembali kosong", tabTanpaMeja(d.st(), "smh").kosong?.id, "TH01");
+  d.push(jam(16, 1), { t: "walkin", tableId: "TB01", guest: "Bu Rina", hours: 2 });
+  t("tab hanya open bill (tanpa paket jam)", !!runningOn(d.st(), "TB01"), false);
 }
 
 console.log(`\n${total - bad}/${total} lulus`);

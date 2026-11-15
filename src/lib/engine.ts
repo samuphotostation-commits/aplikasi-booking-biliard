@@ -1059,14 +1059,22 @@ export const semuaItem = (st: Pick<State, "customItems">): MenuItem[] =>
 export function cadanganMeja(
   st: Pick<State, "mejaPakai">, venue: Venue, opsi: { lantai?: number; kelas?: TableType; kursi?: number } = {},
 ): PoolTable[] {
-  return SEMUA_MEJA.filter((t) => t.venue === venue && !mejaDipakai(st, t.id) && !t.compliment
+  return SEMUA_MEJA.filter((t) => t.venue === venue && !mejaDipakai(st, t.id) && !t.compliment && !t.tanpaMeja
     && (opsi.lantai === undefined || (t.lantai ?? 1) === opsi.lantai)
     && (opsi.kelas === undefined || t.type === opsi.kelas)
     && (opsi.kursi === undefined || t.capacity === opsi.kursi));
 }
 /** Lantai yang dikenal katalog venue itu (SPL tidak punya lantai → [1]). */
 export const lantaiVenue = (venue: Venue): number[] =>
-  [...new Set(SEMUA_MEJA.filter((t) => t.venue === venue).map((t) => t.lantai ?? 1))].sort((a, b) => a - b);
+  [...new Set(SEMUA_MEJA.filter((t) => t.venue === venue && !t.tanpaMeja).map((t) => t.lantai ?? 1))].sort((a, b) => a - b);
+
+/** Tab tanpa meja venue itu: yang sedang dipakai, dan slot kosong berikutnya. */
+export function tabTanpaMeja(st: Pick<State, "sessions">, venue: Venue) {
+  const slot = SEMUA_MEJA.filter((t) => t.tanpaMeja && t.venue === venue);
+  const aktif = st.sessions.filter((x) => x.status === "running" && slot.some((t) => t.id === x.tableId));
+  const kosong = slot.find((t) => !aktif.some((x) => x.tableId === t.id));
+  return { aktif, kosong };
+}
 
 /**
  * KATEGORI MEJA (pemilik 15 Nov 2026: "kategorinya jangan 4 atau 8 kursi —
@@ -1814,8 +1822,12 @@ const adaKunciInduk = (list: Employee[]) =>
 
 /** Tiket membekukan nama meja SAAT DIBUAT — kalau namanya diganti nanti,
  *  tiket yang sudah di dapur tidak ikut berubah. */
-const forSession = (st: Pick<State, "tableNames">, x: LiveSession): TargetTiket =>
-  ({ id: x.id, tableName: namaMeja(st, x.tableId), lantai: cariMeja(x.tableId)?.lantai, kode: kodeSesi(x) });
+const forSession = (st: Pick<State, "tableNames">, x: LiveSession): TargetTiket => ({
+  id: x.id,
+  // Tab tanpa meja: di checker & kertas dapur yang tertulis NAMA ORANGNYA.
+  tableName: cariMeja(x.tableId)?.tanpaMeja ? `Tab · ${x.guest}` : namaMeja(st, x.tableId),
+  lantai: cariMeja(x.tableId)?.lantai, kode: kodeSesi(x),
+});
 
 /**
  * KODE PESANAN satu meja/tab — sama dengan nomor transaksi di laporan:
@@ -2785,7 +2797,9 @@ function reduce(s: State, a: Action): State {
     /* ── Buka meja: open bill (meteran) atau paket per jam ──────── */
     case "walkin": {
       const table = cariMeja(a.tableId);
-      if (!table || !mejaDipakai(s, a.tableId) || !allow(s, "bukaMeja") || !shiftAksi(s, a, now)) return s;
+      if (!table || !(mejaDipakai(s, a.tableId) || table.tanpaMeja) || !allow(s, "bukaMeja") || !shiftAksi(s, a, now)) return s;
+      // Tab tanpa meja: identitasnya NAMA ORANGNYA — wajib, dan hanya open bill.
+      if (table.tanpaMeja && (!a.guest?.trim() || a.paketId || a.hours !== undefined)) return s;
       // Meja compliment wajib menyebut penerimanya — itu yang dibaca pemilik di laporan.
       if (complimentMeja(s, a.tableId) && !a.guest?.trim()) return s;
       const h = hourIdx(now);

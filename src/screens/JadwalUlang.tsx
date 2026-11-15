@@ -44,7 +44,7 @@ export function JadwalUlang({ sesi, onTutup }: { sesi: LiveSession; onTutup: () 
   // Meja sekelas yang sama dulu, lalu meja sekelas lain — tarifnya sama.
   const meja = useMemo(() => [
     sesi.tableId,
-    ...SEMUA_MEJA.filter((t) => t.id !== sesi.tableId && classOf(a, t.id) === kelas).map((t) => t.id),
+    ...SEMUA_MEJA.filter((t) => t.id !== sesi.tableId && !t.tanpaMeja && classOf(a, t.id) === kelas).map((t) => t.id),
   ], [a, sesi.tableId, kelas]);
 
   const pilihanJam = useMemo(() => {
