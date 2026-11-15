@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { QrisKasir } from "./QrisKasir";
 import { KonfirmasiBayar } from "./KonfirmasiBayar";
-import { cetakSenyapMungkin, cetakStruk } from "../../lib/cetak";
+import { cetakSenyapMungkin, cetakStruk, cetakHtmlStruk } from "../../lib/cetak";
+import { htmlCafeOrderTerpisah, coOtomatis, type BarisCO } from "../../lib/strukCO";
 import { motion, AnimatePresence } from "framer-motion";
 import { TABLES, CLASS_LABEL, CLASS_SHORT, COMPLIMENT_LABEL, VENUE_LABEL, tableLabel, venueDari } from "../../data/venue";
 import { VOID_REASONS, type VoidRequest } from "../../data/staff";
@@ -11,6 +12,7 @@ import {
   dalamJamBuka, batasJamTutup,
   settlementOf, lineValue, maintenanceBlockers, relocationTargets, classOf, sessionType, meterEndOf,
   splitPaidOf, paidLineKeys, porsiTerbayar, sisaPorsi, nilaiPorsi, GRACE_MIN, maxWalkinHours, priceWith, grupSesi, mesinEdc, punyaLampu,
+  sesiBerwaktu, paketOf as paketOfSesi, type State,
   statusVoid, statusVoidBaris, voidMenungguSesi, paketAktif, paketProblem, mejaDijual, cariMeja, mejaDipakai, kodeSesi, tabTanpaMeja, complimentMeja, kategoriMejaDari, cadanganMeja, lantaiVenue, hargaPaket as hargaPaketPada, uraianPaket, itemOf, type Paket,
 } from "../../lib/adminStore";
 import { rupiah } from "../../lib/core";
@@ -19,37 +21,14 @@ import { Countdown, Elapsed, jam, statusStyle } from "./AdminShell";
 import ClashAlert from "./ClashAlert";
 import OrderPicker from "./OrderPicker";
 import { LayarCounter } from "./PesanTanpaMeja";
+import { StrukResmi, barisStruk, nomorStruk, infoMain, type DataStruk } from "./StrukResmi";
 import TambahMeja from "./TambahMeja";
 import { useLampuAlat, type RingkasLampu } from "../../lib/lampuAlat";
 import { Button } from "../../components/UI";
-import type { LiveSession } from "../../data/live";
+import type { LiveSession, PayChannel } from "../../data/live";
 import type { CartLine } from "../../lib/store";
 import { useVenueAktif } from "../../lib/venueAktif";
 
-/**
- * Satu baris pesanan seperti yang dicetak di struk.
- *
- * Compliment dinamai "compliment", BUKAN "(gratis)": minuman jatah Paket
- * Siang dan barang yang digratiskan venue sama-sama berharga nol, tapi bagi
- * pemilik keduanya hal yang sangat berbeda — yang satu bagian dari paket yang
- * dibayar tamu, yang satu biaya yang ditanggung venue.
- *
- * Namanya diambil dari BARISNYA dulu supaya barang tambahan pemilik (yang
- * tidak ada di buku menu) tetap bernama di kertas.
- */
-const barisStruk = (l: CartLine) => {
-  const nama = l.name ?? findItem(l.itemId)?.name ?? l.itemId;
-  const tanda = l.comp ? " (compliment)" : (l.unitPrice ?? 0) === 0 ? " (gratis)" : "";
-  return {
-    name: `${nama}${l.variant ? ` (${l.variant})` : ""}${tanda}`,
-    qty: l.qty,
-    // Harga satuan DIBEKUKAN di barisnya; kolom @Harga di struk memakai ini,
-    // bukan total dibagi jumlah — baris compliment akan membulat jadi 0 dan
-    // tamu melihat harga satuan yang tidak pernah ada.
-    harga: l.unitPrice ?? findItem(l.itemId)?.price ?? 0,
-    total: lineValue(l),
-  };
-};
 
 export default function Board() {
   const { a, dispatchA, byTable, tick, allow, peek } = useAdmin();
@@ -63,9 +42,6 @@ export default function Board() {
   /** SPL-2 · lembar "Counter" dari papan: pesan tanpa meja tanpa pindah tab. */
   const [counter, setCounter] = useState(false);
   const [kabarCounter, setKabarCounter] = useState<string | null>(null);
-  /** Nama untuk tab tanpa meja yang akan dibuka (null = formulir tertutup). */
-  const [namaTab, setNamaTab] = useState<string | null>(null);
-  const [kabarTab, setKabarTab] = useState<string | null>(null);
   /** Lantai yang kotak "+ Meja"-nya sedang terbuka (0 = SPL, tanpa lantai). */
   const [tambahDi, setTambahDi] = useState<number | null>(null);
   const [kabarMeja, setKabarMeja] = useState<string | null>(null);
@@ -141,6 +117,28 @@ export default function Board() {
     return n;
   }, { kosong: 0, jalan: 0, booking: 0, lampu: 0 });
 
+  /*
+   * MEJA TANPA NOMOR (pemilik 15 Nov 2026: "tambahkan meja biliard kosong saja
+   * tanpa nomor untuk orang-orang yang tanpa meja yang pembayarannya di akhir").
+   * Lanjutan pemilik: "harusnya ada beberapa, dan set up-nya sama seperti meja
+   * lainnya, tapi fokusnya ke pemesanan makanan dan minuman." Jadi di denah
+   * selalu ada BEBERAPA meja biliar kosong tanpa nomor. Diketuk → panel meja
+   * yang sama dengan meja lain (nama pelanggan wajib, tanpa meteran) → langsung
+   * ke menu makanan & minuman. Pesanan ke checker, dibayar saat tab ditutup.
+   * Tab yang sedang berjalan tampil sebagai meja bertuliskan NAMA orangnya.
+   */
+  const tabTM = tabTanpaMeja(a, venue);
+  const mejaTanpaNomor = () => {
+    const aktif = filter === "all" || filter === "running" ? tabTM.aktif : [];
+    // Pemilik 16 Nov 2026: "hapus bagian meja open bill, sudah cukup satu untuk F&B".
+    // Tab tanpa meja yang MASIH BERJALAN tetap tampil sampai ditutup.
+    return [
+      // + PESANAN F&B (PDF pemilik hlm 4): pengganti tombol pesan makan/minum di luar bill meja.
+      allow("tutupTab") && filter === "all" && <UbinPesananFnb key="pesanan-fnb" onOpen={() => setCounter(true)} />,
+      ...aktif.map((x) => <Tile key={x.tableId} table={cariMeja(x.tableId)!} onOpen={() => setOpen(x.tableId)} />),
+    ];
+  };
+
   const sel = open ? cariMeja(open)! : null;
   const selSession = open ? byTable.get(open) : undefined;
 
@@ -181,82 +179,14 @@ export default function Board() {
         </button>
       )}
 
-      {allow("tutupTab") && (
-        <div className="mt-3">
-          <button onClick={() => setCounter(true)}
-            className="flex min-h-[52px] w-full items-center justify-between rounded-xl border
-              border-amber/50 bg-amber/10 px-4 text-left">
-            <span className="text-[13px] font-bold text-amber">
-              Counter · pesan tanpa meja
-            </span>
-            <span className="text-[11px] text-amber/80">makanan · minuman · rokok →</span>
-          </button>
-          {kabarCounter && <p role="status" className="mt-1.5 text-[12px] text-amber">{kabarCounter}</p>}
-          {/* TAB TANPA MEJA — bayar belakangan (pemilik 15 Nov 2026). Pesanannya
-              langsung ke checker; dibayar saat tab ditutup, seperti meja. */}
-          {(() => {
-            const { aktif, kosong } = tabTanpaMeja(a, venue);
-            const buka = () => {
-              const nm = namaTab?.trim();
-              if (!nm || !kosong) return;
-              dispatchA({ t: "walkin", tableId: kosong.id, guest: nm });
-              if (byTableSekarang(kosong.id)) { setNamaTab(null); setKabarTab(null); setOpen(kosong.id); }
-              else setKabarTab("Tab tidak bisa dibuka — pastikan shift venue ini sudah buka.");
-            };
-            return (
-              <div className="mt-2 rounded-xl border border-sky-400/40 bg-sky-400/5 p-2.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-bold text-sky-200">Tab tanpa meja · bayar belakangan</div>
-                    <div className="text-[11px] text-dim">Untuk pelanggan tertentu yang pesan tanpa meja dan bayar di akhir — pesanan langsung ke checker.</div>
-                  </div>
-                  {allow("bukaMeja") && namaTab === null && kosong && (
-                    <button onClick={() => { setNamaTab(""); setKabarTab(null); }}
-                      className="min-h-[38px] rounded-lg bg-sky-500 px-3 text-[12px] font-bold text-ink hover:bg-sky-400">+ Buka tab</button>
-                  )}
-                </div>
-                {namaTab !== null && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <input autoFocus value={namaTab} onChange={(e) => setNamaTab(e.target.value.slice(0, 30))}
-                      onKeyDown={(e) => { if (e.key === "Enter") buka(); if (e.key === "Escape") setNamaTab(null); }}
-                      placeholder="Nama pelanggan (wajib), mis. Pak Andi" aria-label="Nama pelanggan tab"
-                      className="min-h-[40px] min-w-[200px] flex-1 rounded-lg border border-line bg-ink px-3 text-[13px] text-cream placeholder:text-dim focus:border-sky-400 focus:outline-none" />
-                    <button onClick={buka} disabled={!namaTab.trim()}
-                      className="min-h-[40px] rounded-lg bg-sky-500 px-4 text-[12px] font-bold text-ink disabled:opacity-40">Buka &amp; pesan</button>
-                    <button onClick={() => setNamaTab(null)} className="min-h-[40px] rounded-lg border border-line px-3 text-[12px] text-mute">Batal</button>
-                  </div>
-                )}
-                {kabarTab && <p role="alert" className="mt-1.5 text-[12px] text-amber">{kabarTab}</p>}
-                {aktif.length > 0 && (
-                  <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-                    {aktif.map((x) => (
-                      <button key={x.id} onClick={() => setOpen(x.tableId)}
-                        className="flex items-center gap-2 rounded-lg border border-sky-400/40 bg-ink-2 px-2.5 py-2 text-left hover:border-sky-300">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-[13px] font-bold text-sky-200">
-                          {x.guest.trim().charAt(0).toUpperCase() || "?"}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] font-semibold text-cream">{x.guest}</span>
-                          <span className="block text-[10px] text-dim">
-                            <Elapsed since={x.startsAt} /> · {x.fnb.reduce((n, l) => n + l.qty, 0)} porsi
-                          </span>
-                        </span>
-                        <span className="shrink-0 font-serif text-[12px] font-bold text-amber">{rupiah(settlementOf(x, a).due)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      )}
+      {kabarCounter && <p role="status" className="mt-3 text-[12px] text-amber">{kabarCounter}</p>}
 
       {/* Denah dalam kartu (perapian 14 Nov 2026), dengan keterangan warna status. */}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-wider text-dim">
         <span>Warna:</span>
         <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-400" />kosong</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-400" />dipakai</span>
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-sky-300" />sedang main</span>
+        {venue !== "smh" && <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-400" />{MENIT_TERAKHIR} menit terakhir / habis</span>}
         <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber" />booking</span>
         <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-dim" />rusak</span>
         <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-red-500" />tab ≥ {PERINGATAN_TAB_JAM} jam</span>
@@ -264,7 +194,8 @@ export default function Board() {
       {kabarMeja && <p role="status" className="mt-2 rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-[12px] text-amber">{kabarMeja}</p>}
       {lantai.length === 0 ? (
         <div className="mt-2 rounded-2xl border border-line bg-ink-2/60 p-2.5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {mejaTanpaNomor()}
             {rows.map((t) => <Tile key={t.id} table={t} onOpen={() => setOpen(t.id)} />)}
             {kotakTambah(0)}
           </div>
@@ -278,6 +209,7 @@ export default function Board() {
               Lantai {lt} · {rows.filter((t) => t.lantai === lt).length} meja
             </h3>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+              {lt === lantai[0] && mejaTanpaNomor()}
               {rows.filter((t) => t.lantai === lt).map((t) => (
                 <Tile key={t.id} table={t} onOpen={() => setOpen(t.id)} />
               ))}
@@ -334,7 +266,7 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
   const st = statusStyle(s?.status ?? "free");
   const lampu = a.lights[table.id];
   const kelas = classOf(a, table.id);
-  const nama = namaMeja(a, table.id);
+  const nama = table.tanpaMeja ? `Tab · ${s?.guest ?? "tanpa meja"}` : namaMeja(a, table.id);
   /** Jenis compliment & kategori meja — dari pengaturan pemilik, bukan katalog. */
   const komp = complimentMeja(a, table.id);
   const katMeja = kategoriMejaDari(a, table.id);
@@ -381,11 +313,12 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
      kain felt sewarna kelasnya, enam lubang, lampu gantung menyala), meja
      Smokehouse sebagai meja makan dengan kursinya. Isi informasinya dan
      ketukannya SAMA PERSIS dengan kotak lama — yang berubah hanya rupanya. */
-  const label = a.tableNames?.[table.id]?.trim()
+  const label = table.tanpaMeja ? (s?.guest?.trim() || "Tanpa meja") : a.tableNames?.[table.id]?.trim()
     ?? (table.venue === "smh" ? table.name : kelas === "regular" ? String(table.no) : `V${table.no}`);
   const status = s?.status ?? "free";
   const cincin = tabPanjang ? "ring-2 ring-red-500 ring-offset-2 ring-offset-ink animate-pulse"
-    : status === "running" ? "ring-2 ring-red-400/70 ring-offset-2 ring-offset-ink"
+    : status === "running" ? (s && sesiBerwaktu(s) && s.endsAt - Date.now() <= MENIT_TERAKHIR * 60_000
+      ? "ring-2 ring-red-400 ring-offset-2 ring-offset-ink" : "ring-1 ring-sky-300/70 ring-offset-2 ring-offset-ink")
       : status === "booked" ? "ring-2 ring-amber/70 ring-offset-2 ring-offset-ink"
         : status === "hold" ? "ring-2 ring-dashed ring-amber/50 ring-offset-2 ring-offset-ink"
           : "";
@@ -434,62 +367,94 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
     </>
   );
 
-  if (table.venue !== "smh") {
-    // ── MEJA BILIAR ──────────────────────────────────────────────
-    // Warna kain (pemilik 15 Nov 2026): Reguler BIRU seperti meja SPL aslinya,
-    // VIP hijau tua, VVIP merah marun.
-    const felt = kelas === "vvip"
-      ? "radial-gradient(ellipse at 50% 40%, #8a1f3d 0%, #5c1027 70%, #3f0a1b 100%)"
-      : kelas === "vip"
-        ? "radial-gradient(ellipse at 50% 40%, #1b8a57 0%, #0f5f3c 70%, #0a4329 100%)"
-        : "radial-gradient(ellipse at 50% 40%, #2a78c7 0%, #18548f 65%, #0e3963 100%)";
+  if (table.venue !== "smh" || table.tanpaMeja) {
+    /*
+     * PAPAN MEJA SPL — KARTU YANG JELAS (pemilik 16 Nov 2026: "UI papan meja
+     * kurang jelas, perjelas, tidak harus ada gambar meja biliar; yang butuh
+     * keterangan sesuai PDF SPL1 yang jelas"). Satu kartu per meja:
+     *   nomor besar · nama paket / open bill · titik lampu · tagihan
+     *   CHECK-IN · DURASI · CHECK OUT · SISA WAKTU (+ garis waktu)
+     * Warna kartu = keadaan meja:
+     *   BIRU TERANG = sedang main · MERAH = 4 menit terakhir / waktu habis
+     *   gelap = kosong · kuning = booking · bergaris = rusak
+     */
+    const main = status === "running" && !!s;
+    const berwaktu = main && sesiBerwaktu(s!);
+    const akhir = berwaktu && s!.endsAt - Date.now() <= MENIT_TERAKHIR * 60_000;
+    const habisWaktu = berwaktu && Date.now() >= s!.endsAt;
+    const nyala = !!lampu && punyaLampu(table.id);
     const rusak = status === "maintenance";
+    const pesan = status === "booked" || status === "hold";
+    const kartu = main
+      ? (akhir ? "border-red-500 bg-[#ffb7aa] text-[#2b0b06] shadow-[0_0_0_3px_rgba(239,68,68,0.35),0_8px_20px_rgba(0,0,0,0.5)]"
+        : "border-sky-400 bg-[#aeefff] text-[#062630] shadow-[0_8px_20px_rgba(0,0,0,0.5)]")
+      : pesan ? "border-amber/70 bg-amber/10 text-cream"
+        : rusak ? "border-line bg-ink text-dim" : "border-line bg-ink-2 text-cream hover:border-line-2";
+    const persen = berwaktu
+      ? Math.min(100, Math.max(0, ((Date.now() - s!.startsAt) / Math.max(1, s!.endsAt - s!.startsAt)) * 100)) : null;
+    const isian = (k: string, v: React.ReactNode, tegas = false) => (
+      <div className="flex min-w-0 items-baseline justify-between gap-1.5 border-b border-black/10 py-[2px]">
+        <span className="shrink-0 text-[9.5px] font-bold uppercase tracking-wider opacity-60">{k}</span>
+        <span className={`truncate text-[12.5px] font-extrabold tabular-nums ${tegas && akhir ? "text-red-800" : ""}`}>{v}</span>
+      </div>
+    );
+    const chip = "rounded-md px-1.5 py-[1px] text-[10px] font-extrabold uppercase tracking-wider";
     return (
-      <motion.button layout whileTap={{ scale: 0.96 }} whileHover={{ y: -2 }} onClick={onOpen}
+      <motion.button layout whileTap={{ scale: 0.97 }} whileHover={{ y: -2 }} onClick={onOpen}
         aria-label={`${nama} · ${st.label}`}
-        className={`relative w-full rounded-[18px] p-[7px] text-left shadow-[0_6px_18px_rgba(0,0,0,0.55)] ${cincin} ${rusak ? "grayscale" : ""}`}
-        style={{ background: "linear-gradient(145deg, #7a4a28 0%, #5a3219 45%, #3a1f0e 100%)" }}>
-        {kosong && (
-          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center font-display text-[15px] tracking-[0.3em] text-emerald-300/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-            KOSONG
-          </span>
-        )}
-        {/* paku penanda di bingkai kayu */}
-        {[["left-1/4", "top-[2px]"], ["left-3/4", "top-[2px]"], ["left-1/4", "bottom-[2px]"], ["left-3/4", "bottom-[2px]"]].map(([x, y], i) => (
-          <span key={i} aria-hidden="true" className={`absolute ${x} ${y} h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-amber/60`} />
-        ))}
-        <div className="relative flex min-h-[92px] flex-col justify-between overflow-hidden rounded-[11px] px-2.5 py-2 shadow-[inset_0_0_14px_rgba(0,0,0,0.55)]"
-          style={{ background: felt, ...redup }}>
-          {/* enam lubang */}
-          {["-left-[5px] -top-[5px]", "-right-[5px] -top-[5px]", "-left-[5px] -bottom-[5px]", "-right-[5px] -bottom-[5px]",
-            "left-1/2 -top-[6px] -translate-x-1/2", "left-1/2 -bottom-[6px] -translate-x-1/2"].map((pos) => (
-            <span key={pos} aria-hidden="true" className={`absolute ${pos} h-[13px] w-[13px] rounded-full bg-black shadow-[inset_0_1px_3px_rgba(255,255,255,0.15)]`} />
-          ))}
-          {/* garis kepala & titik bola */}
-          <span aria-hidden="true" className="absolute bottom-2 left-[26%] top-2 w-px bg-white/12" />
-          <span aria-hidden="true" className="absolute right-[22%] top-1/2 h-[5px] w-[5px] -translate-y-1/2 rounded-full bg-white/80 shadow" />
-          {/* lampu meja menyala: cahaya hangat dari atas */}
-          {lampu && punyaLampu(table.id) && (
-            <span aria-hidden="true" className="pointer-events-none absolute inset-0"
-              style={{ background: "radial-gradient(ellipse at 50% 30%, rgba(255,226,140,0.42) 0%, rgba(255,226,140,0.12) 45%, transparent 75%)" }} />
-          )}
-          {rusak && (
-            <span aria-hidden="true" className="pointer-events-none absolute inset-0"
-              style={{ background: "repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0 8px, transparent 8px 16px)" }} />
-          )}
-          <div className="relative flex items-start justify-between gap-1">
-            <span className="font-display text-2xl leading-none text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{label}</span>
-            <span className="flex items-center gap-1">
-              {kelas !== "regular" && (
-                <span className="rounded bg-black/35 px-1 text-[8px] font-bold uppercase tracking-wider text-white/90">{CLASS_SHORT[kelas]}</span>
+        className={`relative flex min-h-[140px] w-full flex-col overflow-hidden rounded-2xl border-2 p-2.5 text-left transition-colors ${kartu} ${
+          tabPanjang ? "ring-2 ring-red-500 ring-offset-2 ring-offset-ink" : ""}`}
+        style={rusak ? { backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 8px, transparent 8px 16px)" } : undefined}>
+        <div className="flex items-start gap-2">
+          <span className={`shrink-0 font-display leading-[0.82] ${table.tanpaMeja ? "max-w-[46%] break-words text-[20px]" : "text-[54px]"} ${
+            main ? "" : kosong ? "text-cream/85" : ""}`}>{label}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-1">
+              <span className="min-w-0 truncate text-[13px] font-extrabold leading-tight">
+                {main ? namaPaketSesi(a, s!) : pesan ? (status === "hold" ? "Menunggu bayar" : "Booking") : rusak ? "Rusak" : "Kosong"}
+              </span>
+              {punyaLampu(table.id) && (
+                <span title={nyala ? "Lampu menyala" : "Lampu mati"}
+                  className={`mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full border ${nyala
+                    ? "border-yellow-600 bg-yellow-300 shadow-[0_0_10px_3px_rgba(253,224,71,0.8)]"
+                    : main ? "border-black/30 bg-black/70" : "border-white/20 bg-white/10"}`} />
               )}
-              {lampu && punyaLampu(table.id) && (
-                <span className="text-[11px] leading-none text-yellow-200 drop-shadow" title="Lampu menyala">💡</span>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {main && (komp ? <span className={`${chip} bg-sky-700 text-white`}>Rp 0 · compliment</span>
+                : s!.source === "online" && bill <= 0 ? <span className={`${chip} bg-emerald-700 text-white`}>Lunas</span>
+                  : <span className={`${chip} bg-black/80 font-serif normal-case tracking-normal text-amber`}>{rupiah(bill)}</span>)}
+              {main && akhir && <span className={`${chip} bg-red-600 text-white`}>{habisWaktu ? "Waktu habis" : `${MENIT_TERAKHIR} mnt terakhir`}</span>}
+              {!main && kosong && <span className={`${chip} border border-emerald-400/70 text-emerald-300`}>Siap</span>}
+              {kelas !== "regular" && !table.tanpaMeja && (
+                <span className={`${chip} ${main ? "bg-black/15" : "bg-white/10 text-mute"}`}>{CLASS_SHORT[kelas]}</span>
               )}
-            </span>
+              {s?.lembur && <span className={`${chip} bg-amber text-ink`}>lembur</span>}
+            </div>
           </div>
-          <div className="relative mt-1 rounded-md bg-black/35 px-1.5 py-1 backdrop-blur-[1px]">{keterangan}</div>
         </div>
+        {main ? (
+          <div className="mt-auto pt-1.5">
+            <div className="grid grid-cols-2 gap-x-3">
+              {isian("Check-in", jam(s!.startsAt))}
+              {isian("Durasi", berwaktu ? lamaMain(s!.endsAt - s!.startsAt) : <Elapsed since={s!.startsAt} />)}
+              {isian("Check out", berwaktu ? jam(s!.endsAt) : "—")}
+              {isian("Sisa", berwaktu ? sisaWaktu(s!.endsAt) : "—", true)}
+            </div>
+            {persen !== null && (
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-black/15" aria-hidden="true">
+                <div className={`h-full rounded-full ${akhir ? "bg-red-600" : "bg-sky-700"}`} style={{ width: `${persen}%` }} />
+              </div>
+            )}
+            {tabPanjang && <div className="mt-0.5 text-[9.5px] font-extrabold uppercase tracking-wider text-red-800">≥ {PERINGATAN_TAB_JAM} jam — cek tab</div>}
+          </div>
+        ) : pesan && s ? (
+          <div className="mt-auto truncate text-[11.5px] font-semibold text-amber">
+            {s.guest} · {jam(s.startsAt)}{s.pax ? ` · ${s.pax} org` : ""}
+          </div>
+        ) : (
+          <div className="mt-auto text-[11px] text-dim">{rusak ? "tidak dipakai" : "ketuk untuk buka meja"}</div>
+        )}
       </motion.button>
     );
   }
@@ -599,6 +564,44 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
   );
 }
 
+/** Indikator papan (PDF pemilik): biru terang = sedang main, merah = 4 menit terakhir. */
+const MENIT_TERAKHIR = 4;
+
+/** Nama paket / open bill untuk ubin papan. */
+function namaPaketSesi(a: Pick<State, "packages">, s: LiveSession): string {
+  if (s.paket) return paketOfSesi(a, s.paket)?.name ?? "Paket";
+  if (s.blockHours) return `Paket ${s.blockHours} Jam`;
+  if (s.source === "online") return `Booking ${Math.max(1, Math.round((s.endsAt - s.startsAt) / 3_600_000))} Jam`;
+  return "Open Bill";
+}
+/** "2 jam" / "1 jam 30 mnt" / "45 mnt". */
+function lamaMain(ms: number): string {
+  const m = Math.max(0, Math.round(ms / 60_000));
+  const j = Math.floor(m / 60);
+  return j > 0 ? `${j} jam${m % 60 ? ` ${m % 60} mnt` : ""}` : `${m} mnt`;
+}
+/** Sisa waktu: "1j 05m", "3m", atau "habis 12m". */
+function sisaWaktu(endsAt: number): string {
+  const left = endsAt - Date.now();
+  const m = Math.floor(Math.abs(left) / 60_000);
+  const t = m >= 60 ? `${Math.floor(m / 60)}j${String(m % 60).padStart(2, "0")}m` : `${m}m`;
+  // Sudah habis: singkat saja (kartunya sudah merah & lampunya mati).
+  return left <= 0 ? (m < 60 ? `habis ${m}m` : "habis") : t;
+}
+
+/** Ubin "+ PESANAN F&B": pesan makanan & minuman di luar bill meja (counter / takeaway). */
+function UbinPesananFnb({ onOpen }: { onOpen: () => void }) {
+  return (
+    <motion.button layout whileTap={{ scale: 0.96 }} whileHover={{ y: -2 }} onClick={onOpen}
+      aria-label="Pesanan F&B di luar bill meja"
+      className="group flex min-h-[126px] w-full flex-col items-center justify-center gap-1.5 rounded-[18px] border-2 border-dashed border-amber/60 bg-gradient-to-br from-amber/15 via-ink-2 to-ink-2 text-center shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-amber hover:from-amber/25">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber text-[26px] font-bold leading-none text-ink shadow-[0_0_14px_rgba(232,163,61,0.55)] transition-transform group-hover:scale-110">+</span>
+      <span className="font-display text-[19px] uppercase leading-none tracking-wide text-cream">Pesanan F&amp;B</span>
+      <span className="text-[10px] text-dim">makanan · minuman · rokok — di luar bill meja</span>
+    </motion.button>
+  );
+}
+
 function Stat({ n, label, tone, onClick, on }: {
   n: number; label: string; tone: string; onClick: () => void; on: boolean;
 }) {
@@ -651,7 +654,7 @@ function LampuAlatTanda({ ringkas }: { ringkas: RingkasLampu }) {
 
 /* ═════════════ Sheet kelola meja ═════════════ */
 
-function TableSheet({
+export function TableSheet({
   table, session, onClose,
 }: { table: (typeof TABLES)[number]; session?: LiveSession; onClose: () => void }) {
   const { a, dispatchA, allow, peek } = useAdmin();
@@ -709,36 +712,20 @@ function TableSheet({
     }
     setGantiNama(null);
   }
-  const [struk, setStruk] = useState<{
-    no: string; meja: string; tamu: string; mulai: number; selesai: number;
-    menit: number | null; billiard: number; fnb: number; diskon: number; promo?: string;
-    /** Bagian diskon yang diberikan manual (SMH-11b) — dinamai apa adanya di struk. */
-    diskonManual?: number;
-    /** Nilai barang yang digratiskan venue. Dicetak supaya tamu tahu apa yang diberikan. */
-    compliment?: number;
-    prabayar: number; bayar: number; metode: string; kasir: string;
-    /** `harga` = harga satuan (kolom @Harga di struk). */
-    /**
-     * `lunas` = baris ini SUDAH dibayar lewat bayar-sebagian (split bill).
-     *
-     * Permintaan pemilik 18 Okt 2026: "bill keluar sesuaikan yg sudah
-     * dibayar dan yg belum dibayar". Mesin sudah lama tahu barisnya
-     * (`paidLineKeys`) dan layar sudah menandainya — yang belum, kertasnya.
-     * Tamu yang membayar bergantian tidak punya cara memeriksa bagiannya
-     * sudah masuk atau belum.
-     */
-    items: { name: string; qty: number; harga: number; total: number; lunas?: boolean }[];
-    /** Bayar tunai: uang yang diterima & kembaliannya (permintaan pemilik 8 Okt 2026). */
-    tunaiDiterima?: number;
-    kembalian?: number;
-    /** true = BILL SEMENTARA untuk diperlihatkan ke tamu, BELUM dibayar.
-     *  Harus terbaca jelas di kertas supaya tidak tertukar dengan struk lunas. */
-    belumLunas?: boolean;
-  } | null>(null);
+  const [struk, setStruk] = useState<DataStruk | null>(null);
   /** Uang tunai yang diserahkan tamu — hanya alat bantu kasir, tidak masuk jejak. */
   const [tunai, setTunai] = useState("");
   /** Metode yang dipilih dan menunggu konfirmasi. Uang baru tercatat sesudah kasir menekan Ya. */
-  const [metodePilih, setMetodePilih] = useState<{ ch: "cash" | "edc" | "qris_online"; label: string; mesin?: string } | null>(null);
+  const [metodePilih, setMetodePilih] = useState<{ ch: PayChannel; label: string; mesin?: string } | null>(null);
+  /*
+   * PEMBAYARAN SPL (pemilik 16 Nov 2026): hanya tiga — CHECK OUT, BAYAR
+   * SEBAGIAN, GABUNG BAYAR. Tidak ada pilihan tunai/QRIS/EDC; uangnya dicatat
+   * "Checkout" tanpa metode. Check Out langsung mengeluarkan struk.
+   */
+  const splCheckout = venueDari(table.id) === "spl";
+  const METODE_CHECKOUT = { ch: "checkout" as const, label: "Checkout" };
+  /** Struk dicetak sendiri begitu layar struk tampil (Check Out SPL). */
+  const [cetakNanti, setCetakNanti] = useState(false);
   const [kode, setKode] = useState("");
   /** Diskon manual (%) — SMH-11b. Kosong = tidak ada diskon manual. */
   const [diskonPct, setDiskonPct] = useState("");
@@ -791,7 +778,7 @@ function TableSheet({
   const flash = (text: string) => { setNote(text); setTimeout(() => setNote(null), 5000); };
   const komp = complimentMeja(a, table.id);
   /** Judul panel: tab tanpa meja memakai NAMA ORANGNYA. */
-  const judulMeja = table.tanpaMeja && session ? `Tab · ${session.guest}` : namaMeja(a, table.id);
+  const judulMeja = table.tanpaMeja ? (session ? `Tab · ${session.guest}` : "Meja tanpa nomor") : namaMeja(a, table.id);
 
   /*
    * ALUR PESAN (panduan UI/UX pemilik 15 Nov 2026, diluruskan pemilik: "ini
@@ -834,13 +821,30 @@ function TableSheet({
   // rumus yang sama (settlementOf), bukan menghitung sendiri.
   /** Persen diskon manual yang sedang diketik, sudah dijinakkan 0–100. */
   const pctManual = Math.min(100, Math.max(0, Math.floor(Number(diskonPct) || 0)));
-  const calc = session ? settlementOf(session, a, Date.now(), kode || undefined, pctManual) : null;
+  // Meja paket yang sedang dibayar di muka (layar bayar sebagian): paketnya ditagih penuh.
+  const sesiTagih = session && session.blockHours && (mode === "split" || mode === "konfirmSplit")
+    ? { ...session, bayarDiMuka: true as const } : session;
+  const calc = sesiTagih ? settlementOf(sesiTagih, a, Date.now(), kode || undefined, pctManual) : null;
   const bill = calc ? { amount: calc.billiard, detail: calc.detail } : null;
   const fnb = calc?.fnb ?? 0;
   const billiard = calc?.billiard ?? 0;
   const promo = calc?.promo ?? null;
   const diskon = calc?.discount ?? 0;
   const due = calc?.due ?? 0;
+  useEffect(() => {
+    if (!cetakNanti || mode !== "receipt" || !struk) return;
+    setCetakNanti(false);
+    // Tunggu struk tergambar, lalu 2 lembar terpotong ke printer struk.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      void cetakStruk(2).then((r) => { if (!r.ok || r.alasan) flash(r.ok ? r.alasan! : `Struk gagal dicetak: ${r.alasan ?? "printer tidak menjawab"}`); });
+    }));
+  }, [cetakNanti, mode, struk]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Bayar langsung meja paket: isi nominal dengan seluruh tagihan begitu angkanya terbaru. */
+  const [isiPenuh, setIsiPenuh] = useState(false);
+  useEffect(() => {
+    if (isiPenuh && mode === "split" && due > 0) { setNominal(String(due)); setIsiPenuh(false); }
+  }, [isiPenuh, mode, due]);
   /** Uang yang sudah diterima kasir lewat split bill. */
   const sudahSplit = session ? splitPaidOf(session) : 0;
   /* ── SMH-4 · gabung meja ───────────────────────────────────────────
@@ -896,12 +900,53 @@ function TableSheet({
     ? meterEndOf(session, Date.now(), a) : 0;
   const meterBerhenti = !!meterStop && meterStop < Date.now() - 60_000;
 
+  /*
+   * CAFE ORDER OTOMATIS (arahan pemilik 15 Nov 2026): meja pesan makanan &
+   * minuman, bayarnya di akhir → yang langsung keluar adalah CO: daftar
+   * pesanan TANPA HARGA, 2 lembar terpotong. `semua` = cetak ulang seluruh
+   * pesanan meja ini (tombol "Cetak CO").
+   */
+  const cetakCO = (baris: BarisCO[], semua = false) => {
+    if (!session || baris.length === 0 || (!semua && !coOtomatis())) return;
+    const sudahPesan = !semua && session.fnb.length > 0;
+    // CO MAKANAN & CO MINUMAN/KEMASAN/ROKOK terpisah, masing-masing 2 rangkap.
+    const lembar = htmlCafeOrderTerpisah({
+      venue: venueDari(table.id), no: nomorStruk(session.id), meja: judulMeja, tamu: session.guest,
+      kasir: a.me?.name ?? "-", at: Date.now(),
+      ...(semua ? { catatanAtas: "SEMUA PESANAN MEJA INI" } : sudahPesan ? { catatanAtas: "PESANAN TAMBAHAN" } : {}),
+    }, baris);
+    void (async () => {
+      for (const html of lembar) {
+        const r = await cetakHtmlStruk(html, 2);
+        if (!r.ok || r.alasan) { flash(r.ok ? r.alasan! : `CO gagal dicetak: ${r.alasan ?? "printer tidak menjawab"}`); if (!r.ok) return; }
+      }
+    })();
+  };
+
+  /**
+   * Sesudah pesan: BAYAR DI AKHIR → kembali ke bill meja. BAYAR LANGSUNG →
+   * layar bayar per item terbuka dengan pesanan barusan sudah terpilih;
+   * kasir tinggal memilih Tunai / QRIS / EDC.
+   */
+  const selesaiPesan = (opsi: { bayarLangsung: boolean; baris: { key: string; qty: number }[] }) => {
+    if (!opsi.bayarLangsung || opsi.baris.length === 0) {
+      setMode("main"); flash("Pesanan masuk ke checker dan bill meja · dibayar di akhir.");
+      return;
+    }
+    // Meja paket: SELURUH tagihan sekarang (paket biliar + pesanan) — bisa juga dibagi beberapa orang.
+    setCaraSplit("rata"); setBagiOrang(1); setBagiKe(1); setPilih([]); setPilihPorsi({}); setNominal(""); setNamaOrang("");
+    setIsiPenuh(true);
+    setMode("split");
+    flash("Pesanan masuk ke checker. Tagihan paket + pesanan siap dibayar — pilih cara bayarnya.");
+  };
+
   const tutupMejaLunas = () => {
     if (!session) return;
     const at = Date.now();
     const final = settlementOf(session, a, at);
     setStruk({
-      no: `SPL-${at.toString(36).toUpperCase().slice(-6)}`,
+      no: nomorStruk(session.id),
+      ...infoMain(a, { ...session, status: "done" }, venueDari(table.id), !!table.tanpaMeja, at),
       meja: judulMeja, tamu: session.guest,
       mulai: session.startsAt, selesai: at,
       menit: final.detail?.billedMinutes ?? null,
@@ -924,7 +969,7 @@ function TableSheet({
   };
 
   /** Menutup tab. Hanya dipanggil dari layar konfirmasi. */
-  const bayarTab = (ch: "cash" | "edc" | "qris_online", label: string, mesin?: string) => {
+  const bayarTab = (ch: PayChannel, label: string, mesin?: string) => {
     if (!session) return;
     const at = Date.now();
     /**
@@ -946,7 +991,8 @@ function TableSheet({
       hitungan.reduce((n, h) => n + f(h), 0);
     const totalDue = jumlah((h) => h.bill.due);
     setStruk({
-      no: `SPL-${at.toString(36).toUpperCase().slice(-6)}`,
+      no: nomorStruk(session.id),
+      ...infoMain(a, { ...session, status: "done" }, venueDari(table.id), !!table.tanpaMeja, at),
       meja: ikut.map((x) => namaMeja(a, x.tableId)).join(" + "),
       tamu: session.guest,
       mulai: Math.min(...ikut.map((x) => x.startsAt)), selesai: at,
@@ -1009,11 +1055,12 @@ function TableSheet({
         + `uangnya belum tercatat untuk meja itu. Cek di papan sebelum tamu pulang.`);
     }
     setDiskonPct("");
+    if (ch === "checkout") setCetakNanti(true);
     setMode("receipt");
   };
 
   /** Pembayaran sebagian. Hanya dipanggil dari layar konfirmasi. */
-  const bayarSplit = (ch: "cash" | "edc" | "qris_online", label: string, mesin?: string) => {
+  const bayarSplit = (ch: PayChannel, label: string, mesin?: string) => {
     if (!session) return;
     const sebelum = (peek().sessions.find((x) => x.id === session.id)?.payments ?? []).length;
     const tolak = dispatchA({
@@ -1059,7 +1106,7 @@ function TableSheet({
             <div className="min-w-0 flex-1">
               <span className="font-display text-xl uppercase tracking-wide text-cream">{judulMeja}</span>
               <span className="ml-2 text-[11px] uppercase tracking-wider text-dim">
-                {session.guest} · {CLASS_LABEL[kelas]}{kelas !== "resto" && ` · ${rupiah(tarifKelas)}/jam`}
+                {session.guest} · {table.tanpaMeja ? "Tanpa meja" : CLASS_LABEL[kelas]}{kelas !== "resto" && ` · ${rupiah(tarifKelas)}/jam`}
               </span>
               {/* Lantai & kode pesanan (pemilik 15 Nov 2026) — sama dengan yang tercetak di checker. */}
               {table.lantai && <span className="ml-2 rounded bg-sky-400/15 px-1.5 text-[11px] font-bold text-sky-300">Lantai {table.lantai}</span>}
@@ -1072,7 +1119,7 @@ function TableSheet({
           </div>
           <div className="min-h-0 flex-1 overflow-hidden p-4">
             <OrderPicker alur sessionId={session.id}
-              onDone={() => { setMode("main"); flash("Pesanan masuk ke checker dan bill meja."); }}
+              onDone={(dikirim, opsi) => { cetakCO(dikirim); selesaiPesan(opsi); }}
               onLewati={() => setMode("main")} />
           </div>
         </>) : (
@@ -1110,7 +1157,7 @@ function TableSheet({
               </div>
             )}
             <span className="text-[11px] uppercase tracking-wider text-dim">
-              {CLASS_LABEL[kelas]}{kelas !== "resto" && ` · ${rupiah(tarifKelas)}/jam`}
+              {table.tanpaMeja ? "Tanpa meja" : CLASS_LABEL[kelas]}{kelas !== "resto" && ` · ${rupiah(tarifKelas)}/jam`}
             </span>
           </div>
 
@@ -1146,7 +1193,8 @@ function TableSheet({
                 </div>
               )}
               <input value={guest} onChange={(e) => setGuest(e.target.value)}
-                placeholder={komp === "entertain" ? "Untuk siapa? (wajib, mis. Band Akustik Senja)"
+                placeholder={table.tanpaMeja ? "Nama pelanggan (wajib) — tertulis di checker & bill"
+                  : komp === "entertain" ? "Untuk siapa? (wajib, mis. Band Akustik Senja)"
                   : komp === "owner" ? "Untuk siapa? (wajib, mis. Pak Budi & keluarga)" : "Nama tamu (opsional)"}
                 className="w-full rounded-xl border border-line bg-ink px-4 py-3 text-cream
                   placeholder:text-dim focus:border-amber focus:outline-none" />
@@ -1236,7 +1284,8 @@ function TableSheet({
             <div className="min-w-0 space-y-3 lg:sticky lg:top-0">
               <div className="rounded-xl border border-line bg-ink px-3.5 py-3 text-[13px]">
                 <div className="mb-1.5 font-semibold text-cream">
-                  {kelas === "resto" ? "Meja resto — tanpa meteran jam"
+                  {table.tanpaMeja ? "Tanpa meja — pesan makanan & minuman, bayar di akhir"
+                    : kelas === "resto" ? "Meja resto — tanpa meteran jam"
                     : paketDipakai ? `${paketDipakai.name} · ${rupiah(hargaKini(paketDipakai).price)}`
                       : jamPaket !== null ? `Paket ${jamPaket} jam · ${rupiah(hargaPaket(jamPaket))}`
                         : `Open bill — meteran jalan · ${rupiah(tarifKelas)}/jam`}
@@ -1271,7 +1320,7 @@ function TableSheet({
                   ) : (
                     <>
                       <li>• Batal dalam <span className="text-cream">{GRACE_MIN} menit</span> pertama: tidak ditagih</li>
-                      <li>• Lewat {GRACE_MIN} menit: langsung terhitung <span className="text-cream">30 menit</span></li>
+                      <li>• Lewat {GRACE_MIN} menit (mis. {GRACE_MIN} menit 1 detik): langsung terhitung <span className="text-cream">30 menit sejak menit 0</span></li>
                       <li>• Setelah itu dihitung <span className="text-cream">per menit</span> sampai tab ditutup (berhenti sendiri pukul 06.00 hanya kalau tidak ada shift buka)</li>
                     </>
                   )}
@@ -1296,7 +1345,7 @@ function TableSheet({
                 </p>
               )}
               <Button full disabled={!bisaBuka || !allow("bukaMeja") || (jamPaket !== null && jamPaket > maksJam)
-                || (!!komp && !guest.trim())}
+                || ((!!komp || !!table.tanpaMeja) && !guest.trim())}
                 onClick={() => {
                   dispatchA({
                     t: "walkin", tableId: table.id, guest,
@@ -1311,9 +1360,10 @@ function TableSheet({
                 }}>
                 {paketDipakai ? `Buka ${paketDipakai.name} · ${rupiah(hargaKini(paketDipakai).price)}`
                   : jamPaket !== null ? `Buka ${jamPaket} Jam · ${rupiah(hargaPaket(jamPaket))}`
-                    : kelas === "resto" ? "Duduk & Mulai Pesan" : "Mulai Open Bill"}
+                    : table.tanpaMeja ? "Mulai Pesan Makanan & Minuman"
+                      : kelas === "resto" ? "Duduk & Mulai Pesan" : "Mulai Open Bill"}
               </Button>
-              {allow("kelolaMeja") && (
+              {allow("kelolaMeja") && !table.tanpaMeja && (
                 <button onClick={() => setMode("maint")}
                   className="min-h-[40px] w-full text-xs text-dim underline underline-offset-4">
                   Tandai meja rusak
@@ -1520,7 +1570,7 @@ function TableSheet({
                   {(session.payments ?? []).map((p) => (
                     <div key={p.id} className="flex items-center justify-between gap-2 px-4 py-1.5 text-[12px]">
                       <span className="truncate text-mute">
-                        {jam(p.at)} · {p.channel === "cash" ? "Tunai" : p.channel === "edc" ? "Kartu/EDC" : "QRIS"}
+                        {jam(p.at)} · {p.channel === "cash" ? "Tunai" : p.channel === "edc" ? "Kartu/EDC" : p.channel === "checkout" ? "Checkout" : "QRIS"}
                         {p.label ? ` · ${p.label}` : ""}{p.keys?.length ? ` · ${p.keys.length} pesanan` : ""}
                       </span>
                       <span className="shrink-0 font-serif tabular-nums text-cream">{rupiah(p.amount)}</span>
@@ -1611,9 +1661,9 @@ function TableSheet({
                         {allow("bukaMeja") && (
                           <button onClick={() => setMode("move")} className="min-h-[46px] rounded-xl border border-line bg-ink px-3 text-[13px] font-semibold text-cream hover:border-amber hover:text-amber disabled:opacity-35">Pindah Meja</button>
                         )}
-                        {allow("bukaMeja") && bisaDigabung.length > 0 && (
+                        {allow("bukaMeja") && bisaDigabung.length > 0 && !splCheckout && (
                           <button onClick={() => setMode("gabung")} className="min-h-[46px] rounded-xl border border-line bg-ink px-3 text-[13px] font-semibold text-cream hover:border-amber hover:text-amber disabled:opacity-35">
-                            {digabung ? "Tambah ke Gabungan" : "Gabung Meja"}
+                            {digabung ? "Tambah ke Gabungan" : splCheckout ? "Gabung Bayar" : "Gabung Meja"}
                           </button>
                         )}
                         {allow("koreksiPesanan") && barisBebas.length > 0 && (
@@ -1621,7 +1671,7 @@ function TableSheet({
                             Pindahkan Pesanan
                           </button>
                         )}
-                        {allow("tutupTab") && due > 0 && (
+                        {allow("tutupTab") && due > 0 && !splCheckout && (
                           <button disabled={voidTahan.length > 0}
                             onClick={() => { setPilih([]); setPilihPorsi({}); setNominal(""); setNamaOrang(""); setMode("split"); }}
                             className="min-h-[46px] rounded-xl border border-line bg-ink px-3 text-[13px] font-semibold text-cream hover:border-amber hover:text-amber disabled:opacity-35">
@@ -1632,7 +1682,8 @@ function TableSheet({
                         const at = Date.now();
                         const cek = settlementOf(session, a, at, kode || undefined, pctManual);
                         setStruk({
-                          no: `CEK-${at.toString(36).toUpperCase().slice(-6)}`,
+                          no: nomorStruk(session.id),
+                          ...infoMain(a, session, venueDari(table.id), !!table.tanpaMeja, at),
                           meja: judulMeja, tamu: session.guest,
                           mulai: session.startsAt, selesai: at,
                           menit: cek.detail?.billedMinutes ?? null,
@@ -1650,6 +1701,16 @@ function TableSheet({
                           className="min-h-[46px] rounded-xl border border-line bg-ink px-3 text-[13px] font-semibold text-cream hover:border-amber hover:text-amber disabled:opacity-35 col-span-2 sm:col-span-1">
                           Cek Bill · tunjukkan ke tamu
                         </button>
+                        {session.fnb.length > 0 && (
+                          <button onClick={() => cetakCO(session.fnb.map((l) => ({
+                            nama: l.name ?? itemOf(a, l.itemId)?.name ?? l.itemId, qty: l.qty,
+                            station: l.station ?? itemOf(a, l.itemId)?.station,
+                            ...(l.variant ? { varian: l.variant } : {}), ...(l.note ? { catatan: l.note } : {}),
+                          })), true)}
+                            className="col-span-2 min-h-[46px] rounded-xl border border-line bg-ink px-3 text-[13px] font-semibold text-cream hover:border-amber hover:text-amber">
+                            Cetak CO · makanan & minuman terpisah, 2 rangkap
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1665,6 +1726,36 @@ function TableSheet({
                           {session.source === "online" && due <= 0 ? "LUNAS" : rupiah(due)}
                         </span>
                       </div>
+                      {/* SPL (pemilik 16 Nov 2026): tiga pembayaran SEDERET dan jadi fokus —
+                          CHECK OUT · BAYAR SEBAGIAN · GABUNG BAYAR. Tambah pesanan di atasnya. */}
+                      {splCheckout && !(session.source === "online" && due <= 0) ? (<>
+                        {allow("orderFnb") && (
+                          <button onClick={() => setMode("order")}
+                            className="mb-2 min-h-[44px] w-full rounded-xl border border-amber/60 bg-amber/10 text-[14px] font-bold text-amber hover:bg-amber/20">
+                            + Tambah Pesanan
+                          </button>
+                        )}
+                        <div className="grid grid-cols-3 gap-2">
+                          <button disabled={voidTahan.length > 0 || !allow("tutupTab")} onClick={() => setMode("settle")}
+                            className="flex min-h-[64px] flex-col items-center justify-center rounded-xl bg-amber px-2 text-ink shadow-[0_4px_14px_rgba(232,163,61,0.35)] hover:bg-amber-deep disabled:opacity-40">
+                            <span className="text-[15px] font-extrabold leading-tight">Check Out</span>
+                            <span className="text-[10.5px] font-semibold text-ink/70">bayar semua · struk keluar</span>
+                          </button>
+                          <button disabled={voidTahan.length > 0 || !allow("tutupTab") || due <= 0}
+                            onClick={() => { setPilih([]); setPilihPorsi({}); setNominal(""); setNamaOrang(""); setMode("split"); }}
+                            className="flex min-h-[64px] flex-col items-center justify-center rounded-xl border-2 border-sky-400/70 bg-sky-400/10 px-2 text-sky-100 hover:bg-sky-400/20 disabled:opacity-35">
+                            <span className="text-[15px] font-extrabold leading-tight">Bayar Sebagian</span>
+                            <span className="text-[10.5px] text-sky-200/70">per item / bagi rata</span>
+                          </button>
+                          <button disabled={voidTahan.length > 0 || !allow("bukaMeja") || bisaDigabung.length === 0}
+                            onClick={() => setMode("gabung")}
+                            title={bisaDigabung.length === 0 ? "Tidak ada meja lain yang sedang jalan untuk digabung" : undefined}
+                            className="flex min-h-[64px] flex-col items-center justify-center rounded-xl border-2 border-emerald-400/70 bg-emerald-400/10 px-2 text-emerald-100 hover:bg-emerald-400/20 disabled:opacity-35">
+                            <span className="text-[15px] font-extrabold leading-tight">{digabung ? "Tambah Gabungan" : "Gabung Bayar"}</span>
+                            <span className="text-[10.5px] text-emerald-200/70">{digabung ? `${anggotaGrup.length} meja digabung` : "satu bill dgn meja lain"}</span>
+                          </button>
+                        </div>
+                      </>) : (
                       <div className="grid grid-cols-[1fr_1.4fr] gap-2">
                         {allow("orderFnb") ? (
                           <button onClick={() => setMode("order")}
@@ -1680,16 +1771,17 @@ function TableSheet({
                         ) : (
                           <button disabled={voidTahan.length > 0} onClick={() => setMode("settle")}
                             className="min-h-[52px] rounded-xl bg-amber text-[14px] font-bold text-ink hover:bg-amber-deep disabled:opacity-40">
-                            {session.source === "online" ? `Bayar Tambahan & Tutup` : "Tutup Tab & Bayar"}
+                            {splCheckout ? "Check Out" : session.source === "online" ? `Bayar Tambahan & Tutup` : "Tutup Tab & Bayar"}
                           </button>
                         )}
                       </div>
+                      )}
                     </div>
                   )}
 
                   {/* QR bisa ditunjukkan SEBELUM masuk layar tutup tab: tamu sering
                       minta bayar duluan sambil main. Nominalnya ikut tagihan berjalan. */}
-                  {due > 0 && allow("tutupTab") && (
+                  {due > 0 && allow("tutupTab") && !splCheckout && (
                     <QrisKasir amount={due} ringkas={`Bayar ${namaMeja(a, table.id)}`} kode={table.id} />
                   )}
                   {/* Sama seperti void per baris: kalau pengajuannya sudah
@@ -1825,9 +1917,17 @@ function TableSheet({
                 </div>
               )}
 
-              <QrisKasir amount={dueGrup} ringkas={`Tutup tab ${anggotaGrup.map((x) => namaMeja(a, x.tableId)).join(" + ")}`} kode={table.id} />
+              {!splCheckout && <QrisKasir amount={dueGrup} ringkas={`Tutup tab ${anggotaGrup.map((x) => namaMeja(a, x.tableId)).join(" + ")}`} kode={table.id} />}
 
               {voidTahan.length > 0 && <TahanVoid daftar={voidTahan} onTarik={(id) => dispatchA({ t: "tarikVoid", id })} />}
+              {splCheckout ? (
+                <button disabled={voidTahan.length > 0}
+                  onClick={() => { setMetodePilih(METODE_CHECKOUT); setMode("konfirmBayar"); }}
+                  className="min-h-[60px] w-full rounded-xl bg-amber text-[17px] font-bold text-ink hover:bg-amber-deep disabled:opacity-35">
+                  Check Out · {rupiah(dueGrup)}
+                  <span className="block text-[11px] font-normal text-ink/70">struk langsung keluar 2 lembar</span>
+                </button>
+              ) : (<>
               <div className="text-[11px] uppercase tracking-wider text-dim">Metode pembayaran</div>
               <div className="grid gap-2">
                 {/*
@@ -1884,6 +1984,7 @@ function TableSheet({
                   yang tercatat sebagai penjualan tetap nilai tagihannya.
                 </p>
               </div>
+              </>)}
 
               <p className="text-[11px] leading-snug text-dim">
                 Pilih metode, lalu periksa di layar berikutnya. Tagihan tidak dicetak otomatis. Setelah dibayar, struk ditampilkan
@@ -1923,7 +2024,7 @@ function TableSheet({
           {/* ── Tambah pesanan ke open bill ─────────────── */}
           {session && mode === "order" && (
             <>
-              <OrderPicker sessionId={session.id} onDone={() => setMode("main")} />
+              <OrderPicker sessionId={session.id} onDone={(dikirim, opsi) => { cetakCO(dikirim); selesaiPesan(opsi); }} />
               {/* Di Smokehouse layar ini yang pertama terbuka, jadi "Kembali"
                   menyesatkan — tidak ada yang ditinggalkan. */}
               <button onClick={() => setMode("main")} className="mt-1 min-h-[40px] w-full text-sm text-dim">
@@ -1947,119 +2048,24 @@ function TableSheet({
                 membuat setiap pemeriksaan jadi lebih lambat, dan yang
                 lambat akan dilewati.
               */}
-              <div id="struk" className="rounded-xl bg-cream p-4 font-mono text-[12px] leading-relaxed text-ink">
-                <div className="text-center">
-                  <div className="text-[15px] font-bold leading-tight tracking-widest">
-                    {venueDari(table.id) === "smh" ? "SMOKE HOUSE" : "SPL SPORTS"}
-                  </div>
-                  <div className="text-[15px] font-bold leading-tight tracking-widest">
-                    {venueDari(table.id) === "smh" ? "RESTO" : "POOL LOUNGE"}
-                  </div>
-                  {struk.belumLunas && (
-                    <div className="my-1 border-y-2 border-ink py-1 text-[14px] font-bold tracking-widest">
-                      BILL SEMENTARA · BELUM DIBAYAR
-                    </div>
-                  )}
-                </div>
-                <div className="mt-1.5 flex justify-between text-[13px] font-bold">
-                  <span>Meja :</span><span>{struk.meja.replace(/^meja\s+/i, "")}</span>
-                </div>
-                <div className="my-1.5 border-t border-dashed border-ink/40" />
-                <div className="flex justify-between gap-2 text-[11px]">
-                  <span className="min-w-0 truncate">No. : {struk.no}</span>
-                  <span className="shrink-0">{tanggalStruk(struk.selesai)}</span>
-                </div>
-                <div className="flex justify-between gap-2 text-[11px]">
-                  <span className="min-w-0 truncate">Kasir : {struk.kasir}</span>
-                  <span className="shrink-0 tabular-nums">{jamDetik(struk.selesai)}</span>
-                </div>
-                <div className="my-1.5 border-t border-dashed border-ink/40" />
-
-                <div className="flex justify-between gap-1 text-[11px] font-bold">
-                  <span className="flex-1">Qty Menu</span>
-                  <span className="w-[52px] text-right">@Harga</span>
-                  <span className="w-[56px] text-right">Jumlah</span>
-                </div>
-                {/* Sewa meja ikut jadi baris barang — di struk pemilik tidak ada
-                    baris khusus untuk itu, dan meja Smokehouse memang Rp 0. */}
-                {struk.billiard > 0 && (
-                  <BarisStruk qty={1} nama={`SEWA MEJA${struk.menit ? ` ${struk.menit} MNT` : ""}`}
-                    harga={struk.billiard} total={struk.billiard} />
-                )}
-                {/* DUA KELOMPOK kalau ada yang sudah dibayar per orang.
-                    Yang sudah dibayar tetap dicetak supaya tamu bisa
-                    mencocokkan, tapi tidak dijumlahkan dua kali — jumlah di
-                    bawah memakai angka dari mesin, bukan dari daftar ini. */}
-                {struk.items.some((x) => x.lunas) ? (
-                  <>
-                    {struk.items.filter((x) => !x.lunas).length > 0 && (
-                      <>
-                        <div className="mt-1 text-[11px] font-bold">BELUM DIBAYAR</div>
-                        {struk.items.filter((x) => !x.lunas).map((it, i) => (
-                          <BarisStruk key={`b${i}`} qty={it.qty} nama={it.name} harga={it.harga} total={it.total} />
-                        ))}
-                      </>
-                    )}
-                    <div className="mt-1 text-[11px] font-bold">SUDAH DIBAYAR</div>
-                    {struk.items.filter((x) => x.lunas).map((it, i) => (
-                      <BarisStruk key={`l${i}`} qty={it.qty} nama={`${it.name} (lunas)`} harga={it.harga} total={it.total} />
-                    ))}
-                  </>
-                ) : (
-                  struk.items.map((it, i) => (
-                    <BarisStruk key={i} qty={it.qty} nama={it.name} harga={it.harga} total={it.total} />
-                  ))
-                )}
-                <div className="my-1.5 border-t border-dashed border-ink/40" />
-
-                <Baris k="Total" v={ribuan(struk.billiard + struk.items.reduce((n, x) => n + x.total, 0))} />
-                <Baris k={(struk.diskonManual ?? 0) > 0 ? "Discount" : struk.promo ? `Discount ${struk.promo}` : "Discount"}
-                  v={ribuan(struk.diskon)} />
-                <div className="my-1 border-t border-ink/60" />
-                <div className="flex justify-between text-[13px] font-bold">
-                  <span>Total Bersih</span>
-                  <span>{ribuan(struk.billiard + struk.items.reduce((n, x) => n + x.total, 0) - struk.diskon)}</span>
-                </div>
-                {struk.prabayar > 0 && <Baris k="Sudah dibayar" v={ribuan(struk.prabayar)} />}
-                <Baris k="Dibayar" v={ribuan(struk.tunaiDiterima ?? struk.bayar)} />
-                <div className="my-1 border-t border-ink/60" />
-                <div className="flex justify-between text-[13px] font-bold">
-                  <span>Kembali</span><span>{ribuan(struk.kembalian ?? 0)}</span>
-                </div>
-                {!struk.belumLunas && <Baris k="Metode" v={struk.metode} />}
-
-                {/* Compliment ditulis TERPISAH dan tidak ikut hitungan: barisnya
-                    di atas sudah bernilai nol. Tetap dicetak supaya tamu tahu
-                    apa yang diberikan, dan supaya kertasnya cocok dengan rekap. */}
-                {(struk.compliment ?? 0) > 0 && (
-                  <div className="mt-1 text-[11px]">
-                    Compliment (ditanggung venue) {rupiah(struk.compliment ?? 0)}
-                  </div>
-                )}
-                {struk.belumLunas && (
-                  <div className="mt-2 text-center text-[11px] font-bold">
-                    Bukan bukti pembayaran. Mohon diperiksa dulu sebelum dibayar.
-                  </div>
-                )}
-                {!struk.belumLunas && <div className="mt-2 text-center text-[11px]">Harga sudah termasuk pajak</div>}
-                <div className="text-center text-[11px]"># TERIMA KASIH SUDAH BERKUNJUNG #</div>
-              </div>
+              <StrukResmi data={struk} venue={venueDari(table.id)} />
 
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => (struk.belumLunas ? setMode("main") : onClose())}
                   className="min-h-[48px] rounded-xl border border-line bg-ink text-sm text-cream">
                   {struk.belumLunas ? "Kembali" : "Selesai"}
                 </button>
-                <button onClick={() => void cetakStruk().then((r) => { if (!r.ok) flash(`Gagal mencetak: ${r.alasan ?? "printer tidak menjawab"}`); })}
+                {/* Sekali klik = DUA struk terpotong (pemilik 15 Nov 2026): satu untuk tamu, satu arsip. */}
+                <button onClick={() => void cetakStruk(2).then((r) => { if (!r.ok || r.alasan) flash(r.ok ? r.alasan! : `Gagal mencetak: ${r.alasan ?? "printer tidak menjawab"}`); })}
                   className="min-h-[48px] rounded-xl bg-amber text-sm font-semibold text-ink">
-                  {struk.belumLunas ? "Cetak Bill" : "Cetak Struk"}
+                  {struk.belumLunas ? "Cetak Bill (2 lembar)" : "Cetak Struk (2 lembar)"}
                 </button>
               </div>
               <p className="text-center text-[11px] text-dim">
                 Pembayaran sudah tercatat. Cetak hanya kalau tamu meminta struk.
                 {cetakSenyapMungkin()
                   ? " Langsung keluar ke printer struk — tanpa dialog."
-                  : " Di peramban, dialog cetak muncul dulu."}
+                  : " Di browser: 2 lembar keluar dengan sekali klik Print. Supaya tanpa kotak printer, atur sekali di Pengaturan → Printer struk."}
               </p>
             </div>
           )}
@@ -2363,15 +2369,15 @@ function TableSheet({
                 className="min-h-[44px] w-full rounded-xl border border-line bg-ink px-4 text-sm text-cream placeholder:text-dim" />
 
               {/* QR dinamis untuk bagian yang sedang dibayar orang ini. */}
-              <QrisKasir
+              {!splCheckout && <QrisKasir
                 amount={porsiDipilih > 0 ? totalPorsi : Number(nominal) || 0}
                 ringkas={`Split bill ${table.name}${namaOrang.trim() ? ` · ${namaOrang.trim()}` : ""}`}
                 kode={table.id}
-              />
+              />}
 
-              <div className="text-[11px] uppercase tracking-wider text-dim">Cara bayar</div>
+              <div className="text-[11px] uppercase tracking-wider text-dim">{splCheckout ? "Bayar" : "Cara bayar"}</div>
               <div className="grid gap-2">
-                {([
+                {(splCheckout ? [["checkout", "Checkout", undefined] as const] : [
                   ["cash", "Tunai", undefined],
                   ["qris_online", "QRIS di kasir", undefined],
                   ...mesinEdc(a).map((m) => ["edc", `Kartu / EDC · ${m}`, m] as const),
@@ -2570,34 +2576,6 @@ function TahanVoid({ daftar, onTarik }: { daftar: VoidRequest[]; onTarik: (id: s
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function BarisStruk({ qty, nama, harga, total }: {
-  qty: number; nama: string; harga: number; total: number;
-}) {
-  return (
-    <div className="flex justify-between gap-1 text-[11px]">
-      <span className="min-w-0 flex-1 break-words">{qty} {nama}</span>
-      <span className="w-[52px] shrink-0 text-right tabular-nums">{ribuan(harga)}</span>
-      <span className="w-[56px] shrink-0 text-right tabular-nums">{ribuan(total)}</span>
-    </div>
-  );
-}
-
-/** Angka struk tanpa "Rp" — kolomnya sempit dan satuannya sudah jelas. */
-const ribuan = (n: number) => n.toLocaleString("id-ID");
-const tanggalStruk = (ts: number) =>
-  new Date(ts).toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" });
-const jamDetik = (ts: number) =>
-  new Date(ts).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-
-function Baris({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <span className="min-w-0 truncate">{k}</span>
-      <span className="shrink-0 tabular-nums">{v}</span>
     </div>
   );
 }

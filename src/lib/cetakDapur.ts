@@ -84,7 +84,7 @@ export function htmlKertas(k: KertasDapur, opsi: { ulang?: boolean } = {}): stri
   t.note ? `<div class="n">${aman(t.note)}</div>` : ""}</div></div>`).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 @page{margin:0}*{box-sizing:border-box}html,body{margin:0;background:#fff;color:#000}
-body{font-family:Arial,Helvetica,sans-serif;padding:2mm 3mm 10mm}
+body{font-family:Arial,Helvetica,sans-serif;padding:2mm 2mm 3mm}
 .b{display:flex;justify-content:space-between;font-size:11pt;font-weight:700;border-bottom:2px solid #000;padding-bottom:1mm}
 .m{font-size:22pt;font-weight:800;line-height:1.1;margin-top:2mm;word-break:break-word}
 .a{font-size:10pt;margin-top:.5mm}.u{background:#000;color:#fff;padding:0 2mm}

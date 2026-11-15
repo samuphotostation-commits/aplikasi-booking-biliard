@@ -177,7 +177,7 @@ export default function Booking() {
         kicker={vipMode ? "Reservasi" : "Pilih"}
         title={vipMode ? "VIP Room" : "Booking Meja"}
         sub={vipMode
-          ? `Ruang privat sampai 8 orang · VIP bebas asap rokok ${rupiah(venue.rates.vip)}/jam · VVIP boleh merokok ${rupiah(venue.rates.vvip)}/jam.`
+          ? `Ruang privat sampai 8 orang · VIP bebas asap rokok ${rupiah(venue.rates.vip)}/jam · VICTORY boleh merokok ${rupiah(venue.rates.vvip)}/jam${venue.rates.vvipNight ? ` (malam ${rupiah(venue.rates.vvipNight)})` : ""}.`
           : "Lihat slot kosong secara langsung."}
       />
 
@@ -328,7 +328,7 @@ export default function Booking() {
                 ["all", `Semua (${freeBiliar.filter((t) => !kelasWajib || kelas(t.id) === kelasWajib).length})`],
                 ["regular", `Reguler (${kelasWajib && kelasWajib !== "regular" ? 0 : freeBiliar.filter((t) => kelas(t.id) === "regular").length})`],
                 ["vip", `VIP (${kelasWajib && kelasWajib !== "vip" ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vip").length})`],
-                ["vvip", `VVIP (${kelasWajib ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vvip").length})`],
+                ["vvip", `VICTORY (${kelasWajib ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vvip").length})`],
               ] as const).map(([v, l]) => (
                 <button
                   key={v}
@@ -402,7 +402,7 @@ export default function Booking() {
                     )}
                     <div className={`font-display text-lg leading-none ${terisi ? "line-through decoration-dim/70" : ""}`}>{t.no}</div>
                     <div className={`text-[9px] uppercase tracking-wider ${on ? "text-ink/70" : "text-dim"}`}>
-                      {k === "regular" ? "Reguler" : k === "vip" ? "VIP" : "VVIP"}
+                      {k === "regular" ? "Reguler" : k === "vip" ? "VIP" : "VICTORY"}
                     </div>
                     <div className={`text-[9px] ${on ? "text-ink/70" : isMain ? "font-bold text-amber" : terisi ? "font-bold text-amber/80" : "text-dim"}`}>
                       {terisi ? LABEL_STATUS[st] : `${t.capacity} org`}
@@ -416,7 +416,7 @@ export default function Booking() {
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-dim">
               <Legend swatch="bg-ink-2 border-line-2" label="Reguler kosong" />
               <Legend swatch="bg-amber/10 border-amber/50" label="VIP · bebas asap rokok" />
-              <Legend swatch="bg-brick/25 border-brick" label="VVIP · boleh merokok" />
+              <Legend swatch="bg-brick/25 border-brick" label="VICTORY · boleh merokok" />
               <Legend swatch="bg-amber border-amber" label="Dipilih" />
               <Legend swatch="bg-amber/10 border-amber/40" label="Sedang main (tidak bisa dipilih)" />
               <Legend swatch="bg-ink border-line/60" label="Dipakai / dibooking" />

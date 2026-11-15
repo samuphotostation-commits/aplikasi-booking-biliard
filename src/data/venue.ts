@@ -64,11 +64,12 @@ export const BILLIARD_TYPES: TableType[] = ["regular", "vip", "vvip"];
 export const CLASS_LABEL: Record<TableType, string> = {
   regular: "Reguler",
   vip: "VIP (bebas asap rokok)",
-  vvip: "VVIP (boleh merokok)",
+  // Pemilik 16 Nov 2026: VVIP diganti nama jadi VICTORY (tarif siang & malam).
+  vvip: "VICTORY (boleh merokok)",
   resto: "Meja resto",
 };
 export const CLASS_SHORT: Record<TableType, string> = {
-  regular: "Reg", vip: "VIP", vvip: "VVIP", resto: "Resto",
+  regular: "Reg", vip: "VIP", vvip: "VICTORY", resto: "Resto",
 };
 
 /**
@@ -301,8 +302,11 @@ export const RATES = {
  * weekday, jadi data lama tetap terbaca apa adanya.
  */
 export type Rates = {
+  /** `vvip` = VICTORY SIANG (nama kunci lama dipertahankan supaya data lama tetap terbaca). */
   regularDay: number; regularNight: number; vip: number; vvip: number;
   regularDayWe?: number; regularNightWe?: number; vipWe?: number; vvipWe?: number;
+  /** VICTORY MALAM (18.00 – tutup). Kosong = sama dengan VICTORY siang. */
+  vvipNight?: number; vvipNightWe?: number;
 };
 
 /** Hari operasional yang memakai tarif weekend: Sabtu (6) & Minggu (0). */

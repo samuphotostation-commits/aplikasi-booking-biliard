@@ -302,7 +302,7 @@ console.log("\n-- Paket meja bisa ditambah pemilik, syaratnya tetap dijaga mesin
   t("durasi beda: ditolak dan disebutkan lamanya",
     slot(pk.id, 2, 18), "Paket Malam lamanya 3 jam");
   t("mulai lewat batas: ditolak dan disebutkan batasnya",
-    slot(pk.id, 3, 21), "Paket Malam berlaku 11.00–23.00 (mulai paling lambat 20.00)");
+    slot(pk.id, 3, 21), "Paket Malam hanya bisa diambil (check-in) 11.00–20.00");
   t("paket karangan: ditolak", slot("paket-hantu", 3, 18), "paket tidak tersedia");
 
   // Dinonaktifkan: tidak bisa dipesan lagi, TAPI sesi lama tetap terbaca.
@@ -1155,7 +1155,7 @@ console.log("\n-- Syarat paket: satu aturan untuk booking & kasir --");
     "Paket Siang lamanya 2 jam");
   t("lewat batas jam mulai: ditolak",
     paketProblem(st, "siang", { kelas: "regular", hours: 2, startH: 17, startsAt: Date.now() }),
-    "Paket Siang berlaku 11.00–18.00 (mulai paling lambat 16.00)");
+    "Paket Siang hanya bisa diambil (check-in) 11.00–16.00");
 }
 
 

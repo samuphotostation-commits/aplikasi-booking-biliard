@@ -54,12 +54,13 @@ const jamMenit = (ms: number) => {
 export const OUTLET: Record<Venue, string> = { spl: "SPL SPORT", smh: "SHR" };
 
 /** Satu gaya untuk kedua struk (temuan B: satu font). */
-const GAYA = `@page{size:80mm auto;margin:0}*{box-sizing:border-box}
+// 72 mm: lebar kertas driver POS-80C (lihat LEBAR_KERTAS_MM di cetak.ts).
+const GAYA = `@page{margin:0}*{box-sizing:border-box}
 html,body{margin:0;background:#fff;color:#000}
-body{width:80mm;padding:4mm 3.5mm 8mm;font-family:Arial,Helvetica,sans-serif}
+body{width:100%;max-width:72mm;padding:3mm 2mm 3mm;font-family:Arial,Helvetica,sans-serif}
 .j{text-align:center;font-weight:700;line-height:1.15}
 .t{text-align:center;font-size:10.4pt;margin-top:.5mm}
-table{border-collapse:collapse;width:72mm;max-width:72mm;table-layout:fixed}
+table{border-collapse:collapse;width:100%;table-layout:fixed}
 td,th{border:.3mm solid #000;overflow:hidden}
 .r{text-align:right}.c{text-align:center}.b{font-weight:700}`;
 
@@ -195,6 +196,8 @@ export function kolomBayar(baris: BarisTransaksi[]): KolomBayar[] {
     { label: "KAS", cocok: (x) => !x.prabayar && x.kanal === "cash" },
     { label: "QRIS", cocok: (x) => !x.prabayar && x.kanal === "qris_online" },
     ...mesin.map((m) => ({ label: m.toUpperCase(), cocok: (x: BarisTransaksi) => !x.prabayar && x.kanal === "edc" && (x.mesin ?? "EDC") === m })),
+    ...(baris.some((x) => !x.prabayar && x.kanal === "checkout")
+      ? [{ label: "CHECKOUT", cocok: (x: BarisTransaksi) => !x.prabayar && x.kanal === "checkout" }] : []),
     ...(baris.some((x) => x.prabayar) ? [{ label: "PRABAYAR", cocok: (x: BarisTransaksi) => !!x.prabayar }] : []),
   ];
 }

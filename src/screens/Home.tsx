@@ -89,7 +89,7 @@ export default function Home() {
     { nama: "Reguler siang", ket: "11.00 sampai 18.00", harga: R.regularDay, we: R.regularDayWe },
     { nama: "Reguler malam", ket: "18.00 sampai tutup", harga: R.regularNight, we: R.regularNightWe },
     { nama: "VIP Room", ket: "ruang tertutup, bebas asap rokok", harga: R.vip, we: R.vipWe },
-    { nama: "VVIP Room", ket: "ruang tertutup, boleh merokok", harga: R.vvip, we: R.vvipWe ?? R.vipWe },
+    { nama: "VICTORY Room", ket: `ruang tertutup, boleh merokok${R.vvipNight ? ` · malam ${rupiah(R.vvipNight)}/jam` : ""}`, harga: R.vvip, we: R.vvipWe ?? R.vipWe },
   ];
 
   const TANYA = [
@@ -97,7 +97,7 @@ export default function Home() {
     { t: "Kalau berhalangan datang?", j: "Booking yang sudah dibayar bisa dijadwal ulang gratis satu kali, paling lambat 3 jam sebelum jam main, ke jadwal dalam 14 hari. Caranya di menu Pesanan. Kalau jadwal barunya bertarif lebih mahal, cukup bayar selisihnya." },
     { t: "Hitungan jamnya mulai dari kapan?", j: "Dari saat kamu duduk dan kasir menyalakan lampu mejanya, bukan dari jam yang kamu pilih. Datang telat sedikit tidak memotong waktu mainmu." },
     { t: "Kalau mainnya lewat jam 18.00?", j: `Dihitung per jam dengan dua tarif: ${rupiah(R.regularDay)}/jam sebelum 18.00 dan ${rupiah(R.regularNight)}/jam sesudahnya. Rinciannya muncul sebelum kamu bayar.` },
-    { t: "Bedanya VIP dan VVIP?", j: `Dua-duanya ruang tertutup. VIP ${rupiah(R.vip)}/jam, bebas asap rokok. VVIP ${rupiah(R.vvip)}/jam, merokok diperbolehkan.` },
+    { t: "Bedanya VIP dan VICTORY?", j: `Dua-duanya ruang tertutup. VIP ${rupiah(R.vip)}/jam, bebas asap rokok. VICTORY ${rupiah(R.vvip)}/jam${R.vvipNight ? ` (malam ${rupiah(R.vvipNight)}/jam)` : ""}, merokok diperbolehkan.` },
     { t: "Bisa pesan makanan sambil main?", j: "Bisa, tanpa daftar akun. Menunya dipesan dari HP dari meja mana pun, dan pesanannya diantar ke mejamu." },
     { t: "Perlu akun untuk booking?", j: "Booking meja perlu akun member: cukup nomor HP dan PIN 6 angka, tanpa email. Pesan makanan dan takeaway tidak perlu akun." },
   ];
@@ -118,7 +118,7 @@ export default function Home() {
           </p>
           <div className="naik mt-6 flex flex-col gap-2.5 sm:flex-row" style={{ animationDelay: ".32s" }}>
             <Aksi onClick={() => nav("/booking")}>Booking meja</Aksi>
-            <Aksi2 onClick={() => nav("/booking?tipe=vip")}>Reservasi VIP &amp; VVIP</Aksi2>
+            <Aksi2 onClick={() => nav("/booking?tipe=vip")}>Reservasi VIP &amp; VICTORY</Aksi2>
           </div>
           <p className="naik mt-4 text-[13px] text-cream/80" style={{ animationDelay: ".4s" }}>
             {buka

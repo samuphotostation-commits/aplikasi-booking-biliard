@@ -6,12 +6,12 @@
  * di bawah formulirnya, lengkap dengan QR dinamis dan tombol Tunai/EDC/QRIS.
  */
 import { useState } from "react";
-import { useAdmin, mesinEdc } from "../../lib/adminStore";
+import { useAdmin, type Action, type State } from "../../lib/adminStore";
 import { rupiah } from "../../lib/core";
 import { venueDari, type Venue } from "../../data/venue";
 import { jam } from "./AdminShell";
-import { KonfirmasiBayar } from "./KonfirmasiBayar";
-import { QrisKasir } from "./QrisKasir";
+import DialogBayar, { type BagianBayar } from "./DialogBayar";
+import { useCetakPesanan } from "./CetakPesanan";
 
 export default function DaftarTakeaway({ venue, onKabar, kosongTampil }: {
   venue: Venue;
@@ -20,20 +20,27 @@ export default function DaftarTakeaway({ venue, onKabar, kosongTampil }: {
   kosongTampil?: boolean;
 }) {
   const { a, dispatchA, allow, peek } = useAdmin();
-  const [lunasi, setLunasi] = useState<{ id: string; ch: "cash" | "edc" | "qris_online"; label: string; mesin?: string } | null>(null);
+  /** Pesanan yang dialog bayarnya sedang terbuka. */
+  const [bayarId, setBayarId] = useState<string | null>(null);
+  /** SPL: sesudah Check Out keluar bill 2 rangkap + CO makanan 2 + CO minuman 2. */
+  const { cetak, elemen } = useCetakPesanan(onKabar);
   // Ikut venue: takeaway SPL tidak tampil di Smokehouse, dan sebaliknya.
   const takeawayBelumBayar = a.orders.filter((o) => o.status === "diterima" && !o.sessionId &&
     !o.payment && o.paidOnline === 0 && (o.tableId ? venueDari(o.tableId) === venue : (o.venue ?? "spl") === venue))
     .sort((x, y) => y.at - x.at);
 
   if (takeawayBelumBayar.length === 0) {
-    return kosongTampil ? (
-      <p className="rounded-xl border border-dashed border-line px-3 py-4 text-center text-[12px] text-dim">
-        Belum ada takeaway yang menunggu dibayar.
-      </p>
-    ) : null;
+    return (<>
+      {elemen}
+      {kosongTampil && (
+        <p className="rounded-xl border border-dashed border-line px-3 py-4 text-center text-[12px] text-dim">
+          Belum ada takeaway yang menunggu dibayar.
+        </p>
+      )}
+    </>);
   }
-  return (
+  return (<>
+    {elemen}
         <section>
           <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-amber before:bg-amber">
             Takeaway menunggu diambil · {takeawayBelumBayar.length} ·{" "}
@@ -62,40 +69,26 @@ export default function DaftarTakeaway({ venue, onKabar, kosongTampil }: {
                       {rupiah(o.value)}
                     </div>
                   </div>
-                  {allow("tutupTab") && (
-                    <div className="mt-1.5 space-y-1.5">
-                      {/* QR dinamis bernominal tepat untuk pesanan ini; yang menandai
-                          lunas tetap tombol di bawahnya, ditekan kasir. */}
-                      <QrisKasir amount={o.value} ringkas={`Pesanan ${o.code}`} kode={o.code} />
-                    {lunasi?.id === o.id ? (
-                      <KonfirmasiBayar judul={`Tandai ${o.code} lunas?`} total={o.value} metode={lunasi.label}
-                        tombol="Ya, lunas" onBatal={() => setLunasi(null)}
-                        onYa={() => {
-                          const { ch, label, mesin } = lunasi;
-                          const tolak = dispatchA({ t: "settleOrder", id: o.id, channel: ch, ...(mesin ? { mesin } : {}) });
-                          const lunas = !!peek().orders.find((x) => x.id === o.id)?.payment;
-                          setLunasi(null);
-                          onKabar(lunas
-                            ? `${o.code} lunas ${rupiah(o.value)} (${label}).`
-                            : tolak ?? "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
+                  {allow("tutupTab") && (bayarId === o.id ? (
+                    <div className="mt-1.5">
+                      <DialogBayar total={o.value - o.paidOnline} kode={o.code} ringkas={`Pesanan ${o.code}`} hanyaCheckout={venue === "spl"}
+                        onBatal={() => setBayarId(null)}
+                        onSelesai={(bagian) => {
+                          const galat = bayarTakeaway(dispatchA, peek, o.id, bagian);
+                          if (!galat) {
+                            setBayarId(null);
+                            if (venue === "spl") void cetak(o.id);
+                            onKabar(`${o.code} lunas ${rupiah(o.value)}${bagian.length > 1 ? ` · split ${bagian.length}×` : ""}${o.menungguBayar ? " — masuk checker" : ""}.`);
+                          }
+                          return galat;
                         }} />
-                    ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {([
-                        ["cash", "Tunai", undefined],
-                        ["qris_online", "QRIS", undefined],
-                        ...mesinEdc(a).map((m) => ["edc", `EDC ${m}`, m] as const),
-                      ] as const).map(([ch, label, mesin]) => (
-                        <button key={`${ch}-${mesin ?? ""}`}
-                          onClick={() => setLunasi({ id: o.id, ch, label, ...(mesin ? { mesin } : {}) })}
-                          className="min-h-[36px] rounded-lg border border-line bg-ink px-3 text-[12px] font-semibold text-cream">
-                          {label}
-                        </button>
-                      ))}
                     </div>
-                    )}
-                    </div>
-                  )}
+                  ) : (
+                    <button onClick={() => setBayarId(o.id)}
+                      className="mt-1.5 min-h-[40px] w-full rounded-lg bg-amber text-[13px] font-bold text-ink hover:bg-amber-deep">
+                      {venue === "spl" ? `Check Out · ${rupiah(o.value - o.paidOnline)}` : `Bayar ${rupiah(o.value - o.paidOnline)} · tunai / QRIS / EDC / split`}
+                    </button>
+                  ))}
                 </div>
               );
             })}
@@ -105,5 +98,21 @@ export default function DaftarTakeaway({ venue, onKabar, kosongTampil }: {
             jadi angka rekap tidak pernah menghitung pesanan yang belum diambil.
           </p>
         </section>
-  );
+  </>);
+}
+
+/**
+ * Lunasi takeaway — satu pembayaran atau split — lalu BACA hasilnya dari
+ * mesin. Dipakai daftar takeaway dan tabel Pesanan di Kasir.
+ */
+export function bayarTakeaway(
+  dispatchA: (a: Action) => string | null | void, peek: () => State, id: string, bagian: BagianBayar[],
+): string | null {
+  const [pertama] = bagian;
+  const tolak = dispatchA({
+    t: "settleOrder", id, channel: pertama.channel,
+    ...(bagian.length > 1 ? { bagian } : pertama.mesin ? { mesin: pertama.mesin } : {}),
+  });
+  const lunas = !!peek().orders.find((x) => x.id === id)?.payment;
+  return lunas ? null : (tolak || "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
 }

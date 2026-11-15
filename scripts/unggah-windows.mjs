@@ -36,8 +36,22 @@ const nama = basename(exe);
 const sha256 = createHash("sha256").update(data).digest("hex");
 const kerja = mkdtempSync(join(tmpdir(), "spl-unggah-"));
 
-/** Unggah satu berkas dari folder kerja (CLI tidak menerima path "C:/…"). */
-function unggah(berkas, tujuan, jenis, cache) {
+/** Hapus berkas lama (Supabase menolak menimpa: 409 KeyAlreadyExists). */
+function hapus(tujuan) {
+  try {
+    execFileSync("npx", ["supabase@2.118.0", "storage", "rm", `ss:///${BUCKET}/${tujuan}`, "--experimental", "--yes", "--project-ref", REF],
+      { cwd: kerja, stdio: ["ignore", "pipe", "pipe"], shell: true });
+  } catch { /* belum ada — tidak apa-apa */ }
+}
+
+/**
+ * Unggah satu berkas dari folder kerja (CLI tidak menerima path "C:/…").
+ * `timpa`: hapus dulu yang lama (dipakai daftar terbaru.json). Tanpa `timpa`,
+ * bagian installer yang SUDAH ADA dilewati — namanya memuat versinya, dan
+ * keutuhannya tetap diperiksa lewat SHA-256 di halaman unduh.
+ */
+function unggah(berkas, tujuan, jenis, cache, timpa = false) {
+  if (timpa) hapus(tujuan);
   for (let coba = 1; coba <= 4; coba++) {
     try {
       execFileSync("npx", ["supabase@2.118.0", "storage", "cp", berkas, `ss:///${BUCKET}/${tujuan}`,
@@ -46,6 +60,7 @@ function unggah(berkas, tujuan, jenis, cache) {
       return;
     } catch (e) {
       const pesan = String(e.stdout ?? "") + String(e.stderr ?? "");
+      if (!timpa && /KeyAlreadyExists|already exists/.test(pesan)) { console.log(`  ${tujuan} sudah ada — dilewati`); return; }
       if (coba === 4) throw new Error(`Gagal mengunggah ${tujuan}: ${pesan.slice(0, 400)}`);
       console.log(`  ulang ${tujuan} (${coba})…`);
     }
@@ -65,8 +80,8 @@ for (let i = 0, n = 1; i < data.length; i += BAGIAN, n++) {
 const daftar = { versi, nama, ukuran: data.length, sha256, dibuat: new Date().toISOString(), bagian };
 writeFileSync(join(kerja, `${nama}.json`), JSON.stringify(daftar, null, 2));
 writeFileSync(join(kerja, "terbaru.json"), JSON.stringify(daftar, null, 2));
-unggah(`${nama}.json`, `unduh/${nama}.json`, "application/json", "max-age=31536000");
-unggah("terbaru.json", "unduh/terbaru.json", "application/json", "max-age=60");
+unggah(`${nama}.json`, `unduh/${nama}.json`, "application/json", "max-age=31536000", true);
+unggah("terbaru.json", "unduh/terbaru.json", "application/json", "max-age=60", true);
 rmSync(kerja, { recursive: true, force: true });
 
 const mb = Math.round(data.length / 1048576);

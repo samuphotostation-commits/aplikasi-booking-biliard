@@ -71,7 +71,7 @@ const TABS: {
   /** Kelompok menu — dipisah garis tipis di bilah atas (perapian 14 Nov 2026). */
   grup?: string;
 }[] = [
-  { to: "/admin", label: "Papan", end: true, izin: "bukaMeja", grup: "Lantai" },
+  { to: "/admin", label: "Meja", end: true, izin: "bukaMeja", grup: "Lantai" },
   { to: "/admin/kasir", label: "Kasir", izin: "tutupTab", grup: "Lantai" },
   // CHECKER menggantikan layar Dapur dan Antar (permintaan pemilik 14 Nov
   // 2026: dapur tidak memakai monitor). Pesanan keluar di printer checker,
@@ -477,8 +477,14 @@ export default function AdminShell() {
   /* PAPAN & CHECKER MEMAKAI LEBAR LAYAR PENUH (panduan UI/UX pemilik 15 Nov
      2026, "komposisi UI kiri kanan"): di komputer kasir denah meja dan kolom
      checker tidak lagi terjepit di tengah. Layar lain tetap selebar bacaan. */
-  const lebarHalaman = path === "/admin" || path === "/admin/" || path === "/admin/dapur"
-    ? "max-w-3xl lg:max-w-none" : "max-w-3xl lg:max-w-6xl";
+  /*
+   * SEMUA MENU SELEBAR LAYAR YANG SAMA (pemilik 16 Nov 2026: "semua menu, size
+   * UI kiri kanan sesuaikan"). Dulu hanya Meja, Kasir, dan Dapur yang lebar;
+   * menu lain berhenti di tengah dengan ruang kosong di kiri-kanan. Sekarang
+   * semua halaman memakai lebar yang sama, dibatasi 1600 px di layar sangat lebar.
+   */
+  const lebarHalaman = "max-w-3xl lg:max-w-[1600px]";
+
 
   return (
     <div className="min-h-screen bg-ink pb-20">
@@ -708,7 +714,7 @@ export default function AdminShell() {
               Halaman {current?.label} berisi laporan uang atau pengaturan venue. Minta superadmin membukanya.
             </p>
             <NavLink to="/admin" className="mt-4 inline-block text-sm font-semibold text-amber underline underline-offset-4">
-              Kembali ke Papan
+              Kembali ke Meja
             </NavLink>
           </div>
         ) : (

@@ -632,8 +632,9 @@ function RekapKeuangan() {
                       {rupiah(barisShift.diterima)}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 divide-x divide-line">
-                    {([["TUNAI", barisShift.tunai], ["QRIS", barisShift.qris], ["EDC", barisShift.edc]] as const)
+                  <div className={`grid divide-x divide-line ${barisShift.checkout > 0 ? "grid-cols-4" : "grid-cols-3"}`}>
+                    {([["TUNAI", barisShift.tunai], ["QRIS", barisShift.qris], ["EDC", barisShift.edc],
+                      ...(barisShift.checkout > 0 ? [["CHECKOUT", barisShift.checkout] as const] : [])] as const)
                       .map(([k, v]) => (
                         <div key={k} className="px-3 py-3">
                           <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-dim">{k}</div>

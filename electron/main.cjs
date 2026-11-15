@@ -94,14 +94,33 @@ ipcMain.handle("spl:daftar-printer", async (e) => {
 /* Kertas dapur dicetak dari jendela tersembunyi, bukan dari layar panel, dan
    ke printer yang dipilih per bagian. Skrip dimatikan karena isinya memuat
    catatan yang diketik tamu. */
-ipcMain.handle("spl:cetak-html", async (_e, html, printer) => {
-  if (typeof html !== "string" || !html || !printer) return { ok: false, alasan: "printer belum dipilih" };
-  const jendela = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true } });
+/* KERTAS SETINGGI ISINYA (1.3.1, pemilik 15 Nov 2026: struk harus pendek,
+   terpotong per lembar, seperti struk lama). Dengan `opsi.pas`, tinggi
+   halaman diukur dulu lalu dijadikan ukuran kertas — printer termal tidak
+   menggulung kertas kosong sampai ukuran bawaan driver sebelum memotong.
+   Skrip hanya dinyalakan untuk mengukur; isinya HTML yang disusun aplikasi
+   sendiri. `printer` kosong = printer bawaan Windows, tetap tanpa dialog. */
+ipcMain.handle("spl:cetak-html", async (_e, html, printer, opsi) => {
+  if (typeof html !== "string" || !html) return { ok: false, alasan: "tidak ada yang dicetak" };
+  const pas = !!(opsi && opsi.pas);
+  // 72 mm = lebar kertas driver POS-80C (1.3.2). Jendela ukurnya selebar kertas,
+  // supaya panjang yang diukur sama dengan yang nanti tercetak.
+  const lebarMm = opsi && Number(opsi.lebarMm) > 0 ? Math.min(120, Number(opsi.lebarMm)) : 72;
+  const jendela = new BrowserWindow({ show: false, width: Math.round(lebarMm * 96 / 25.4), height: 600, useContentSize: true,
+    webPreferences: { javascript: pas, sandbox: true, zoomFactor: 1 } });
   try {
     await jendela.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    let pageSize;
+    if (pas) {
+      const px = Number(await jendela.webContents.executeJavaScript(
+        "Math.ceil(document.body.getBoundingClientRect().bottom + (parseFloat(getComputedStyle(document.body).marginBottom) || 0))")) || 0;
+      const tinggiMm = Math.max(40, Math.ceil(px * 25.4 / 96) + 6);
+      pageSize = { width: lebarMm * 1000, height: tinggiMm * 1000 };
+    }
     return await new Promise((selesai) => {
       jendela.webContents.print(
-        { silent: true, printBackground: true, deviceName: printer, margins: { marginType: "none" } },
+        { silent: true, printBackground: true, ...(printer ? { deviceName: printer } : {}), margins: { marginType: "none" },
+          ...(pageSize ? { pageSize } : {}) },
         (ok, alasan) => selesai(ok ? { ok: true } : { ok: false, alasan: alasan || "dibatalkan" }),
       );
     });

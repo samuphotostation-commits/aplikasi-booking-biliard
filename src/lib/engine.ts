@@ -95,8 +95,20 @@ export const kelasPaket = (pk: Paket): "regular" | "vip" => pk.kelas ?? "regular
 export const jamMulaiPaket = (pk: Paket): number => pk.jamMulai ?? OPEN_IDX;
 export const jamSelesaiPaket = (pk: Paket): number =>
   pk.jamSelesai ?? Math.min(CLOSE_IDX, pk.lastStartHour + Math.max(pk.hours, 1));
-/** Jam mulai paling lambat yang masih membuat main selesai di dalam rentang. */
-export const mulaiTerakhirPaket = (pk: Paket): number => jamSelesaiPaket(pk) - Math.max(pk.hours, 0);
+/**
+ * Jam mulai (CHECK-IN) paling lambat paket ini.
+ *
+ * Pemilik 16 Nov 2026: "tidak harus minimal 2 jam sebelum paket mati — selagi
+ * datang jam 1 atau 2 masih bisa; batas check-in meja tidak usah ada
+ * batasan." Rentang "berlaku dari–sampai jam" kini berarti JAM CHECK-IN: tamu
+ * boleh mengambil paket selama datang sebelum jam selesai rentang, dan mainnya
+ * BOLEH lewat dari jam itu. (Dulu main harus selesai sebelum jam selesai, jadi
+ * paket 2 jam yang berlaku sampai 16.00 hanya bisa dimulai sampai 14.00.)
+ *
+ * Paket lama tanpa `jamSelesai` tetap memakai `lastStartHour`-nya sendiri.
+ */
+export const mulaiTerakhirPaket = (pk: Paket): number =>
+  pk.jamSelesai !== undefined ? pk.jamSelesai - 1 : jamSelesaiPaket(pk) - Math.max(pk.hours, 0);
 export const HARI_NAMA = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 /** Indeks jam operasional (11..26) → "16.00" / "01.00". */
 export const jamTeks = (idx: number): string => `${String(idx % 24).padStart(2, "0")}.00`;
@@ -206,6 +218,29 @@ export const SHIFT_PER_VENUE = dariWib(2026, 11, 8, 5);
 export const TAKEAWAY_BAYAR_DULU = dariWib(2026, 11, 15, 13);
 
 /**
+ * PEMBAYARAN PESANAN — satu atau beberapa bagian (split bill takeaway,
+ * pemilik 15 Nov 2026). Bagian pertama tetap di `payment` supaya pesanan dan
+ * arsip lama terbaca persis seperti dulu; bagian berikutnya di `paymentLain`.
+ * Split takeaway diselesaikan SEKALIGUS (jumlahnya harus pas), jadi tidak
+ * pernah ada pesanan "setengah lunas" yang membuat rekap tidak berimbang.
+ */
+export const bayarPesanan = (o: Pick<GuestOrder, "payment" | "paymentLain">): Payment[] =>
+  o.payment ? [o.payment, ...(o.paymentLain ?? [])] : [];
+const totalBayarPesanan = (o: Pick<GuestOrder, "payment" | "paymentLain">) =>
+  bayarPesanan(o).reduce((n, p) => n + p.amount, 0);
+/** Kurangi uang yang sudah dibayar (void sesudah lunas) — dari bagian TERAKHIR dulu. */
+function kurangiBayarPesanan(o: Pick<GuestOrder, "payment" | "paymentLain">, n: number): Pick<GuestOrder, "payment" | "paymentLain"> {
+  if (!o.payment) return {};
+  const bagian = bayarPesanan(o).map((p) => ({ ...p }));
+  for (let i = bagian.length - 1; i >= 0 && n > 0; i--) {
+    const ambil = Math.min(n, i === 0 ? bagian[i].amount : bagian[i].amount);
+    bagian[i].amount -= ambil; n -= ambil;
+  }
+  const [pertama, ...lain] = bagian;
+  return { payment: pertama, ...(o.paymentLain ? { paymentLain: lain } : {}) };
+}
+
+/**
  * KASIR WAJIB TERIKAT SATU VENUE (pemilik 14 Nov 2026: "cashier SPL Sport dan
  * Smokehouse berbeda, jadi ketika buka shift harusnya masing-masing berbeda").
  *
@@ -290,6 +325,8 @@ export type GuestOrder = {
   venue?: Venue;
   /** Takeaway yang dibayar saat diambil di kasir. Tanpa ini = belum dibayar. */
   payment?: Payment;
+  /** Bagian pembayaran berikutnya bila takeaway dibayar SPLIT (pembayaran pertama tetap di `payment`). */
+  paymentLain?: Payment[];
   /** Takeaway yang belum dibayar: tiket checker DITAHAN sampai dibayar (lihat `TAKEAWAY_BAYAR_DULU`). */
   menungguBayar?: true;
 };
@@ -307,7 +344,7 @@ export type ArchivedSession = Pick<LiveSession,
   "settledShiftId" | "settledCompliment" | "settledComplimentJenis" | "settledDiskonManual" | "settledMesin">;
 /** Baris ringkas pesanan tamu yang sudah tutup buku. */
 export type ArchivedOrder = Pick<GuestOrder,
-  "id" | "code" | "at" | "guest" | "mode" | "tableId" | "pay" | "value" | "paidOnline" | "sessionId" | "status" | "reason" | "payment" | "venue">
+  "id" | "code" | "at" | "guest" | "mode" | "tableId" | "pay" | "value" | "paidOnline" | "sessionId" | "status" | "reason" | "payment" | "paymentLain" | "venue">
   & {
     /**
      * Pecahan nilai pesanan per lini, dihitung SAAT TUTUP BUKU — selagi
@@ -924,7 +961,7 @@ export type Action =
   /** Superadmin mencatat dana pelanggan sudah dikembalikan. */
   | { t: "settleRefund"; id: string; method: NonNullable<Refund["method"]> }
   /** Takeaway diambil & dibayar di kasir (pesanan makanan tanpa meja). */
-  | { t: "settleOrder"; id: string; channel: PayChannel; mesin?: string };
+  | { t: "settleOrder"; bagian?: { channel: PayChannel; amount: number; mesin?: string }[]; id: string; channel: PayChannel; mesin?: string };
 
 export function init(opts: { seed?: boolean } = {}): State {
   const now = clock();
@@ -1023,7 +1060,14 @@ export function rateWith(rates: State["rates"], type: TableType, hour: number, d
 /** Harga blok jam penuh memakai tarif TERKINI (bukan konstanta). `dow` = hari operasional mulainya. */
 export function priceWith(rates: State["rates"], type: TableType, startHour: number, hours: number, dow?: number) {
   let total = 0;
-  for (let i = 0; i < hours; i++) total += rateWith(rates, type, startHour + i, dow);
+  for (let i = 0; i < hours; i++) {
+    const h = startHour + i;
+    // Pemilik 16 Nov 2026: harga berganti SETIAP JAM 06.00. Jam yang sudah lewat
+    // 06.00 (indeks ≥ 30) milik hari operasional BERIKUTNYA — weekday/weekend-nya
+    // ikut hari itu, bukan hari jam mulai.
+    const d = dow === undefined ? undefined : h >= 24 + BATAS_HARI_JAM ? (dow + 1) % 7 : dow;
+    total += rateWith(rates, type, h, d);
+  }
   return total;
 }
 
@@ -1068,11 +1112,11 @@ export function cadanganMeja(
 export const lantaiVenue = (venue: Venue): number[] =>
   [...new Set(SEMUA_MEJA.filter((t) => t.venue === venue && !t.tanpaMeja).map((t) => t.lantai ?? 1))].sort((a, b) => a - b);
 
-/** Tab tanpa meja venue itu: yang sedang dipakai, dan slot kosong berikutnya. */
+/** Tab tanpa meja venue itu: yang sedang dipakai, dan slot yang masih kosong. */
 export function tabTanpaMeja(st: Pick<State, "sessions">, venue: Venue) {
   const slot = SEMUA_MEJA.filter((t) => t.tanpaMeja && t.venue === venue);
   const aktif = st.sessions.filter((x) => x.status === "running" && slot.some((t) => t.id === x.tableId));
-  const kosong = slot.find((t) => !aktif.some((x) => x.tableId === t.id));
+  const kosong = slot.filter((t) => !st.sessions.some((x) => x.tableId === t.id && x.status !== "done" && x.status !== "noshow"));
   return { aktif, kosong };
 }
 
@@ -1386,6 +1430,9 @@ export function billiardTotalOf(
   // Paket per jam: harga blok yang sudah disepakati, bukan meteran. Toleransi batal
   // 5 menit tetap berlaku — tamu yang langsung pindah/batal tidak ditagih.
   if (s.blockHours) {
+    // Dibayar di muka (bayar langsung, pemilik 15 Nov 2026): tamu jelas tidak
+    // batal — paketnya ditagih penuh walau baru semenit dibuka.
+    if (s.bayarDiMuka || (s.payments?.length ?? 0) > 0) return { amount: s.tableAmount, detail: null };
     const sampai = s.status === "running" ? now : (s.settledAt ?? s.endsAt);
     const lewat = Math.ceil(Math.max(0, sampai - s.startsAt) / 60_000);
     return { amount: lewat <= GRACE_MINUTES ? 0 : s.tableAmount, detail: null };
@@ -1557,8 +1604,8 @@ export function shiftCashExpected(st: State, shift = st.shift): number {
     .filter((p) => p.shiftId === shift.id && p.channel === "cash")
     .reduce((m, p) => m + p.amount, 0), 0);
   // Takeaway yang dibayar tunai saat diambil juga masuk laci shift ini.
-  const takeaway = st.orders.reduce((n, o) =>
-    n + (o.payment && o.payment.shiftId === shift.id && o.payment.channel === "cash" ? o.payment.amount : 0), 0);
+  const takeaway = st.orders.reduce((n, o) => n + bayarPesanan(o)
+    .filter((p) => p.shiftId === shift.id && p.channel === "cash").reduce((m, p) => m + p.amount, 0), 0);
   return shift.openingCash + tutupTab + sebagian + takeaway - biayaLaci(st, shift.id);
 }
 
@@ -1595,8 +1642,7 @@ export function paketProblem(
   if (r.hours !== pk.hours) return `${pk.name} lamanya ${pk.hours} jam`;
   if (!paketHariIni(pk, r.startsAt)) return `${pk.name} tidak berlaku hari ${HARI_NAMA[hariOperasional(r.startsAt)]}`;
   if (r.startH < jamMulaiPaket(pk) || r.startH > mulaiTerakhirPaket(pk)) {
-    return `${pk.name} berlaku ${jamTeks(jamMulaiPaket(pk))}–${jamTeks(jamSelesaiPaket(pk))}`
-      + ` (mulai paling lambat ${jamTeks(mulaiTerakhirPaket(pk))})`;
+    return `${pk.name} hanya bisa diambil (check-in) ${jamTeks(jamMulaiPaket(pk))}–${jamTeks(mulaiTerakhirPaket(pk))}`;
   }
   return null;
 }
@@ -1951,6 +1997,7 @@ const compactOrder = (o: ArchivedOrder & { lines?: CartLine[] }): ArchivedOrder 
   id: o.id, code: o.code, at: o.at, guest: o.guest, mode: o.mode, tableId: o.tableId, pay: o.pay,
   value: o.value, paidOnline: o.paidOnline, sessionId: o.sessionId, status: o.status, reason: o.reason,
   payment: o.payment,
+  ...(o.paymentLain?.length ? { paymentLain: o.paymentLain } : {}),
   // Takeaway Smokehouse tidak punya meja, jadi venuenya hanya tersimpan di sini.
   ...(o.venue ? { venue: o.venue } : {}),
   // Dihitung di sini karena DI SINI barisnya masih ada.
@@ -2202,10 +2249,10 @@ export function tickState(s: State, now = clock()): State {
   // diarsipkan harus ikut masuk arsip hari itu, bukan tertinggal di luar rekapnya.
   const released = withStockMoves(s, releaseDue(s, now), now, () => "kembali");
   const today = businessDateOf(now);
-  if (today <= released.day) return rapikanLampu(rapikanGrup(released));
+  if (today <= released.day) return matikanLampuHabis(rapikanLampu(rapikanGrup(released)), now);
   // Tab tertinggal tanpa tagihan ditutup DULU, baru bukunya — kalau tidak, satu
   // tab yang lupa ditutup mengunci rekap hari itu selamanya.
-  return rapikanLampu(rapikanGrup(closeBooks(closeAbandoned(released, today, now), today, now)));
+  return matikanLampuHabis(rapikanLampu(rapikanGrup(closeBooks(closeAbandoned(released, today, now), today, now))), now);
 }
 
 function releaseDue(s: State, now: number): State {
@@ -2489,6 +2536,45 @@ export const jejakVenue = (s: Pick<State, "log">, venue: Venue) =>
  * ada yang terlewat, dan sisanya adalah "lampu meja R03" yang ikut terhitung
  * di papan dan rekap venue resto.
  */
+/** Sesi yang punya JAM SELESAI tetap (paket per jam / booking online) — bukan open bill meteran. */
+export const sesiBerwaktu = (x: LiveSession) => !(x.source === "walkin" && !x.blockHours);
+
+/**
+ * LAMPU MATI SENDIRI SAAT WAKTU MAIN HABIS (pemilik 15 Nov 2026: "meja yang
+ * main 1 jam harusnya lampunya otomatis mati jika sudah selesai waktunya").
+ *
+ * Berlaku untuk meja berwaktu — paket per jam dan booking online. Open bill
+ * tidak punya jam selesai, jadi tidak tersentuh. Tab-nya TIDAK ditutup:
+ * tagihan & pembayaran tetap urusan kasir; yang mati hanya lampunya.
+ *
+ * Dijalankan di detak mesin (`tickState`), yang dipakai sebelum setiap
+ * kejadian, di layar kasir, dan oleh server `terbit` tiap menit — jadi relay
+ * ESP32 mematikan lampu paling lambat ±1 menit setelah waktunya habis, walau
+ * tidak ada satu tablet pun yang terbuka. Hasilnya sama di semua perangkat.
+ *
+ * Sekali per jam selesai: kalau kasir menyalakan lampunya lagi (mis. tamu
+ * sedang memperpanjang), lampu itu tidak dimatikan ulang. Perpanjangan
+ * memberi jam selesai baru dan lampunya menyala lagi.
+ */
+function matikanLampuHabis(s: State, now: number): State {
+  const habis = s.sessions.filter((x) => x.status === "running" && sesiBerwaktu(x) && now >= x.endsAt
+    && x.lampuMatiUntuk !== x.endsAt && punyaLampu(x.tableId));
+  if (habis.length === 0) return s;
+  const ids = new Set(habis.map((x) => x.id));
+  const lights = { ...s.lights };
+  let log = s.log;
+  for (const x of habis) {
+    if (lights[x.tableId]) {
+      lights[x.tableId] = false;
+      log = [{ at: x.endsAt, who: "sistem", what: `Lampu ${namaMeja(s, x.tableId)} dimatikan otomatis — waktu main habis` }, ...log].slice(0, 500);
+    }
+  }
+  return {
+    ...s, lights, log,
+    sessions: s.sessions.map((x) => (ids.has(x.id) ? { ...x, lampuMatiUntuk: x.endsAt } : x)),
+  };
+}
+
 function rapikanLampu(s: State): State {
   const asing = Object.keys(s.lights).filter((id) => !punyaLampu(id));
   if (asing.length === 0) return s;
@@ -2951,6 +3037,9 @@ function reduce(s: State, a: Action): State {
         sessions: s.sessions.map((x) => x.id === a.id
           ? { ...x, endsAt: newEnd, tableAmount: x.tableAmount + add, extraTable: (x.extraTable ?? 0) + add }
           : x),
+        // Diperpanjang sesudah lampunya mati karena waktu habis → nyalakan lagi.
+        ...(t.status === "running" && t.lampuMatiUntuk === t.endsAt && punyaLampu(t.tableId)
+          ? { lights: { ...s.lights, [t.tableId]: true } } : {}),
         log: note(s, `Perpanjang ${a.minutes / 60} jam · ${namaMeja(s, t.tableId)}`, add),
       };
     }
@@ -3253,7 +3342,9 @@ function reduce(s: State, a: Action): State {
       const t = s.sessions.find((x) => x.id === a.id);
       if (!t || t.status !== "running") return s;
       if (now >= VOID_MENAHAN_BAYAR && voidMenungguSesi(s, t.id).length > 0) return s;
-      const sisa = settlementOf(t, s, now).due;
+      // Paket per jam yang dibayar sekarang: paketnya ikut ditagih penuh (tanpa toleransi batal).
+      const tagihT: LiveSession = t.blockHours ? { ...t, bayarDiMuka: true } : t;
+      const sisa = settlementOf(tagihT, s, now).due;
       if (sisa <= 0) return s;
       let amount: number;
       let keys: string[] | undefined;
@@ -3291,7 +3382,8 @@ function reduce(s: State, a: Action): State {
       };
       return {
         ...s,
-        sessions: s.sessions.map((x) => (x.id === t.id ? { ...x, payments: [...(x.payments ?? []), bayar] } : x)),
+        sessions: s.sessions.map((x) => (x.id === t.id
+          ? { ...x, payments: [...(x.payments ?? []), bayar], ...(t.blockHours ? { bayarDiMuka: true as const } : {}) } : x)),
         log: note(s, `Bayar sebagian · ${namaMeja(s, t.tableId)} · ${a.channel.toUpperCase()}${bayar.label ? ` · ${bayar.label}` : ""}`, amount),
       };
     }
@@ -3554,11 +3646,12 @@ function reduce(s: State, a: Action): State {
 
     case "setRate": {
       if (!allow(s, "ubahTarif")) return s;
-      const weekend = a.key.endsWith("We");
-      // Tarif weekend boleh 0 = "sama dengan weekday" (kuncinya dihapus).
-      if (weekend ? !(a.value >= 0) : !(a.value > 0)) return s;
+      // Tarif weekend boleh 0 = "sama dengan weekday"; VICTORY malam boleh 0 =
+      // "sama dengan VICTORY siang". Kuncinya dihapus.
+      const bolehKosong = a.key.endsWith("We") || a.key === "vvipNight";
+      if (bolehKosong ? !(a.value >= 0) : !(a.value > 0)) return s;
       const rates = { ...s.rates };
-      if (weekend && a.value === 0) delete rates[a.key];
+      if (bolehKosong && a.value === 0) delete rates[a.key];
       else rates[a.key] = Math.round(a.value);
       if (JSON.stringify(rates) === JSON.stringify(s.rates)) return s;
       return { ...s, rates, log: note(s, `Tarif diubah · ${a.key} → ${a.value || "sama dengan weekday"}`) };
@@ -3865,8 +3958,9 @@ function reduce(s: State, a: Action): State {
 
       /*
        * RENTANG JAM AKTIF (14 Nov 2026): "jam mulai sampai jam selesai".
-       * Main harus muat SELURUHNYA di dalam rentang: paket 2 jam yang
-       * berlaku 11.00–18.00 bisa mulai 11.00 sampai paling lambat 16.00.
+       * Sejak 16 Nov 2026 (pemilik: "batas check-in meja tidak usah ada
+       * batasan") rentang ini = JAM CHECK-IN: paket berlaku 11.00–16.00 bisa
+       * diambil sampai check-in 15.00, dan mainnya boleh lewat 16.00.
        * `lastStartHour` tetap diisi (jamSelesai − durasi) supaya pembaca
        * lama tetap mendapat angka yang benar.
        * Entri lama tanpa jamSelesai dibaca persis seperti dulu.
@@ -3876,9 +3970,10 @@ function reduce(s: State, a: Action): State {
       if (P.jamSelesai !== undefined || P.jamMulai !== undefined) {
         const jm = Math.round(P.jamMulai ?? OPEN_IDX);
         const js = Math.round(P.jamSelesai ?? CLOSE_IDX);
-        if (!(jm >= OPEN_IDX && jm < CLOSE_IDX && js <= CLOSE_IDX && js - jm >= Math.max(jam, 1))) return s;
+        // 16 Nov 2026: rentang = jam CHECK-IN (cukup ≥ 1 jam); main boleh lewat jam selesai.
+        if (!(jm >= OPEN_IDX && jm < CLOSE_IDX && js <= CLOSE_IDX && js - jm >= 1)) return s;
         rentang = { jamMulai: jm, jamSelesai: js };
-        mulaiTerakhir = js - Math.max(jam, 1);
+        mulaiTerakhir = js - 1;
       } else {
         mulaiTerakhir = Math.round(P.lastStartHour ?? NaN);
         if (!(mulaiTerakhir >= OPEN_IDX && mulaiTerakhir < CLOSE_IDX)) return s;
@@ -4296,13 +4391,20 @@ function reduce(s: State, a: Action): State {
       if (!o || o.status !== "diterima" || o.sessionId || o.payment) return s;
       const sisa = o.value - o.paidOnline;
       if (!(sisa > 0)) return s;
-      const bayar: Payment = {
-        id: nextId("pay"), at: now, channel: a.channel, amount: sisa, shiftId: shiftAksi(s, a, now)!.id,
+      const shiftId = shiftAksi(s, a, now)!.id;
+      const buat = (channel: PayChannel, amount: number, mesin?: string): Payment => ({
+        id: nextId("pay"), at: now, channel, amount, shiftId,
         ...(s.me ? { by: s.me.name } : {}),
-        ...(mesinSah(s, a.channel, a.mesin) ? { mesin: mesinSah(s, a.channel, a.mesin) } : {}),
-      };
+        ...(mesinSah(s, channel, mesin) ? { mesin: mesinSah(s, channel, mesin) } : {}),
+      });
+      // SPLIT: beberapa bagian, jumlahnya HARUS pas dengan sisa tagihan.
+      const bagian = a.bagian?.length
+        ? a.bagian.map((b) => buat(b.channel, Math.round(b.amount), b.mesin))
+        : [buat(a.channel, sisa, a.mesin)];
+      if (bagian.some((b) => !(b.amount > 0)) || bagian.reduce((n, b) => n + b.amount, 0) !== sisa) return s;
+      const [bayar, ...lainnya] = bagian;
       // Takeaway yang tiketnya ditahan: SEKARANG baru masuk checker & dapur.
-      const { menungguBayar: _m, ...lunas } = { ...o, payment: bayar };
+      const { menungguBayar: _m, ...lunas } = { ...o, payment: bayar, ...(lainnya.length ? { paymentLain: lainnya } : {}) };
       const tiketBaru = o.menungguBayar
         ? ticketsFor({ id: o.id, tableName: `Takeaway ${o.code.slice(-4)}`, kode: o.code }, o.lines, now, `Takeaway · ${o.guest} · LUNAS`)
         : [];
@@ -4310,7 +4412,8 @@ function reduce(s: State, a: Action): State {
         ...s,
         orders: s.orders.map((x) => (x.id === o.id ? lunas : x)),
         tickets: tiketBaru.length ? [...tiketBaru, ...s.tickets] : s.tickets,
-        log: note(s, `Takeaway dibayar · ${o.code} · ${o.guest} · ${a.channel.toUpperCase()}${tiketBaru.length ? " · masuk checker" : ""}`, sisa),
+        log: note(s, `Takeaway dibayar · ${o.code} · ${o.guest} · ${bagian.length > 1
+          ? `split ${bagian.length}× (${bagian.map((b) => `${b.channel.toUpperCase()} ${b.amount}`).join(", ")})` : a.channel.toUpperCase()}${tiketBaru.length ? " · masuk checker" : ""}`, sisa),
       };
     }
 
@@ -4910,7 +5013,7 @@ function applyVoid(s: State, req: VoidRequest, now: number): State {
     // di-void: uangnya tidak boleh diam-diam tetap tercatat sebagai omzet. Kelebihan
     // bayarnya dikeluarkan lagi dari kas/kanal hari itu dan masuk daftar dana yang
     // wajib dikembalikan — aturan yang sama dengan split bill pada sesi.
-    const kasirBack = Math.min(o.payment?.amount ?? 0, Math.max(0, value - refundAmt));
+    const kasirBack = Math.min(totalBayarPesanan(o), Math.max(0, value - refundAmt));
     const freeBack = open.filter(jatahMinuman).reduce((n, l) => n + l.qty, 0);
     const remaining = o.lines.filter((l) => !keys.has(l.key));
     const target = o.sessionId ?? o.id;
@@ -4926,7 +5029,7 @@ function applyVoid(s: State, req: VoidRequest, now: number): State {
         : s.sessions,
       orders: s.orders.map((x) => (x.id === o.id ? {
         ...x, lines: remaining, value: x.value - value, paidOnline: x.paidOnline - refundAmt,
-        ...(x.payment ? { payment: { ...x.payment, amount: x.payment.amount - kasirBack } } : {}),
+        ...kurangiBayarPesanan(x, kasirBack),
         status: remaining.length > 0 ? ("diterima" as const) : ("void" as const),
       } : x)),
       tickets: s.tickets.filter((t) => !(t.sessionId === target && t.lineKey !== undefined && keys.has(t.lineKey))),
@@ -5114,7 +5217,7 @@ export type RekapTigaJenis = {
   /** Pendapatan − Biaya, baris penutup struk. */
   bersih: number;
   /** Uang yang benar-benar masuk, untuk dicocokkan dengan pendapatan. */
-  uang: { tunai: number; qris: number; edc: number; edcPer: Record<string, number>; prabayar: number; total: number };
+  uang: { tunai: number; qris: number; edc: number; checkout: number; edcPer: Record<string, number>; prabayar: number; total: number };
   /** Khusus Smokehouse: nilai dapur & bar yang terjual di meja biliar. Sudah masuk rekap SPL. */
   dapurMejaBiliar: number;
   /** Angka hari ini tidak bisa dipisah per venue (arsip lama yang barisnya sudah dilepas). */
@@ -5184,7 +5287,7 @@ function barangHari(a: State, r: ReturnType<typeof recap>, venue?: Venue): Ember
     if (!idTake.has(o.id)) continue;
     // Sama persis dengan rekap uang: takeaway yang BELUM dibayar belum jadi
     // penjualan. Kalau dihitung di sini, dua laporan jadi berbeda tanpa sebab.
-    if (o.paidOnline + (o.payment?.amount ?? 0) <= 0) continue;
+    if (o.paidOnline + totalBayarPesanan(o) <= 0) continue;
     taruh(o.lines ?? []);
   }
   return { billiard: urutBarang(peta.billiard), kitchen: urutBarang(peta.kitchen), bar: urutBarang(peta.bar) };
@@ -5234,10 +5337,10 @@ export function rekapTigaJenis(
   const adaBaris = r.rowsAvailable;
   const uangDariKanal = () => ({
     tunai: r.byChannel.cash?.gross ?? 0, qris: r.byChannel.qris_online?.gross ?? 0,
-    edc: r.byChannel.edc?.gross ?? 0, edcPer: {} as Record<string, number>, prabayar: r.prabayar,
+    edc: r.byChannel.edc?.gross ?? 0, checkout: r.byChannel.checkout?.gross ?? 0, edcPer: {} as Record<string, number>, prabayar: r.prabayar,
   });
   const u = adaBaris
-    ? { tunai: os.semua.tunai, qris: os.semua.qris, edc: os.semua.edc, edcPer: os.semua.edcPer, prabayar: os.semua.prabayar }
+    ? { tunai: os.semua.tunai, qris: os.semua.qris, edc: os.semua.edc, checkout: os.semua.checkout, edcPer: os.semua.edcPer, prabayar: os.semua.prabayar }
     : uangDariKanal();
   const biaya = biayaHari(a, bizDate, venue);
   const totalBiaya = biaya.reduce((n, b) => n + b.nilai, 0);
@@ -5284,7 +5387,7 @@ export function rekapTigaJenis(
     biaya,
     totalBiaya,
     bersih: pendapatan - totalBiaya,
-    uang: { ...u, total: u.tunai + u.qris + u.edc + u.prabayar },
+    uang: { ...u, total: u.tunai + u.qris + u.edc + u.checkout + u.prabayar },
     dapurMejaBiliar,
     tercampur: r.venueTercampur,
   };
@@ -5336,6 +5439,7 @@ export function rekapJenisRentang(a: State, dari: string, sampai: string, venue?
     bersih: jumlah((h) => h.bersih),
     uang: {
       tunai: jumlah((h) => h.uang.tunai), qris: jumlah((h) => h.uang.qris), edc: jumlah((h) => h.uang.edc),
+      checkout: jumlah((h) => h.uang.checkout ?? 0),
       edcPer, prabayar: jumlah((h) => h.uang.prabayar), total: jumlah((h) => h.uang.total),
     },
     dapurMejaBiliar: jumlah((h) => h.dapurMejaBiliar),
@@ -5637,7 +5741,7 @@ function dayMoney(
   for (const o of takeaway) {
     // Takeaway yang belum dibayar BELUM jadi penjualan — dapur sudah menyiapkan,
     // tapi uangnya baru diakui saat tamu mengambil & membayar di kasir.
-    const dibayar = o.paidOnline + (o.payment?.amount ?? 0);
+    const dibayar = o.paidOnline + totalBayarPesanan(o);
     if (dibayar <= 0) continue;
     fnb += o.value; gross += o.value;
     // Pesanan yang masih hidup punya barisnya; yang sudah diarsipkan
@@ -5646,10 +5750,11 @@ function dayMoney(
       ? liniDariLines((o as { lines?: CartLine[] }).lines!) : undefined);
     taruhLini(dasar, pecah, o.value, 0);
     if (o.paidOnline > 0) addPrabayar(o.paidOnline);
-    if (o.payment && o.payment.amount > 0) {
-      diterima += o.payment.amount;
-      const c = o.payment.channel;
-      byChannel[c] = { n: (byChannel[c]?.n ?? 0) + 1, gross: (byChannel[c]?.gross ?? 0) + o.payment.amount };
+    for (const p of bayarPesanan(o)) {
+      if (p.amount <= 0) continue;
+      diterima += p.amount;
+      const c = p.channel;
+      byChannel[c] = { n: (byChannel[c]?.n ?? 0) + 1, gross: (byChannel[c]?.gross ?? 0) + p.amount };
     }
   }
 
@@ -5690,7 +5795,7 @@ function dayMoney(
       + (s.payments ?? []).reduce((m, p) => m + (p.channel === "qris_online" ? mdrOf(p.amount) : 0), 0)
       + (own > 0 ? mdrOf(own) : 0) + parts.reduce((m, o) => m + mdrOf(o.paidOnline), 0);
   }, 0) + takeaway.reduce((n, o) => n + mdrOf(o.paidOnline)
-    + (o.payment?.channel === "qris_online" ? mdrOf(o.payment.amount) : 0), 0);
+    + bayarPesanan(o).reduce((m, p) => m + (p.channel === "qris_online" ? mdrOf(p.amount) : 0), 0), 0);
 
   return {
     billiard, fnb, discount, gross, diterima, prabayar, byChannel,
@@ -5733,6 +5838,8 @@ export type BarisOmzetShift = {
   tunai: number;
   qris: number;
   edc: number;
+  /** Check Out tanpa metode (SPL). Bukan uang laci — setoran dicocokkan manual. */
+  checkout: number;
   /** Prabayar online: uangnya masuk sebelum tamu datang, jadi TIDAK di laci. */
   prabayar: number;
   /** Pecahan EDC per mesin (Mandiri, BRI, …). Jumlahnya = `edc`. */
@@ -5799,7 +5906,7 @@ const TANPA_SHIFT = "tanpa-shift";
 
 const barisOmzet = (id: string, nama: string, openedAt: number | null, closedAt: number | null): BarisOmzetShift => ({
   id, nama, openedAt, closedAt,
-  tunai: 0, qris: 0, edc: 0, edcPer: {}, prabayar: 0, diterima: 0, trx: 0,
+  tunai: 0, qris: 0, edc: 0, checkout: 0, edcPer: {}, prabayar: 0, diterima: 0, trx: 0,
   sewaMeja: 0, barang: 0, diskon: 0, compliment: 0,
 });
 
@@ -5847,6 +5954,7 @@ export function omzetPerShift(
       const m = baris.mesin ?? "Tanpa mesin";
       b.edcPer[m] = (b.edcPer[m] ?? 0) + jumlah;
     }
+    else if (kanal === "checkout") b.checkout += jumlah;
     else b.qris += jumlah;
     b.diterima += jumlah;
     b.trx += 1;
@@ -5894,7 +6002,7 @@ export function omzetPerShift(
 
   for (const o of r.takeaway) {
     // Sama dengan rekap uang: takeaway yang belum dibayar belum jadi penjualan.
-    const dibayar = o.paidOnline + (o.payment?.amount ?? 0);
+    const dibayar = o.paidOnline + totalBayarPesanan(o);
     if (dibayar <= 0) continue;
     const id = o.payment ? cari(o.payment.shiftId, o.payment.at) : cari(undefined, o.at);
     const b = ambil(id);
@@ -5911,10 +6019,11 @@ export function omzetPerShift(
         kanal: "qris_online", jumlah: o.paidOnline, prabayar: true,
       });
     }
-    if (o.payment && o.payment.amount > 0) {
-      terima(id, o.payment.channel, o.payment.amount, {
-        ...asal, at: o.payment.at, kode: o.code, meja, keterangan: o.guest,
-        ...(o.payment.mesin ? { mesin: o.payment.mesin } : {}),
+    for (const p of bayarPesanan(o)) {
+      if (p.amount <= 0) continue;
+      terima(cari(p.shiftId, p.at), p.channel, p.amount, {
+        ...asal, at: p.at, kode: o.code, meja, keterangan: o.guest,
+        ...(p.mesin ? { mesin: p.mesin } : {}),
       });
     }
     b.barang += o.value;
@@ -5923,7 +6032,7 @@ export function omzetPerShift(
   const daftar = [...baris.values()];
   const semua = barisOmzet("all", "Semua shift", null, null);
   for (const b of [...daftar, ...(tanpa ? [tanpa as BarisOmzetShift] : [])]) {
-    semua.tunai += b.tunai; semua.qris += b.qris; semua.edc += b.edc;
+    semua.tunai += b.tunai; semua.qris += b.qris; semua.edc += b.edc; semua.checkout += b.checkout;
     for (const [m, v] of Object.entries(b.edcPer)) semua.edcPer[m] = (semua.edcPer[m] ?? 0) + v;
     semua.prabayar += b.prabayar; semua.diterima += b.diterima; semua.trx += b.trx;
     semua.sewaMeja += b.sewaMeja; semua.barang += b.barang;
@@ -5966,10 +6075,12 @@ export const kelasShiftJam = (ms: number): KelasShift => {
 };
 
 export const kunciKanal = (x: Pick<BarisTransaksi, "kanal" | "mesin" | "prabayar">): KunciKanal =>
-  x.prabayar ? "prabayar" : x.kanal === "cash" ? "tunai" : x.kanal === "edc" ? `edc:${x.mesin ?? "Tanpa mesin"}` : "qris";
+  x.prabayar ? "prabayar" : x.kanal === "cash" ? "tunai" : x.kanal === "checkout" ? "checkout"
+    : x.kanal === "edc" ? `edc:${x.mesin ?? "Tanpa mesin"}` : "qris";
 
 export const labelKanal = (k: KunciKanal) =>
-  k === "tunai" ? "Cash" : k === "qris" ? "QRIS" : k === "prabayar" ? "Prabayar online" : k.slice(4).toUpperCase();
+  k === "tunai" ? "Cash" : k === "qris" ? "QRIS" : k === "prabayar" ? "Prabayar online" : k === "checkout" ? "Checkout"
+    : k.slice(4).toUpperCase();
 
 /** Ringkasan saringan satu hari operasional, dari rincian pembayarannya. */
 export function ringkasSaring(a: State, bizDate: string): SaringHari {
@@ -6190,7 +6301,7 @@ export function menuSaring(a: State, o: {
       const unit = unitKunci(b.venue);
       if (o.unit !== "semua" && unit !== o.unit) continue;
       const nilai = !kanal ? b.total
-        : (kanal.has("tunai") ? b.tunai : 0) + (kanal.has("qris") ? b.qris : 0)
+        : (kanal.has("tunai") ? b.tunai : 0) + (kanal.has("qris") ? b.qris : 0) + (kanal.has("checkout") ? b.checkout : 0)
           + (kanal.has("prabayar") ? b.prabayar : 0) + b.edc * porsiEdc;
       if (nilai <= 0 && kanal) continue;
       const qty = !kanal || b.total <= 0 ? b.qty : b.qty * (nilai / b.total);
@@ -6209,7 +6320,7 @@ export function menuSaring(a: State, o: {
 /* ═════════════ SPL-11 · Laporan penjualan per produk ═════════════ */
 
 /** Kanal uang untuk laporan produk. `lain` = tidak bisa ditentukan dari jejak. */
-export type KanalProduk = "tunai" | "qris" | "edc" | "prabayar" | "lain";
+export type KanalProduk = "tunai" | "qris" | "edc" | "checkout" | "prabayar" | "lain";
 
 export type ProdukHariBaris = {
   itemId: string;
@@ -6224,6 +6335,7 @@ export type ProdukHariBaris = {
   tunai: number;
   qris: number;
   edc: number;
+  checkout: number;
   prabayar: number;
   lain: number;
 };
@@ -6232,7 +6344,7 @@ const barisProduk = (
   itemId: string, nama: string, station: ProdukHariBaris["station"], venue: Venue,
 ): ProdukHariBaris => ({
   itemId, nama, station, venue, qty: 0, total: 0, comp: 0,
-  tunai: 0, qris: 0, edc: 0, prabayar: 0, lain: 0,
+  tunai: 0, qris: 0, edc: 0, checkout: 0, prabayar: 0, lain: 0,
 });
 
 const kunciProduk = (itemId: string, venue: Venue) => `${venue}|${itemId}`;
@@ -6244,7 +6356,7 @@ export function gabungProduk(a: ProdukHariBaris[], b: ProdukHariBaris[]): Produk
     const k = kunciProduk(x.itemId, x.venue);
     const p = peta.get(k) ?? barisProduk(x.itemId, x.nama, x.station, x.venue);
     p.qty += x.qty; p.total += x.total; p.comp += x.comp;
-    p.tunai += x.tunai; p.qris += x.qris; p.edc += x.edc;
+    p.tunai += x.tunai; p.qris += x.qris; p.edc += x.edc; p.checkout += x.checkout ?? 0;
     p.prabayar += x.prabayar; p.lain += x.lain;
     peta.set(k, p);
   }
@@ -6260,15 +6372,18 @@ export function gabungProduk(a: ProdukHariBaris[], b: ProdukHariBaris[]): Produk
  * Yang benar-benar tidak bisa ditentukan masuk `lain` — JANGAN dipaksa masuk
  * tunai, karena laporan tunai adalah laporan yang paling dipercaya pemilik.
  */
+const kanalProdukDari = (c: PayChannel): KanalProduk =>
+  c === "cash" ? "tunai" : c === "edc" ? "edc" : c === "checkout" ? "checkout" : "qris";
+
 function kanalBaris(s: ArchivedSession, l: CartLine): KanalProduk {
   if (l.prepaid) return "prabayar";
   for (const p of s.payments ?? []) {
     if (p.keys?.includes(l.key) || (p.qty?.[l.key] ?? 0) > 0) {
-      return p.channel === "cash" ? "tunai" : p.channel === "edc" ? "edc" : "qris";
+      return kanalProdukDari(p.channel);
     }
   }
   if ((s.settledAmount ?? 0) > 0 && s.settledChannel) {
-    return s.settledChannel === "cash" ? "tunai" : s.settledChannel === "edc" ? "edc" : "qris";
+    return kanalProdukDari(s.settledChannel);
   }
   return "lain";
 }
@@ -6309,14 +6424,14 @@ export function produkHari(
   }
   const pesanan = new Map(st.orders.map((o) => [o.id, o] as const));
   for (const o of takeaway) {
-    const dibayar = o.paidOnline + (o.payment?.amount ?? 0);
+    const dibayar = o.paidOnline + totalBayarPesanan(o);
     if (dibayar <= 0) continue;
     const penuh = pesanan.get(o.id);
     if (!penuh) continue;
     const kanal: KanalProduk = o.paidOnline >= o.value
       ? "prabayar"
       : o.payment
-        ? (o.payment.channel === "cash" ? "tunai" : o.payment.channel === "edc" ? "edc" : "qris")
+        ? kanalProdukDari(o.payment.channel)
         : "lain";
     taruh(venueOrder(o), penuh.lines ?? [], () => kanal);
   }
@@ -6360,9 +6475,9 @@ export function penjualanProduk(
   const baris = kumpul
     .filter((b) => !venue || b.venue === venue)
     .sort((x, y) => y.total - x.total || x.nama.localeCompare(y.nama, "id"));
-  const perKanal: Record<KanalProduk, number> = { tunai: 0, qris: 0, edc: 0, prabayar: 0, lain: 0 };
+  const perKanal: Record<KanalProduk, number> = { tunai: 0, qris: 0, edc: 0, checkout: 0, prabayar: 0, lain: 0 };
   for (const b of baris) {
-    perKanal.tunai += b.tunai; perKanal.qris += b.qris; perKanal.edc += b.edc;
+    perKanal.tunai += b.tunai; perKanal.qris += b.qris; perKanal.edc += b.edc; perKanal.checkout += b.checkout;
     perKanal.prabayar += b.prabayar; perKanal.lain += b.lain;
   }
   return {
@@ -6622,7 +6737,7 @@ export function validAction(a: unknown): a is Action {
       isOptStr(a.paketId);
     case "checkin": return isStr(a.code);
     case "extend": return isStr(a.id) && isNum(a.minutes);
-    case "settle": return isStr(a.id) && oneOf(a.channel, ["cash", "edc", "qris_online"] as const) && isOptStr(a.promoCode)
+    case "settle": return isStr(a.id) && oneOf(a.channel, ["cash", "edc", "qris_online", "checkout"] as const) && isOptStr(a.promoCode)
       && (a.diskonPersen === undefined || isNum(a.diskonPersen)) && isOptStr(a.mesin);
     case "compliment": return isStr(a.sessionId) && isStr(a.key) && isOptStr(a.alasan);
     case "gabungMeja": return Array.isArray(a.ids) && a.ids.length >= 2 && a.ids.length <= 20 && a.ids.every(isStr);
@@ -6631,7 +6746,7 @@ export function validAction(a: unknown): a is Action {
     case "toggleMaintenance": return isStr(a.tableId) && isOptStr(a.reason);
     case "addFnb": return isStr(a.sessionId) && validLine(a.line) && isOptStr(a.name) && oneOf(a.station, ["kitchen", "bar", "billiard"] as const);
     case "ticket": return isStr(a.id) && oneOf(a.status, ["new", "preparing", "ready", "served"] as const);
-    case "setRate": return oneOf(a.key, ["regularDay", "regularNight", "vip", "vvip", "regularDayWe", "regularNightWe", "vipWe", "vvipWe"] as const) && isNum(a.value);
+    case "setRate": return oneOf(a.key, ["regularDay", "regularNight", "vip", "vvip", "regularDayWe", "regularNightWe", "vipWe", "vvipWe", "vvipNight", "vvipNightWe"] as const) && isNum(a.value);
     case "setPajak": return oneOf(a.key, ["ppn", "service"] as const) && isNum(a.value);
     case "setPajakLini": return oneOf(a.lini, ["biliar", "bar", "resto"] as const) &&
       oneOf(a.key, ["ppn", "service"] as const) && isNum(a.value);
@@ -6696,7 +6811,9 @@ export function validAction(a: unknown): a is Action {
       isOptStr(a.order.sessionId);
     case "restoreNoShow": return isStr(a.id);
     case "settleRefund": return isStr(a.id) && oneOf(a.method, ["transfer", "tunai", "kredit"] as const);
-    case "settleOrder": return isStr(a.id) && oneOf(a.channel, ["cash", "edc", "qris_online"] as const) && isOptStr(a.mesin);
+    case "settleOrder": return isStr(a.id) && oneOf(a.channel, ["cash", "edc", "qris_online", "checkout"] as const) && isOptStr(a.mesin)
+      && (a.bagian === undefined || (Array.isArray(a.bagian) && a.bagian.length >= 1 && a.bagian.length <= 10
+        && a.bagian.every((b) => isObj(b) && oneOf(b.channel, ["cash", "edc", "qris_online", "checkout"] as const) && isNum(b.amount) && isOptStr(b.mesin))));
     case "setTautanUnduh": return isStr(a.windows) && isStr(a.android) && a.windows.length <= 500 && a.android.length <= 500;
     case "setMesinEdc": return Array.isArray(a.daftar) && a.daftar.length <= 8 && a.daftar.every(isStr);
     case "editFnb": return isStr(a.sessionId) && isStr(a.key) && (a.qty === undefined || isNum(a.qty)) &&
@@ -6705,7 +6822,7 @@ export function validAction(a: unknown): a is Action {
     case "moveFnb": return isStr(a.fromId) && isOptStr(a.toId) && isOptStr(a.toTableId) &&
       (isStr(a.toId) || isStr(a.toTableId)) && Array.isArray(a.keys) &&
       a.keys.length > 0 && a.keys.length <= 200 && a.keys.every(isStr);
-    case "paySplit": return isStr(a.id) && oneOf(a.channel, ["cash", "edc", "qris_online"] as const) &&
+    case "paySplit": return isStr(a.id) && oneOf(a.channel, ["cash", "edc", "qris_online", "checkout"] as const) &&
       (a.amount === undefined || isNum(a.amount)) && isOptStr(a.label) && isOptStr(a.mesin) &&
       (a.keys === undefined || (Array.isArray(a.keys) && a.keys.length <= 200 && a.keys.every(isStr))) &&
       (a.qty === undefined || (isObj(a.qty) && Object.keys(a.qty).length <= 200 &&

@@ -23,12 +23,14 @@
 import { useMemo, useState } from "react";
 import {
   useAdmin, recap, recapDates, businessDateOf, penjualanProduk, lineValue, itemOf,
+  namaMeja, splitPaidOf, settlementOf, bayarPesanan, cariMeja,
 } from "../../lib/adminStore";
 import { rupiah } from "../../lib/core";
 import { cetakStruk } from "../../lib/cetak";
-import { VENUE_LABEL } from "../../data/venue";
+import { VENUE_LABEL, venueDari } from "../../data/venue";
 import { useVenueAktif } from "../../lib/venueAktif";
 import { jam } from "./AdminShell";
+import { StrukResmi, barisStruk, nomorStruk, infoMain, type DataStruk } from "./StrukResmi";
 
 /** Berapa hari ke belakang yang ditawarkan. Lebih dari ini jejaknya sudah dilepas. */
 const HARI_MUNDUR = 90;
@@ -70,7 +72,7 @@ export default function PanelStruk({ onTutup }: { onTutup: () => void }) {
       .filter((s) => s.status === "done")
       .map((s) => ({
         id: s.id,
-        no: `SPL-${(s.settledAt ?? s.startsAt).toString(36).toUpperCase().slice(-6)}`,
+        no: nomorStruk(s.id),
         jenis: "meja" as const,
         nama: s.guest,
         meja: s.tableId,
@@ -102,8 +104,8 @@ export default function PanelStruk({ onTutup }: { onTutup: () => void }) {
     setCetak({ jenis, at: Date.now() });
     await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
     const hasil = await cetakStruk();
-    setKabar(hasil.ok ? "Perintah cetak terkirim." : `Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
-    setTimeout(() => setKabar(null), 4000);
+    setKabar(hasil.ok ? (hasil.alasan ?? "Perintah cetak terkirim.") : `Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
+    setTimeout(() => setKabar(null), 9000);
     setCetak(null);
   }
 
@@ -182,49 +184,12 @@ export default function PanelStruk({ onTutup }: { onTutup: () => void }) {
       )}
 
       {/* ── Lembar cetak ─────────────────────────────────────────── */}
+      {/* CETAK ULANG = STRUK RESMI yang sama persis, plus pita "CETAK ULANG"
+          (pemilik 15 Nov 2026). Tidak tampil di layar — hanya untuk kertas. */}
       {cetak && cetak.jenis === "struk" && pilih && (
-        <div id="struk" className="cetak-saja bg-white p-2 text-[11px] text-black">
-          <div className="text-center">
-            <div className="text-[13px] font-bold uppercase">{VENUE_LABEL[venue]}</div>
-            <div className="text-[12px] font-bold">** CETAK ULANG **</div>
-            <div className="mt-1">No. : {pilih.no}</div>
-            <div>Meja : {pilih.meja}</div>
-            <div>Tamu : {pilih.nama}</div>
-            <div>Transaksi : {hari} {jam(pilih.at)}</div>
-          </div>
-          <div className="my-1 border-t border-dashed border-black" />
-          {pilih.rincian === null ? (
-            <div>Rincian baris tidak tersedia untuk hari yang sudah tutup buku.</div>
-          ) : (
-            <table className="w-full">
-              <tbody>
-                {pilih.sewaMeja > 0 && (
-                  <tr><td>1× SEWA MEJA</td>
-                    <td className="w-20 text-right tabular-nums">{rupiah(pilih.sewaMeja)}</td></tr>
-                )}
-                {pilih.rincian.map((x, i) => (
-                  <tr key={i}>
-                    <td className="align-top">{x.qty}× {x.nama}</td>
-                    <td className="w-20 text-right align-top tabular-nums">{rupiah(x.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {pilih.diskon > 0 && (
-            <div className="flex justify-between"><span>Diskon</span>
-              <span className="tabular-nums">-{rupiah(pilih.diskon)}</span></div>
-          )}
-          <div className="my-1 border-t border-black" />
-          <div className="flex justify-between font-bold">
-            <span>TOTAL</span><span className="tabular-nums">{rupiah(pilih.nilai)}</span>
-          </div>
-          <div className="flex justify-between"><span>Metode</span><span>{pilih.kanal}</span></div>
-          <div className="mt-2 text-center text-[10px]">
-            Harga sudah termasuk pajak<br />
-            Dicetak ulang {jam(cetak.at)} oleh {a.me?.name ?? "-"}<br />
-            # TERIMA KASIH SUDAH BERKUNJUNG #
-          </div>
+        <div className="cetak-saja">
+          <StrukResmi data={dataStrukUlang(a, pilih)} venue={venue}
+            cetakUlang={{ at: cetak.at, oleh: a.me?.name ?? "-" }} />
         </div>
       )}
 
@@ -282,6 +247,54 @@ function geser(iso: string, n: number) {
 }
 
 /** Baris pesanan sebuah sesi — null kalau sesinya sudah diarsipkan. */
+/** Label cara bayar — sama dengan yang tercetak di struk resmi. */
+const labelKanal = (c?: string) => (c === "cash" ? "Tunai" : c === "edc" ? "Kartu/EDC" : c === "qris_online" || c === "qris" ? "QRIS" : c === "checkout" ? "Checkout" : c ?? "-");
+
+/**
+ * Isi struk resmi untuk transaksi yang sudah lewat, dari data yang tersimpan.
+ * Tab yang masih ada di jejak memakai barisnya sendiri (nama, @harga, jumlah);
+ * yang sudah diarsipkan memakai ringkasan yang tersisa.
+ */
+function dataStrukUlang(a: ReturnType<typeof useAdmin>["a"], b: Baris): DataStruk {
+  const cariNama = (id: string) => itemOf(a, id);
+  const s = b.jenis === "meja" ? a.sessions.find((x) => x.id === b.id) : undefined;
+  if (s) {
+    const selesai = s.settledAt ?? s.endsAt;
+    let menit: number | null = null;
+    try { menit = settlementOf(s, a, selesai).detail?.billedMinutes ?? null; } catch { /* arsip */ }
+    const kasir = a.log.find((x) => x.at === s.settledAt)?.who ?? "-";
+    return {
+      no: nomorStruk(s.id),
+      ...infoMain(a, s, venueDari(s.tableId), !!cariMeja(s.tableId)?.tanpaMeja, selesai),
+      meja: cariMeja(s.tableId)?.tanpaMeja ? `Tab · ${s.guest}` : namaMeja(a, s.tableId), tamu: s.guest,
+      mulai: s.startsAt, selesai, menit,
+      billiard: s.settledBilliard ?? 0, fnb: s.settledFnb ?? 0, diskon: s.settledDiscount ?? 0,
+      prabayar: s.paidOnline + splitPaidOf(s), bayar: s.settledAmount ?? b.nilai,
+      metode: labelKanal(s.settledChannel), kasir,
+      items: s.fnb.map((l) => barisStruk(l, cariNama)),
+    };
+  }
+  const o = b.jenis === "takeaway" ? a.orders.find((x) => x.id === b.id) : undefined;
+  if (o) {
+    const bagian = bayarPesanan(o);
+    return {
+      no: o.code, meja: "Takeaway", tamu: o.guest, mulai: o.at, selesai: b.at, menit: null,
+      billiard: 0, fnb: o.value, diskon: 0, prabayar: o.paidOnline,
+      bayar: bagian.reduce((n, p) => n + p.amount, 0) || o.value,
+      metode: bagian.length ? bagian.map((p) => labelKanal(p.channel)).join(" + ") : labelKanal(b.kanal),
+      kasir: a.log.find((x) => x.at === bagian[0]?.at)?.who ?? "-",
+      items: o.lines.map((l) => barisStruk(l, cariNama)),
+    };
+  }
+  // Sudah diarsipkan: hanya ringkasan.
+  return {
+    no: b.no, meja: b.meja, tamu: b.nama, mulai: b.at, selesai: b.at, menit: null,
+    billiard: b.sewaMeja, fnb: b.nilai - b.sewaMeja + b.diskon, diskon: b.diskon, prabayar: 0,
+    bayar: b.nilai, metode: labelKanal(b.kanal), kasir: "-",
+    items: (b.rincian ?? []).map((x) => ({ name: x.nama, qty: x.qty, harga: x.qty ? Math.round(x.total / x.qty) : 0, total: x.total })),
+  };
+}
+
 function barisDari(a: ReturnType<typeof useAdmin>["a"], id: string) {
   const s = a.sessions.find((x) => x.id === id);
   if (!s) return null;

@@ -177,9 +177,6 @@ export default function PaketPanel({ venue }: { venue: Venue }) {
     if (!f.price) return setPesan("Harga weekday belum diisi.");
     if (spl && !(jamMain >= 1 && jamMain <= 6)) return setPesan("Durasi paket SPL 1–6 jam.");
     if (!f.hari.length) return setPesan("Pilih minimal satu hari aktif.");
-    if (spl && f.jamSelesai - f.jamMulai < jamMain) {
-      return setPesan(`Rentang ${jamTeks(f.jamMulai)}–${jamTeks(f.jamSelesai)} lebih pendek dari durasi ${jamMain} jam.`);
-    }
     if (f.bedaWeekend && !f.hariWeekend.length) return setPesan("Pilih hari yang memakai harga weekend.");
     if (f.bedaWeekend && !f.priceW) return setPesan("Harga weekend belum diisi.");
     const sebelum = peek().packages;
@@ -363,10 +360,10 @@ export default function PaketPanel({ venue }: { venue: Venue }) {
                 </select>
               </label>
             </div>
-            {angka(form.hours) >= 1 && form.jamSelesai - form.jamMulai >= angka(form.hours) && (
+            {angka(form.hours) >= 1 && (
               <p className="-mt-1 text-[11px] text-dim">
-                Main harus selesai sebelum {jamTeks(form.jamSelesai)}, jadi paket {angka(form.hours)} jam bisa mulai{" "}
-                <span className="text-cream">{jamTeks(form.jamMulai)}–{jamTeks(form.jamSelesai - angka(form.hours))}</span>.
+                Tamu bisa mengambil paket ini kalau check-in <span className="text-cream">{jamTeks(form.jamMulai)}–{jamTeks(form.jamSelesai - 1)}</span>.
+                Mainnya boleh lewat {jamTeks(form.jamSelesai)} — tidak ada batas jam selesai.
               </p>
             )}
           </>)}

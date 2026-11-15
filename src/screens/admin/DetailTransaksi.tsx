@@ -27,7 +27,8 @@ import { VENUE_LABEL, type Venue } from "../../data/venue";
 const jamMenit = (ms: number) =>
   new Date(ms).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
 
-const KANAL: Record<string, string> = { cash: "KAS", qris_online: "QRIS", edc: "EDC" };
+const KANAL: Record<string, string> = { cash: "KAS", qris_online: "QRIS", edc: "EDC", checkout: "CHECKOUT" };
+const CHECKOUT = "CHECKOUT";
 
 export default function DetailTransaksi({ os, pilih, nama, bizDate, venue }: {
   os: OmzetShift;
@@ -45,15 +46,19 @@ export default function DetailTransaksi({ os, pilih, nama, bizDate, venue }: {
   if (baris.length === 0) return null;
 
   /** Mesin EDC yang BENAR-BENAR muncul di rincian ini, urut nama. */
-  const mesin = [...new Set(baris.filter((x) => x.kanal === "edc" && !x.prabayar)
-    .map((x) => x.mesin ?? "Tanpa mesin"))].sort();
+  const mesin = [...[...new Set(baris.filter((x) => x.kanal === "edc" && !x.prabayar)
+    .map((x) => x.mesin ?? "Tanpa mesin"))].sort(),
+    // Check Out tanpa metode (SPL, 16 Nov 2026) — kolom sendiri, bukan KAS.
+    ...(baris.some((x) => x.kanal === "checkout" && !x.prabayar) ? [CHECKOUT] : [])];
+  /** Pembayaran ini masuk kolom `m` (mesin EDC tertentu, atau CHECKOUT)? */
+  const diMesin = (x: typeof baris[number], m: string, kosong = "Tanpa mesin") => !x.prabayar
+    && (m === CHECKOUT ? x.kanal === "checkout" : x.kanal === "edc" && (x.mesin ?? kosong) === m);
 
   const jumlah = (f: (x: typeof baris[number]) => number) => baris.reduce((n, x) => n + f(x), 0);
   const kas = jumlah((x) => (!x.prabayar && x.kanal === "cash" ? x.jumlah : 0));
   const qris = jumlah((x) => (!x.prabayar && x.kanal === "qris_online" ? x.jumlah : 0));
-  const edc = jumlah((x) => (!x.prabayar && x.kanal === "edc" ? x.jumlah : 0));
-  const edcMesin = (m: string) =>
-    jumlah((x) => (!x.prabayar && x.kanal === "edc" && (x.mesin ?? "Tanpa mesin") === m ? x.jumlah : 0));
+  const edc = jumlah((x) => (!x.prabayar && (x.kanal === "edc" || x.kanal === "checkout") ? x.jumlah : 0));
+  const edcMesin = (m: string) => jumlah((x) => (diMesin(x, m) ? x.jumlah : 0));
   const prabayar = jumlah((x) => (x.prabayar ? x.jumlah : 0));
   const total = kas + qris + edc + prabayar;
 
@@ -71,7 +76,7 @@ export default function DetailTransaksi({ os, pilih, nama, bizDate, venue }: {
         !x.prabayar && x.kanal === "cash" ? x.jumlah : 0,
         !x.prabayar && x.kanal === "qris_online" ? x.jumlah : 0,
         ...mesin.map((m) =>
-          !x.prabayar && x.kanal === "edc" && (x.mesin ?? "Tanpa mesin") === m ? x.jumlah : 0),
+          diMesin(x, m) ? x.jumlah : 0),
         x.prabayar ? x.jumlah : 0,
       ]),
       [],
@@ -155,8 +160,7 @@ export default function DetailTransaksi({ os, pilih, nama, bizDate, venue }: {
                     </td>
                     {mesin.map((m) => (
                       <td key={m} className="px-2 py-1.5 text-right tabular-nums text-mute">
-                        {!x.prabayar && x.kanal === "edc" && (x.mesin ?? "Tanpa mesin") === m
-                          ? rupiah(x.jumlah) : "—"}
+                        {diMesin(x, m) ? rupiah(x.jumlah) : "—"}
                       </td>
                     ))}
                   </tr>
@@ -244,8 +248,7 @@ export default function DetailTransaksi({ os, pilih, nama, bizDate, venue }: {
                       </td>
                       {mesin.map((m) => (
                         <td key={m} className="px-[1px] text-right align-top tabular-nums">
-                          {!x.prabayar && x.kanal === "edc" && x.mesin === m
-                            ? x.jumlah.toLocaleString("id-ID") : ""}
+                          {diMesin(x, m, "") ? x.jumlah.toLocaleString("id-ID") : ""}
                         </td>
                       ))}
                       {prabayar > 0 && (

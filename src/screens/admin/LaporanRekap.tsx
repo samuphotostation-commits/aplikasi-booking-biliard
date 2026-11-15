@@ -82,7 +82,7 @@ export default function LaporanRekap() {
     setCetak(Date.now());
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const hasil = await cetakStruk();
-    setKabar(hasil.ok ? "Perintah cetak terkirim." : `Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
+    setKabar(hasil.ok ? (hasil.alasan ?? "Perintah cetak terkirim.") : `Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
     setTimeout(() => setKabar(null), 4000);
     setCetak(null);
   }

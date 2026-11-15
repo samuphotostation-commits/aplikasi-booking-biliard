@@ -287,7 +287,7 @@ export default function Pengaturan() {
   /** Formulir tambah meja. */
 
   /** Delapan tarif: empat weekday + empat weekend (kosong/0 = sama dengan weekday). */
-  const KUNCI_TARIF = ["regularDay", "regularNight", "vip", "vvip", "regularDayWe", "regularNightWe", "vipWe", "vvipWe"] as const;
+  const KUNCI_TARIF = ["regularDay", "regularNight", "vip", "vvip", "regularDayWe", "regularNightWe", "vipWe", "vvipWe", "vvipNight", "vvipNightWe"] as const;
   const same = (x: typeof draft, y: typeof draft) => KUNCI_TARIF.every((k) => (x[k] ?? 0) === (y[k] ?? 0));
   const dirty = !same(draft, a.rates);
   const editing = !same(draft, baseRates);
@@ -495,14 +495,17 @@ export default function Pengaturan() {
             ["regularDay", "regularDayWe", "Reguler siang", "11.00 – 18.00"],
             ["regularNight", "regularNightWe", "Reguler malam", "18.00 – tutup & lembur"],
             ["vip", "vipWe", "VIP (bebas asap rokok)", `sepanjang jam · ${hitung("vip")} ruang`],
-            ["vvip", "vvipWe", "VVIP (boleh merokok)", `sepanjang jam · ${hitung("vvip")} ruang`],
+            ["vvip", "vvipWe", "VICTORY siang", `11.00 – 18.00 · ${hitung("vvip")} ruang`],
+            ["vvipNight", "vvipNightWe", "VICTORY malam", "18.00 – tutup & lembur · kosong = sama dengan siang"],
           ] as const).map(([k, kWe, label, hint]) => (
             <div key={k} className="grid grid-cols-[minmax(0,1fr)_112px_112px] items-center gap-2 border-b border-line/60 px-3 py-2.5 last:border-b-0">
               <div className="min-w-0">
                 <div className="truncate text-[13px] text-cream">{label}</div>
                 <div className="truncate text-[11px] text-dim">{hint}</div>
               </div>
-              <InputTarif label={`${label} weekday`} value={draft[k]} onChange={(v) => setDraft({ ...draft, [k]: v ?? 0 })} />
+              <InputTarif label={`${label} weekday`} value={draft[k] ?? 0} kosongBoleh={k === "vvipNight"}
+                placeholder={k === "vvipNight" ? String(draft.vvip || "") : undefined}
+                onChange={(v) => setDraft({ ...draft, [k]: v ?? 0 })} />
               <InputTarif label={`${label} weekend`} value={draft[kWe]} kosongBoleh placeholder={String(draft[k] || "")}
                 onChange={(v) => setDraft({ ...draft, [kWe]: v ?? 0 })} />
             </div>
@@ -523,7 +526,9 @@ export default function Pengaturan() {
               ["Reguler 17.00–19.00 (lintas tarif)", draft.regularDay + draft.regularNight,
                 (draft.regularDayWe || draft.regularDay) + (draft.regularNightWe || draft.regularNight)],
               ["VIP 3 jam", 3 * draft.vip, 3 * (draft.vipWe || draft.vip)],
-              ["VVIP 3 jam", 3 * draft.vvip, 3 * (draft.vvipWe || draft.vvip)],
+              ["VICTORY 2 jam siang", 2 * draft.vvip, 2 * (draft.vvipWe || draft.vvip)],
+              ["VICTORY 2 jam malam", 2 * (draft.vvipNight || draft.vvip),
+                2 * (draft.vvipNight ? (draft.vvipNightWe || draft.vvipNight) : (draft.vvipNightWe || draft.vvipWe || draft.vvip))],
             ] as const).map(([l, wd, we]) => (
               <div key={l} className="flex items-baseline justify-between gap-2">
                 <span className="text-mute">{l}</span>
@@ -538,7 +543,7 @@ export default function Pengaturan() {
         {editing && remoteChanged && (
           <p className="mt-3 rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-[12px] leading-snug text-amber">
             Tarif baru saja diubah dari perangkat lain ({rupiah(a.rates.regularDay)} · {rupiah(a.rates.regularNight)} ·{" "}
-            {rupiah(a.rates.vip)} · {rupiah(a.rates.vvip)}). Periksa lagi sebelum menyimpan, atau batalkan untuk memakai tarif terbaru.
+            {rupiah(a.rates.vip)} · {rupiah(a.rates.vvip)}{a.rates.vvipNight ? ` / ${rupiah(a.rates.vvipNight)}` : ""}). Periksa lagi sebelum menyimpan, atau batalkan untuk memakai tarif terbaru.
           </p>
         )}
         <div className="mt-3 flex items-center gap-3">
@@ -666,7 +671,7 @@ export default function Pengaturan() {
           {venue === "spl" ? (<>
             <span>{hitung("regular")} reguler</span>
             <span className="text-amber/90">{hitung("vip")} VIP (bebas asap rokok)</span>
-            <span className="text-brick-lit">{hitung("vvip")} VVIP (boleh merokok)</span>
+            <span className="text-brick-lit">{hitung("vvip")} VICTORY (boleh merokok)</span>
           </>) : (
             <span>{hitung("resto")} meja makan · tanpa sewa waktu</span>
           )}
@@ -737,7 +742,7 @@ export default function Pengaturan() {
                       className={`min-h-[44px] rounded-lg border px-2 text-[12px] font-semibold ${
                         classOf(a, mejaTerpilih.id) === k ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink text-cream"
                       }`}>
-                      {k === "regular" ? "Reguler" : k === "vip" ? "VIP" : "VVIP"}
+                      {k === "regular" ? "Reguler" : k === "vip" ? "VIP" : "VICTORY"}
                       <div className="text-[10px] font-normal text-dim">
                         {rupiah(k === "regular" ? a.rates.regularNight : k === "vip" ? a.rates.vip : a.rates.vvip)}
                       </div>
@@ -841,7 +846,7 @@ export default function Pengaturan() {
 
         {tableNote && <p role="status" className="mt-2 text-[12px] text-amber">{tableNote}</p>}
         <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Ketuk meja untuk mengganti namanya, menghapusnya, mengatur kelasnya (Reguler / VIP bebas asap rokok / VVIP boleh merokok), atau menandainya rusak.
+          Ketuk meja untuk mengganti namanya, menghapusnya, mengatur kelasnya (Reguler / VIP bebas asap rokok / VICTORY boleh merokok), atau menandainya rusak.
           Kelas menentukan tarif per jam meja itu. Meja yang sedang dipakai atau sudah dibooking tidak bisa
           berpindah kelas — harga sudah terlanjur disepakati tamu.
         </p>

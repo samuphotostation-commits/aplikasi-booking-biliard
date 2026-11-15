@@ -26,7 +26,7 @@ type KategoriBaru = { kunci: string; label: string; ket: string; kelas?: TableTy
 const KATEGORI_SPL: KategoriBaru[] = [
   { kunci: "regular", label: "Reguler", ket: "tarif reguler", kelas: "regular" },
   { kunci: "vip", label: "VIP", ket: "bebas asap rokok", kelas: "vip" },
-  { kunci: "vvip", label: "VVIP", ket: "boleh merokok", kelas: "vvip" },
+  { kunci: "vvip", label: "VICTORY", ket: "boleh merokok", kelas: "vvip" },
 ];
 
 export default function TambahMeja({ venue, lantaiTetap, ringkas, onSelesai, onBatal }: {

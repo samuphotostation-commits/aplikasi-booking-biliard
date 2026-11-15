@@ -13,10 +13,11 @@
    ═══════════════════════════════════════════════════════════════════ */
 import {
   replay, runningOn, itemOf, mejaDipakai, namaMeja, mejaDijual, clampRange, recapRange,
-  rekapSaring, menuSaring, kategoriJual, susunKategori, kodeSesi, cadanganMeja, lantaiVenue, complimentMeja, kategoriMejaDari, kategoriMejaVenue, TAKEAWAY_BAYAR_DULU, venueTiket, tabTanpaMeja, settlementOf, guestOrderProblem, venueTerdampakMenu, kelasShiftJam, shiftDate, menuShift, shiftHariItu, omzetPerShift, slotProblem, rateWith,
+  rekapSaring, menuSaring, tickState, kategoriJual, susunKategori, kodeSesi, cadanganMeja, lantaiVenue, complimentMeja, kategoriMejaDari, kategoriMejaVenue, TAKEAWAY_BAYAR_DULU, venueTiket, tabTanpaMeja, settlementOf, bayarPesanan, recap, shiftDi, shiftCashExpected, guestOrderProblem, venueTerdampakMenu, kelasShiftJam, shiftDate, menuShift, shiftHariItu, omzetPerShift, slotProblem, rateWith, priceWith,
   type Action, type Entry, type Genesis,
 } from "../src/lib/engine";
 import { htmlKertas, kelompokkan } from "../src/lib/cetakDapur";
+import { gandakan, htmlStrukContoh } from "../src/lib/cetak";
 import { htmlRekapPenjualan, htmlDetailTransaksi, seksiRekap, tanggalPanjang } from "../src/lib/strukRekap";
 import type { ProdukHariBaris, BarisTransaksi } from "../src/lib/engine";
 import { businessDateOf, dariWib } from "../src/lib/occupancy";
@@ -637,7 +638,7 @@ console.log("\n-- 10 · Promo per venue (SPL Sport / Smokehouse / kedua venue) -
 {
   console.log("\n-- 17 · Tab tanpa meja: nama wajib, pesanan langsung ke checker, bayar di akhir --");
   const d = dunia();
-  const { kosong } = tabTanpaMeja(d.st(), "smh");
+  const kosong = tabTanpaMeja(d.st(), "smh").kosong[0];
   t("ada slot tab kosong di Smokehouse", kosong?.id, "TH01");
   t("tab tidak tampil di denah/booking", mejaDijual(d.st()).some((x) => x.tanpaMeja), false);
   t("tab tidak ditawarkan sebagai meja cadangan", cadanganMeja(d.st(), "smh").some((x) => x.tanpaMeja), false);
@@ -647,7 +648,7 @@ console.log("\n-- 10 · Promo per venue (SPL Sport / Smokehouse / kedua venue) -
   d.push(jam(14, 1), { t: "walkin", tableId: "TH01", guest: "Pak Andi" });
   const sesi = runningOn(d.st(), "TH01")!;
   t("tab dibuka atas nama orangnya", sesi?.guest, "Pak Andi");
-  t("slot berikutnya bergeser", tabTanpaMeja(d.st(), "smh").kosong?.id, "TH02");
+  t("slot berikutnya bergeser", tabTanpaMeja(d.st(), "smh").kosong[0]?.id, "TH02");
 
   const it = itemOf(d.st(), NASGOR)!;
   d.push(jam(14, 2), { t: "addFnb", sessionId: sesi.id, name: it.name, station: it.station, line: { key: "a", itemId: NASGOR, qty: 1 } });
@@ -663,9 +664,239 @@ console.log("\n-- 10 · Promo per venue (SPL Sport / Smokehouse / kedua venue) -
 
   d.push(jam(16), { t: "settle", id: sesi.id, channel: "cash" });
   t("dibayar di akhir: tab tertutup", d.st().sessions.find((x) => x.id === sesi.id)?.status, "done");
-  t("slot tab kembali kosong", tabTanpaMeja(d.st(), "smh").kosong?.id, "TH01");
+  t("slot tab kembali kosong", tabTanpaMeja(d.st(), "smh").kosong[0]?.id, "TH01");
   d.push(jam(16, 1), { t: "walkin", tableId: "TB01", guest: "Bu Rina", hours: 2 });
   t("tab hanya open bill (tanpa paket jam)", !!runningOn(d.st(), "TB01"), false);
+}
+
+// ── 18. SPLIT BILL TAKEAWAY (PDF pemilik 15 Nov 2026) ──
+{
+  console.log("\n-- 18 · Takeaway dibayar split: beberapa bagian, laporan tetap berimbang --");
+  const d = dunia();
+  const t0 = Math.max(jam(14), TAKEAWAY_BAYAR_DULU + 60_000);
+  d.push(t0, { t: "guestOrder", order: {
+    id: "sp1", code: "SPL-SP1", guest: "Rombongan", mode: "takeaway", venue: "spl", pay: "kasir", paidOnline: 0,
+    lines: [{ key: "sp1-a", itemId: NASGOR, qty: 4 }],
+  } });
+  const nilai = d.st().orders.find((o) => o.id === "sp1")!.value;
+  const separuh = Math.round(nilai / 2);
+  d.push(t0 + 60_000, { t: "settleOrder", id: "sp1", channel: "cash", bagian: [
+    { channel: "cash", amount: separuh }, { channel: "qris_online", amount: separuh - 1 },
+  ] });
+  t("split yang jumlahnya tidak pas DITOLAK", !!d.st().orders.find((o) => o.id === "sp1")!.payment, false);
+  d.push(t0 + 120_000, { t: "settleOrder", id: "sp1", channel: "cash", bagian: [
+    { channel: "cash", amount: separuh }, { channel: "qris_online", amount: nilai - separuh },
+  ] });
+  const o = d.st().orders.find((x) => x.id === "sp1")!;
+  t("split pas: lunas dengan dua bagian", bayarPesanan(o).map((p) => p.channel), ["cash", "qris_online"]);
+  t("setelah lunas: masuk checker", d.st().tickets.some((x) => x.sessionId === "sp1"), true);
+  const r = recap(d.st(), undefined, "spl");
+  t("rekap: tunai & QRIS terpisah", [r.byChannel.cash?.gross, r.byChannel.qris_online?.gross], [separuh, nilai - separuh]);
+  t("rekap: uang berimbang", r.gross, r.diterima + r.prabayar);
+  const sh = shiftDi(d.st(), "spl", t0 + 130_000)!;
+  t("kas laci shift memuat bagian tunainya saja", shiftCashExpected(d.st(), sh) >= separuh, true);
+  d.push(t0 + 180_000, { t: "settleOrder", id: "sp1", channel: "cash" });
+  t("tidak bisa dibayar dua kali", bayarPesanan(d.st().orders.find((x) => x.id === "sp1")!).length, 2);
+}
+
+// ── 19. LAMPU MATI SENDIRI SAAT WAKTU MAIN HABIS (pemilik 15 Nov 2026) ──
+{
+  console.log("\n-- 19 · Paket 1 jam: lampu mati sendiri saat waktunya habis --");
+  const d = dunia();
+  d.push(jam(14), { t: "walkin", tableId: "T05", guest: "Paket", hours: 1 });
+  d.push(jam(14), { t: "walkin", tableId: "T06", guest: "Open bill" });
+  t("paket dibuka → lampu menyala", d.st().lights.T05, true);
+  t("di layar, sebelum habis → masih menyala", tickState(d.st(), jam(14, 59)).lights.T05, true);
+  t("di layar, waktu habis → lampu MATI (tanpa menunggu kejadian)", tickState(d.st(), jam(15, 0)).lights.T05, false);
+  d.push(jam(15, 1), { t: "tick" });
+  t("waktu habis → lampu MATI", d.st().lights.T05, false);
+  t("tab tetap terbuka (bayar tetap di kasir)", runningOn(d.st(), "T05")?.status, "running");
+  t("open bill tidak ikut mati", d.st().lights.T06, true);
+  t("tercatat di jejak", d.st().log.some((x) => /Lampu .* dimatikan otomatis/.test(x.what)), true);
+
+  d.push(jam(15, 2), { t: "toggleLight", tableId: "T05", on: true });
+  d.push(jam(15, 10), { t: "tick" });
+  t("dinyalakan lagi oleh kasir → tidak dimatikan ulang", d.st().lights.T05, true);
+
+  const sesi = runningOn(d.st(), "T05")!;
+  d.push(jam(15, 11), { t: "toggleLight", tableId: "T05", on: false });
+  d.push(jam(15, 12), { t: "extend", id: sesi.id, minutes: 60 });
+  t("diperpanjang sesudah mati → lampu menyala lagi", d.st().lights.T05, true);
+  d.push(jam(16, 1), { t: "tick" });
+  t("jam selesai baru habis → mati lagi", d.st().lights.T05, false);
+}
+
+// ── 20. DUA LEMBAR DI BROWSER TANPA MENGETIK "2" (pemilik 15 Nov 2026) ──
+{
+  console.log("\n-- 20 · Browser: dua salinan = dua halaman dalam satu perintah --");
+  const satu = htmlStrukContoh("POS-80C");
+  const dua = gandakan(satu, 2);
+  t("satu salinan tidak diubah", gandakan(satu, 1), satu);
+  t("dua salinan = dua blok halaman", (dua.match(/class="spl-salinan"/g) ?? []).length, 2);
+  t("tiap salinan berganti halaman", dua.includes("page-break-after:always"), true);
+  t("struk contoh selebar kertas 72 mm", satu.includes("max-width: 72mm"), true);
+}
+
+// ── 21. BAYAR LANGSUNG MEJA PAKET = paket biliar + pesanan (pemilik 15 Nov 2026) ──
+{
+  console.log("\n-- 21 · Bayar langsung meja paket 2 jam: tagihan paket + makanan --");
+  const d = dunia();
+  d.push(jam(14), { t: "walkin", tableId: "T09", guest: "Paket", hours: 2 });
+  const sesi = runningOn(d.st(), "T09")!;
+  const it = itemOf(d.st(), NASGOR)!;
+  d.push(jam(14, 1), { t: "addFnb", sessionId: sesi.id, name: it.name, station: it.station, line: { key: "bl1", itemId: NASGOR, qty: 1 } });
+  t("tanpa bayar di muka: 5 menit pertama paket belum ditagih (toleransi batal)",
+    settlementOf(runningOn(d.st(), "T09")!, d.st(), jam(14, 2)).billiard, 0);
+  const tagih = settlementOf({ ...runningOn(d.st(), "T09")!, bayarDiMuka: true }, d.st(), jam(14, 2));
+  t("bayar langsung: tagihan memuat paket biliar penuh", tagih.billiard, runningOn(d.st(), "T09")!.tableAmount);
+  t("tagihan sekarang memuat makanan", tagih.fnb > 0, true);
+  d.push(jam(14, 2), { t: "paySplit", id: sesi.id, channel: "cash", amount: tagih.due });
+  t("pembayaran paket + makanan diterima mesin", runningOn(d.st(), "T09")?.payments?.[0]?.amount, tagih.due);
+  t("dibayar penuh sekarang → sisa 0", settlementOf(runningOn(d.st(), "T09")!, d.st(), jam(14, 3)).due, 0);
+  t("meja tetap jalan sampai waktunya habis", runningOn(d.st(), "T09")?.status, "running");
+  d.push(jam(15, 0), { t: "settle", id: sesi.id, channel: "cash" });
+  t("ditutup tanpa tagihan lagi", d.st().sessions.find((x) => x.id === sesi.id)?.status, "done");
+}
+
+// ── 22. SPL CHECK OUT tanpa metode (pemilik 16 Nov 2026) ──
+{
+  console.log("\n-- 22 · Check Out SPL dicatat 'Checkout', bukan uang laci --");
+  const d = dunia();
+  d.push(jam(14), { t: "walkin", tableId: "T11", guest: "CO", hours: 1 });
+  const sesi = runningOn(d.st(), "T11")!;
+  const it = itemOf(d.st(), NASGOR)!;
+  d.push(jam(14, 1), { t: "addFnb", sessionId: sesi.id, name: it.name, station: it.station, line: { key: "c1", itemId: NASGOR, qty: 1 } });
+  d.push(jam(14, 30), { t: "settle", id: sesi.id, channel: "checkout" });
+  const st = d.st();
+  const tutup = st.sessions.find((x) => x.id === sesi.id)!;
+  t("Check Out diterima mesin", tutup.status, "done");
+  t("tercatat sebagai Checkout", tutup.settledChannel, "checkout");
+  t("kas laci shift tidak menghitung Checkout", shiftCashExpected(st), 0);
+  const hari = businessDateOf(jam(14));
+  const os = omzetPerShift(st, hari, "spl");
+  t("omzet shift: kolom Checkout terisi", os.semua.checkout, tutup.settledAmount);
+  t("omzet shift: bukan tunai", os.semua.tunai, 0);
+  t("omzet shift: bukan QRIS", os.semua.qris, 0);
+}
+
+// ── 23. AUDIT SPL CHECK OUT: bayar sebagian, gabung bayar, F&B counter (16 Nov 2026) ──
+{
+  console.log("\n-- 23 · Audit Check Out SPL: bayar sebagian · gabung bayar · counter F&B --");
+  const d = dunia();
+  const it = itemOf(d.st(), NASGOR)!;
+  // BAYAR SEBAGIAN dengan Checkout
+  d.push(jam(14), { t: "walkin", tableId: "T12", guest: "Split", hours: 2 });
+  const a1 = runningOn(d.st(), "T12")!;
+  d.push(jam(14, 1), { t: "addFnb", sessionId: a1.id, name: it.name, station: it.station, line: { key: "s1", itemId: NASGOR, qty: 2 } });
+  d.push(jam(14, 2), { t: "paySplit", id: a1.id, channel: "checkout", qty: { s1: 1 } });
+  const bayar1 = runningOn(d.st(), "T12")!.payments ?? [];
+  t("bayar sebagian Checkout diterima", bayar1.length, 1);
+  t("…dicatat kanal checkout", bayar1[0]?.channel, "checkout");
+  d.push(jam(14, 3), { t: "settle", id: a1.id, channel: "checkout" });
+  const tutup1 = d.st().sessions.find((x) => x.id === a1.id)!;
+  t("sisa tagihan ditutup Check Out", tutup1.status, "done");
+  t("total diterima = paket + makanan",
+    (tutup1.settledAmount ?? 0) + bayar1.reduce((n, p) => n + p.amount, 0),
+    (tutup1.settledBilliard ?? 0) + (tutup1.settledFnb ?? 0) - (tutup1.settledDiscount ?? 0));
+
+  // GABUNG BAYAR dengan Checkout
+  d.push(jam(15), { t: "walkin", tableId: "T13", guest: "G1" });
+  d.push(jam(15), { t: "walkin", tableId: "T14", guest: "G2" });
+  const g1 = runningOn(d.st(), "T13")!, g2 = runningOn(d.st(), "T14")!;
+  d.push(jam(15, 1), { t: "gabungMeja", ids: [g1.id, g2.id] });
+  d.push(jam(16), { t: "settle", id: g1.id, channel: "checkout" });
+  d.push(jam(16), { t: "settle", id: g2.id, channel: "checkout" });
+  t("gabung bayar: kedua meja tertutup Checkout",
+    [g1.id, g2.id].map((id) => d.st().sessions.find((x) => x.id === id)?.settledChannel).join(","), "checkout,checkout");
+
+  // F&B COUNTER dengan Check Out
+  const t0 = Math.max(jam(16, 5), TAKEAWAY_BAYAR_DULU + 60_000);
+  d.push(t0, { t: "guestOrder", order: {
+    id: "co1", code: "SPL-CO1", guest: "Counter", mode: "takeaway", venue: "spl", pay: "kasir", paidOnline: 0,
+    lines: [{ key: "co1-a", itemId: NASGOR, qty: 1 }, { key: "co1-b", itemId: TEH, qty: 2 }],
+  } });
+  d.push(t0 + 60_000, { t: "settleOrder", id: "co1", channel: "checkout" });
+  const o = d.st().orders.find((x) => x.id === "co1")!;
+  t("counter F&B: Check Out lunas", o.payment?.channel, "checkout");
+  t("counter F&B: masuk checker sesudah dibayar", d.st().tickets.some((x) => x.sessionId === "co1"), true);
+
+  // LAPORAN: semua uang Checkout tercatat, bukan tunai
+  const st = d.st();
+  const hari = businessDateOf(jam(14));
+  const os = omzetPerShift(st, hari, "spl");
+  const harus = (tutup1.settledAmount ?? 0) + bayar1.reduce((n, p) => n + p.amount, 0)
+    + [g1.id, g2.id].reduce((n, id) => n + (st.sessions.find((x) => x.id === id)?.settledAmount ?? 0), 0)
+    + (o.payment?.amount ?? 0);
+  t("laporan: kolom Checkout = semua uang Check Out", os.semua.checkout, harus);
+  t("laporan: tidak ada yang masuk tunai", os.semua.tunai, 0);
+  t("kas laci shift tidak menghitung Checkout", shiftCashExpected(st), 0);
+  t("rincian transaksi berkanal checkout", os.rincian.every((r) => r.kanal === "checkout"), true);
+}
+
+// ── 24. VICTORY (dulu VVIP): tarif siang & malam (pemilik 16 Nov 2026) ──
+{
+  console.log("\n-- 24 · VICTORY siang & malam --");
+  const d = dunia();
+  const r0 = d.st().rates;
+  t("tanpa tarif malam: malam = siang", rateWith(r0, "vvip", 20), rateWith(r0, "vvip", 13));
+  d.push(jam(12), { t: "setRate", key: "vvip", value: 70_000 });
+  d.push(jam(12, 1), { t: "setRate", key: "vvipNight", value: 90_000 });
+  const r1 = d.st().rates;
+  t("VICTORY siang", rateWith(r1, "vvip", 13), 70_000);
+  t("VICTORY malam (18.00 ke atas)", rateWith(r1, "vvip", 19), 90_000);
+  t("VICTORY lembur lewat tutup = malam", rateWith(r1, "vvip", 27), 90_000);
+  t("VIP tidak berubah", rateWith(r1, "vip", 19), r0.vip);
+  d.push(jam(12, 2), { t: "setRate", key: "vvipNight", value: 0 });
+  t("tarif malam dikosongkan → kembali sama dengan siang", rateWith(d.st().rates, "vvip", 19), 70_000);
+}
+
+// ── 25. HARI OPERASIONAL 06.00, TARIF WEEKEND, 5 MENIT PERTAMA (pemilik 16 Nov 2026) ──
+{
+  console.log("\n-- 25 · Senin 00.00–06.00 masih weekend · harga ganti 06.00 · 5 menit pertama --");
+  const W = (h: number, m = 0, s = 0) => dariWib(2026, 11, 15, h, m) + s * 1000; // 15 Nov 2026 = MINGGU
+  const tarif = { regularDay: 29_000, regularNight: 39_000, vip: 50_000, vvip: 60_000,
+    regularDayWe: 35_000, regularNightWe: 45_000 };
+  // Senin 00.00–06.00 = jam 24–30 hari Minggu → masih tarif WEEKEND malam.
+  const senin = billOpenSession("regular", W(24), W(30), tarif);
+  t("Senin 00.00–06.00: 6 jam tarif weekend malam", senin.amount, 6 * 45_000);
+  t("Senin 00.00–06.00: semua segmen weekend", senin.segments.every((x) => x.ratePerHour === 45_000), true);
+  // Senin 05.00–07.00: jam 05–06 weekend, 06–07 sudah hari Senin (weekday).
+  const lintas = billOpenSession("regular", W(29), W(31), tarif);
+  t("lintas 06.00: jam sebelum 06.00 weekend", lintas.segments[0]?.ratePerHour, 45_000);
+  t("lintas 06.00: jam sesudah 06.00 weekday", lintas.segments[1]?.ratePerHour, 39_000);
+  // Paket / booking per jam yang melewati 06.00 juga ganti harga di 06.00.
+  t("blok jam lintas 06.00 (Minggu 05.00, 2 jam)", priceWith(tarif, "regular", 29, 2, 0), 45_000 + 39_000);
+  t("blok jam Senin 01.00–03.00 = weekend", priceWith(tarif, "regular", 25, 2, 0), 2 * 45_000);
+  // Pembukuan harian: Senin 05.59 masih buku hari Minggu, 06.00 sudah buku Senin.
+  t("Senin 05.59 masih buku Minggu", businessDateOf(W(29, 59)), "2026-11-15");
+  t("Senin 06.00 sudah buku Senin", businessDateOf(W(30)), "2026-11-16");
+  t("hari tarif Senin 05.59 = Minggu", businessDow(W(29, 59)), 0);
+  // 5 menit pertama
+  const lima = billOpenSession("regular", W(20), W(20, 5), tarif);
+  t("main tepat 5 menit: tidak ditagih", lima.amount, 0);
+  const lewat = billOpenSession("regular", W(20), W(20, 5, 1), tarif);
+  t("lewat 5 menit 1 detik: langsung 30 menit", lewat.billedMinutes, 30);
+  t("…dihitung dari menit 0: setengah jam penuh (dibulatkan ke atas Rp 1.000)", lewat.amount, Math.ceil(45_000 / 2 / 1000) * 1000);
+  t("…segmen mulai dari jam mulai main, bukan menit ke-6", lewat.segments[0]?.minutes, 30);
+  const empatPuluh = billOpenSession("regular", W(20), W(20, 40), tarif);
+  t("main 40 menit: ditagih 40 menit dari menit 0", empatPuluh.amount, Math.ceil((45_000 * 40) / 60 / 1000) * 1000);
+}
+
+// ── 26. PAKET BATAS 14.00: MULAI 13.50 MASIH BOLEH (pemilik 16 Nov 2026) ──
+{
+  console.log("\n-- 26 · Paket berlaku sampai 14.00: check-in 13.50 masih bisa --");
+  const d = dunia();
+  d.push(jam(11, 30), { t: "savePaket", paket: {
+    name: "Paket Siang Uji", price: 50_000, hours: 2, freeDrinks: 0, jamMulai: 11, jamSelesai: 14,
+  } as never });
+  const pk = d.st().packages.find((x) => x.name === "Paket Siang Uji")!;
+  t("paket tersimpan", !!pk, true);
+  d.push(jam(13, 50), { t: "walkin", tableId: "T15", guest: "Jam 13.50", paketId: pk.id });
+  const sesi = runningOn(d.st(), "T15");
+  t("mulai 13.50: paket DITERIMA", sesi?.paket, pk.id);
+  t("…main 2 jam sampai 15.50 (boleh lewat 14.00)", sesi ? sesi.endsAt - sesi.startsAt : 0, 2 * 3_600_000);
+  d.push(jam(14, 0), { t: "walkin", tableId: "T16", guest: "Jam 14.00", paketId: pk.id });
+  t("mulai 14.00: sudah lewat batas → ditolak", runningOn(d.st(), "T16")?.paket, undefined);
 }
 
 console.log(`\n${total - bad}/${total} lulus`);

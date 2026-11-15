@@ -24,7 +24,8 @@ contextBridge.exposeInMainWorld("splCetak", {
    */
   cetak: (printer) => ipcRenderer.invoke("spl:cetak", printer ?? ""),
   /** Cetak kertas dapur ke printer tertentu tanpa menyentuh layar. */
-  cetakHtml: (html, printer) => ipcRenderer.invoke("spl:cetak-html", html, printer),
+  /** `opsi.pas` (1.3.1): kertas setinggi isinya, supaya struk pendek & langsung terpotong. */
+  cetakHtml: (html, printer, opsi) => ipcRenderer.invoke("spl:cetak-html", html, printer, opsi),
 });
 
 /**

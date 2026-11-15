@@ -26,7 +26,7 @@ const STATION_LABEL: Record<string, string> = {
 };
 
 const KANAL_LABEL: Record<KanalProduk, string> = {
-  tunai: "Tunai", qris: "QRIS", edc: "Kartu / EDC",
+  tunai: "Tunai", qris: "QRIS", edc: "Kartu / EDC", checkout: "Checkout",
   prabayar: "Prabayar online", lain: "Tidak tercatat",
 };
 
@@ -72,14 +72,14 @@ export default function LaporanProduk({ dari, sampai, venue }: {
       ["Rentang", judulRentang],
       ["Venue", venue === "smh" ? "Smokehouse" : venue === "spl" ? "SPL Sport" : "Gabungan"],
       [],
-      ["Barang", "Tempat", "Qty", "Total", "Tunai", "QRIS", "EDC", "Prabayar", "Tidak tercatat", "Compliment"],
+      ["Barang", "Tempat", "Qty", "Total", "Tunai", "QRIS", "EDC", "Checkout", "Prabayar", "Tidak tercatat", "Compliment"],
       ...baris.map((b) => [
         b.nama, STATION_LABEL[b.station] ?? b.station, b.qty, b.total,
-        b.tunai, b.qris, b.edc, b.prabayar, b.lain, b.comp,
+        b.tunai, b.qris, b.edc, b.checkout, b.prabayar, b.lain, b.comp,
       ]),
       [],
       ["", "JUMLAH", qtyTampil, baris.reduce((n, b) => n + b.total, 0),
-        lap.perKanal.tunai, lap.perKanal.qris, lap.perKanal.edc,
+        lap.perKanal.tunai, lap.perKanal.qris, lap.perKanal.edc, lap.perKanal.checkout,
         lap.perKanal.prabayar, lap.perKanal.lain, lap.comp],
     ];
     if (lap.hariTanpaRincian.length) {
@@ -172,6 +172,7 @@ export default function LaporanProduk({ dari, sampai, venue }: {
                   <th className="px-2 py-2 text-right font-bold">Tunai</th>
                   <th className="px-2 py-2 text-right font-bold">QRIS</th>
                   <th className="px-2 py-2 text-right font-bold">EDC</th>
+                  <th className="px-2 py-2 text-right font-bold">Checkout</th>
                   <th className="px-3 py-2 text-right font-bold">Total</th>
                 </tr>
               </thead>
@@ -194,6 +195,7 @@ export default function LaporanProduk({ dari, sampai, venue }: {
                     <td className="px-2 py-1.5 text-right tabular-nums text-cream">{b.tunai > 0 ? rupiah(b.tunai) : "—"}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums text-mute">{b.qris > 0 ? rupiah(b.qris) : "—"}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums text-mute">{b.edc > 0 ? rupiah(b.edc) : "—"}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-mute">{b.checkout > 0 ? rupiah(b.checkout) : "—"}</td>
                     <td className="px-3 py-1.5 text-right font-semibold tabular-nums text-cream">{rupiah(b.total)}</td>
                   </tr>
                 ))}
@@ -205,6 +207,7 @@ export default function LaporanProduk({ dari, sampai, venue }: {
                   <td className="px-2 py-2 text-right tabular-nums text-dim">{rupiah(baris.reduce((n, b) => n + b.tunai, 0))}</td>
                   <td className="px-2 py-2 text-right tabular-nums text-dim">{rupiah(baris.reduce((n, b) => n + b.qris, 0))}</td>
                   <td className="px-2 py-2 text-right tabular-nums text-dim">{rupiah(baris.reduce((n, b) => n + b.edc, 0))}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-dim">{rupiah(baris.reduce((n, b) => n + b.checkout, 0))}</td>
                   <td className="px-3 py-2 text-right font-bold tabular-nums text-amber">{rupiah(totalTampil)}</td>
                 </tr>
               </tbody>

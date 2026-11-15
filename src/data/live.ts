@@ -8,7 +8,12 @@ import { TABLES, SEMUA_MEJA, type Rates, type TableType } from "./venue";
 /** noshow = booking online yang tidak datang; dilepas otomatis, prabayarnya tetap pendapatan.
  *  hold   = slot ditahan selama pelanggan membayar QRIS (PRD KK-04: 15/17/19 menit). */
 export type LiveStatus = "hold" | "booked" | "running" | "done" | "maintenance" | "noshow";
-export type PayChannel = "qris_online" | "cash" | "edc";
+/**
+ * Cara bayar. `checkout` (pemilik 16 Nov 2026, khusus SPL): kasir hanya menekan
+ * CHECK OUT tanpa memilih tunai/QRIS/EDC — dicatat "Checkout" tanpa metode,
+ * dan TIDAK dihitung sebagai uang laci shift (setoran dicocokkan manual).
+ */
+export type PayChannel = "qris_online" | "cash" | "edc" | "checkout";
 
 /** Satu kali bayar SEBAGIAN di kasir (split bill / bayar per orang).
  *  Sisanya tetap di bill meja sampai tab ditutup. */
@@ -120,6 +125,11 @@ export type LiveSession = {
   pax?: number;
   /** Buka meja PAKET PER JAM (bukan meteran): lama blok yang dibeli tamu di kasir. */
   blockHours?: number;
+  /** Jam selesai (endsAt) yang lampunya SUDAH dimatikan otomatis karena waktunya habis.
+   *  Dicatat supaya lampu yang dinyalakan lagi oleh kasir sesudahnya tidak dimatikan ulang. */
+  lampuMatiUntuk?: number;
+  /** Paket per jam yang DIBAYAR DI MUKA (bayar langsung): toleransi batal 5 menit tidak berlaku lagi. */
+  bayarDiMuka?: true;
   /** Booking: kapan mejanya benar-benar siap setelah jam mulai (bookingnya dipindah meja, atau
    *  sesi yang menghalanginya dipindah/di-void). Hitungan 20 menit no-show dimulai dari sini. */
   readyAt?: number;

@@ -2,13 +2,17 @@ import { useState } from "react";
 import { KonfirmasiBayar } from "./KonfirmasiBayar";
 import { QrisKasir } from "./QrisKasir";
 import { LayarCounter } from "./PesanTanpaMeja";
-import DaftarTakeaway from "./DaftarTakeaway";
+import DaftarTakeaway, { bayarTakeaway } from "./DaftarTakeaway";
+import DialogBayar from "./DialogBayar";
 import PanelStruk from "./PanelStruk";
+import { TableSheet } from "./Board";
+import { infoMain } from "./StrukResmi";
+import { useCetakPesanan } from "./CetakPesanan";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../components/UI";
 import { shiftDi,
   useAdmin, settlementOf, checkinProblem, restoreProblem, businessDateOf, bookingLapsed, unservedLinesOf, lineValue,
-  classOf, sessionType, meterEndOf, splitPaidOf, mesinEdc, mejaDijual, cariMeja,
+  classOf, sessionType, meterEndOf, splitPaidOf, mesinEdc, mejaDijual, cariMeja, bayarPesanan, sesiBerwaktu,
   type GuestOrder, type State,
 } from "../../lib/adminStore";
 import { VOID_REASONS } from "../../data/staff";
@@ -19,7 +23,7 @@ import { rupiah } from "../../lib/core";
 import type { LiveSession } from "../../data/live";
 import { Countdown, Elapsed, jam } from "./AdminShell";
 import ClashAlert from "./ClashAlert";
-import { JudulBagian, Kelompok, KepalaHalaman, TombolAksi } from "./Tata";
+import { JudulBagian, Kelompok, KepalaHalaman, TombolAksi, useLayarLebar } from "./Tata";
 
 /** Hasil void dibaca dari data sesudah aksi: berlaku, menunggu superadmin, atau ditolak mesin. */
 function voidOutcome(before: State, after: State, what: string, refund: boolean) {
@@ -48,6 +52,14 @@ export default function Kasir() {
     try { const v = localStorage.getItem(KUNCI_TAB); return v === "meja" || v === "pesanan" ? v : "booking"; }
     catch { return "booking"; }
   });
+  /** Layar komputer: panel Pesanan tetap di kanan, jadi tab "Pesanan" tidak perlu. */
+  const lebar = useLayarLebar(1180);
+  const tabPakai: TabKasir = tab;
+  /** Meja yang panel bayarnya dibuka dari kolom Billiard. */
+  const [bukaMeja, setBukaMeja] = useState<string | null>(null);
+  const [bayarHp, setBayarHp] = useState<string | null>(null);
+  /** SPL: Check Out pesanan → bill 2 rangkap + CO makanan 2 + CO minuman 2. */
+  const { cetak: cetakPesanan, elemen: lembarPesanan } = useCetakPesanan((t) => flash(t));
   const pilihTab = (t: TabKasir) => { setTab(t); try { localStorage.setItem(KUNCI_TAB, t); } catch { /* mode privat */ } };
 
   const now = Date.now();
@@ -76,7 +88,10 @@ export default function Kasir() {
   const orders = a.orders
     .filter((o) => businessDateOf(o.at) === today
       && (o.tableId ? diVenue(o.tableId) : (o.venue ?? "spl") === venue))
-    .slice(0, 20);
+    // F&B: yang belum dibayar di atas, lalu yang terbaru (arahan pemilik).
+    .sort((x, y) => Number(!!(x.payment || x.paidOnline >= x.value || x.sessionId || x.status !== "diterima"))
+      - Number(!!(y.payment || y.paidOnline >= y.value || y.sessionId || y.status !== "diterima")) || y.at - x.at)
+    .slice(0, 30);
   // Dana yang belum dikembalikan, ikut venue lewat kode booking/pesanannya.
   // Yang tidak bisa dipetakan tetap tampil — lebih baik terlihat di dua venue daripada hilang.
   const venueRefund = (kode: string) => {
@@ -94,6 +109,23 @@ export default function Kasir() {
   const running = a.sessions
     .filter((s) => s.status === "running" && diVenue(s.tableId))
     .sort((x, y) => x.endsAt - y.endsAt);
+
+  /*
+   * BILLIARD: bill meja hari ini, yang sudah & belum bayar (arahan pemilik).
+   * Urutan: belum bayar dulu — yang WAKTUNYA HABIS paling atas (paket habis /
+   * open bill berhenti: lampunya mati sendiri dan bill-nya "pindah" ke sini
+   * untuk ditagih) — lalu yang terbaru; sesudahnya yang sudah lunas.
+   */
+  const waktuHabis = (s: LiveSession) => s.status === "running" && (
+    (sesiBerwaktu(s) && now >= s.endsAt) || (!sesiBerwaktu(s) && meterEndOf(s, now, a) < now - 60_000));
+  const mejaHariIni = a.sessions
+    .filter((s) => diVenue(s.tableId) && (s.status === "running"
+      || (s.status === "done" && businessDateOf(s.settledAt ?? s.endsAt) === today)))
+    .sort((x, y) => {
+      const r = (s: LiveSession) => (s.status !== "running" ? 2 : waktuHabis(s) ? 0 : 1);
+      return r(x) - r(y) || (r(x) === 2 ? (y.settledAt ?? y.endsAt) - (x.settledAt ?? x.endsAt) : y.startsAt - x.startsAt);
+    });
+  const kanalLabel = (c?: string) => (c === "cash" ? "Tunai" : c === "edc" ? "EDC" : c === "qris_online" ? "QRIS" : c === "checkout" ? "Checkout" : "online");
 
   const nameOf = (id?: string) => (id ? cariMeja(id)?.name : undefined) ?? "—";
   const label = (id: string) => {
@@ -188,10 +220,120 @@ export default function Kasir() {
     pesanan: orders.length + takeawayBelumBayar.length,
   };
   const adaTindakan = tabTertinggal.length > 0 || lapsed.length > 0 || lateGuests.length > 0
-    || takeawayBelumBayar.length > 0 || (allow("lihatLaporanKeuangan") && openRefunds.length > 0);
+    || (takeawayBelumBayar.length > 0 && !lebar) || (allow("lihatLaporanKeuangan") && openRefunds.length > 0);
+
+  /*
+   * PANEL PESANAN (PDF pemilik 15 Nov 2026): di layar komputer selalu tampil
+   * di KANAN — untuk mencocokkan pesanan yang belum dibayar dan cara bayarnya.
+   * Tabelnya: keterangan pesanan · qty · status pembayaran · tombol Bayar
+   * (aktif hanya kalau masih bisa dibayar di kasir).
+   */
+  const statusBayar = (o: GuestOrder): { teks: string; nada: string } => {
+    if (o.status === "void") return { teks: "dibatalkan (void)", nada: "text-red-300" };
+    if (o.status !== "diterima") return { teks: `ditolak: ${o.reason ?? ""}`, nada: "text-red-300" };
+    if (o.paidOnline > 0 && o.paidOnline >= o.value) return { teks: "lunas online", nada: "text-emerald-300" };
+    const bagian = bayarPesanan(o);
+    if (bagian.length) {
+      const nama = (c: string) => (c === "cash" ? "tunai" : c === "edc" ? "EDC" : c === "checkout" ? "checkout" : "QRIS");
+      return { teks: `lunas · ${bagian.map((p) => nama(p.channel)).join(" + ")}`, nada: "text-emerald-300" };
+    }
+    if (o.sessionId) return { teks: `ditagih di meja ${nameOf(o.tableId)}`, nada: "text-sky-300" };
+    return { teks: o.menungguBayar ? "belum dibayar · tahan checker" : "belum dibayar", nada: "text-amber" };
+  };
+  const bisaDibayar = (o: GuestOrder) => o.status === "diterima" && !o.sessionId && !o.payment && o.value - o.paidOnline > 0;
+
+  const panelPesanan = (
+    <div className="space-y-5">
+      <DaftarTakeaway venue={venue} onKabar={flash} />
+
+      <section>
+        <JudulBagian judul="Pesanan dari HP & counter" jumlah={orders.length}
+          aksi={pesananBaru.length > 0 && <span className="rounded-full bg-amber px-2 py-0.5 text-[10px] font-bold text-ink">{pesananBaru.length} baru</span>} />
+        {orders.length === 0 ? (
+          <Empty text="Belum ada pesanan dari QR meja atau takeaway hari ini." />
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-line bg-ink-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_36px_minmax(0,0.9fr)_84px] gap-2 border-b border-line bg-ink px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-dim">
+              <span>Keterangan pesanan</span><span className="text-center">Qty</span><span>Status pembayaran</span><span className="text-right">Bayar</span>
+            </div>
+            <div className="divide-y divide-line">
+              {orders.map((o) => {
+                const open = o.status === "diterima" ? unservedLinesOf(a, o) : [];
+                const tabJalan = !o.sessionId || a.sessions.find((x) => x.id === o.sessionId)?.status === "running";
+                const bisaVoid = open.length > 0 && tabJalan && allow("ajukanVoid");
+                const baru = pesananBaru.some((x) => x.id === o.id);
+                const st = statusBayar(o);
+                const aktif = bisaDibayar(o) && allow("tutupTab");
+                return (
+                  <div key={o.id} className={baru ? "bg-amber/8" : ""}>
+                    <div className="grid grid-cols-[minmax(0,1fr)_36px_minmax(0,0.9fr)_84px] items-center gap-2 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-[12px] text-cream">
+                          {baru && <span className="mr-1 rounded bg-amber px-1 text-[9px] font-bold text-ink">BARU</span>}
+                          {o.mode === "takeaway" ? "Takeaway" : `QR ${nameOf(o.tableId)}`} · {o.guest}
+                        </div>
+                        <div className="truncate text-[10px] text-dim">
+                          {jam(o.at)} · <span className="font-mono">{o.code}</span> · {rupiah(o.status === "diterima" ? o.value : o.paidOnline)}
+                          {bisaVoid && voidFor !== o.id && (
+                            <button onClick={() => setVoidFor(o.id)} className="ml-1.5 text-red-300 underline underline-offset-2">void</button>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-center font-serif text-[13px] tabular-nums text-cream">{o.lines.reduce((n, l) => n + l.qty, 0)}</span>
+                      <span className={`text-[11px] font-semibold leading-tight ${st.nada}`}>{st.teks}</span>
+                      <button disabled={!aktif} onClick={() => setBayarHp(bayarHp === o.id ? null : o.id)}
+                        className={`min-h-[34px] rounded-lg text-[12px] font-bold ${aktif
+                          ? "bg-amber text-ink hover:bg-amber-deep" : "border border-line text-dim opacity-60"}`}>
+                        {aktif ? (bayarHp === o.id ? "Tutup" : "Bayar") : bayarPesanan(o).length || o.paidOnline >= o.value && o.value > 0 ? "Lunas" : "—"}
+                      </button>
+                    </div>
+                    {aktif && bayarHp === o.id && (
+                      <div className="px-3 pb-3">
+                        <DialogBayar total={o.value - o.paidOnline} kode={o.code} ringkas={`Pesanan ${o.code}`} hanyaCheckout={venue === "spl"}
+                          onBatal={() => setBayarHp(null)}
+                          onSelesai={(bagian) => {
+                            const galat = bayarTakeaway(dispatchA, peek, o.id, bagian);
+                            if (!galat) {
+                              setBayarHp(null); flash(`${o.code} lunas ${rupiah(o.value)}${bagian.length > 1 ? ` · split ${bagian.length}×` : ""}.`);
+                              if (venue === "spl") void cetakPesanan(o.id);
+                            }
+                            return galat;
+                          }} />
+                      </div>
+                    )}
+                    {bisaVoid && voidFor === o.id && (
+                      <div className="mx-3 mb-2 rounded-lg border border-red-500/30 bg-red-500/5 p-2">
+                        <div className="text-[11px] text-red-200/90">
+                          Void {open.length === o.lines.length ? "seluruh pesanan" : `${open.length} baris yang belum diserahkan`}
+                          {" "}({rupiah(open.reduce((n, l) => n + lineValue(l), 0))})
+                          {o.pay === "online" ? " — dana dicatat untuk dikembalikan." : " — tagihan di bill ikut berkurang."}
+                          {" "}Pilih alasan:
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {VOID_REASONS.map((r) => (
+                            <button key={r} onClick={() => voidOrder(o, r)}
+                              className="min-h-[34px] rounded-lg border border-line bg-ink px-2.5 text-[12px] text-cream">{r}</button>
+                          ))}
+                          <button onClick={() => setVoidFor(null)} className="min-h-[34px] px-2 text-[12px] text-dim">Batal</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
+          Tombol Bayar aktif hanya untuk pesanan tanpa meja yang belum dibayar; pesanan QR meja ditagih saat
+          tab mejanya ditutup. Bayar bisa split: beberapa pembayaran dengan metode berbeda.
+        </p>
+      </section>
+    </div>
+  );
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="min-w-0 space-y-5 pb-6">
       <ClashAlert />
 
       {/* ── KEPALA KASIR (susunan ulang 14 Nov 2026): venue, shift, aksi ── */}
@@ -238,7 +380,7 @@ export default function Kasir() {
       {/* ── PERLU TINDAKAN: hanya muncul kalau ada yang harus diurus ── */}
       {adaTindakan && (
         <Kelompok judul="Perlu tindakan" ket="Urus ini lebih dulu." nada="merah">
-      {takeawayBelumBayar.length > 0 && (
+      {takeawayBelumBayar.length > 0 && !lebar && (
         <button onClick={() => pilihTab("pesanan")}
           className="flex w-full items-center justify-between gap-3 rounded-xl border border-amber/50 bg-amber/10 px-3 py-2.5 text-left">
           <span className="text-[13px] text-amber">
@@ -383,30 +525,35 @@ export default function Kasir() {
       </section>
 
 
-      {/* ── TAB: satu urusan per layar, tidak lagi semua ditumpuk ── */}
+      {/* ── TIGA PANEL (arahan pemilik, PDF 15 Nov 2026): KASIR hanya berisi
+          BOOKING | BILLIARD | F&B — tempat pembayaran untuk yang belum bayar di
+          awal. Layar komputer: tiga kolom berdampingan. Layar sempit: tab. ── */}
+      {!lebar && (
       <div className="sticky top-[104px] z-20 -mx-4 border-b border-line bg-ink/95 px-4 py-2 backdrop-blur-md">
         <div className="flex gap-1 rounded-xl border border-line bg-ink p-1" role="tablist" aria-label="Bagian kasir">
           {([
             ["booking", "Booking"],
-            ["meja", venue === "smh" ? "Meja terisi" : "Meja jalan"],
-            ["pesanan", "Pesanan"],
+            ["meja", venue === "smh" ? "Meja" : "Billiard"],
+            ["pesanan", "F&B"],
           ] as const).map(([k, l]) => (
-            <button key={k} role="tab" aria-selected={tab === k} onClick={() => pilihTab(k)}
+            <button key={k} role="tab" aria-selected={tabPakai === k} onClick={() => pilihTab(k)}
               className={`flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-[13px] font-semibold ${
-                tab === k ? "bg-amber text-ink" : "text-mute hover:text-cream"
+                tabPakai === k ? "bg-amber text-ink" : "text-mute hover:text-cream"
               }`}>
               {l}
               <span className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${
-                tab === k ? "bg-ink/20"
+                tabPakai === k ? "bg-ink/20"
                   : k === "pesanan" && (pesananBaru.length || takeawayBelumBayar.length) ? "bg-amber text-ink" : "bg-ink-2"
               }`}>{jumlahTab[k]}</span>
             </button>
           ))}
         </div>
       </div>
+      )}
 
-      {tab === "booking" && (
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className={lebar ? "grid items-start gap-4 lg:grid-cols-3" : ""}>
+      {(lebar || tabPakai === "booking") && (
+        <KolomKasir judul="Booking" jumlah={pending.length + holds.length} warna="booking" lebar={lebar}>
           <div className="min-w-0 space-y-6">
       {/* ── Akan datang (hari operasional ini) ───────────── */}
       <section>
@@ -516,186 +663,93 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
         Tamu yang datang terlambat setelah dilepas muncul di "Perlu tindakan".
       </p>
           </div>
-        </div>
+        </KolomKasir>
       )}
 
-      {tab === "meja" && (
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <div className="min-w-0">
-      {/* ── Sedang jalan, urut paling cepat habis ────────── */}
-      <section>
-        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
-          {venue === "smh" ? "Meja terisi" : "Sedang main"} · {running.length}
-        </h2>
-        {running.length === 0 ? (
-          <Empty text={venue === "smh" ? "Belum ada meja yang terisi." : "Belum ada meja yang jalan."} />
-        ) : (
-          <div className="space-y-2">
-            {running.map((s) => {
-              const t = label(s.tableId);
-              const left = s.endsAt - now;
-              const warn = s.source === "online" && left <= 10 * 60000;
-              return (
-                <motion.div
-                  key={s.id} layout
-                  className={`flex items-center gap-3 rounded-xl border p-3 ${
-                    warn ? "border-red-500/50 bg-red-500/8" : "border-line bg-ink-2"
-                  }`}
-                >
-                  <div className="w-12 shrink-0 text-center">
-                    <div className="font-display text-lg leading-none text-cream">{t.no}</div>
-                    <div className="text-[9px] uppercase text-dim">{t.type}</div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-cream">{s.guest}</div>
-                    <div className="text-[11px] text-dim">
-                      {s.source === "online" ? "Booking online" : "Open bill · meteran jalan"}
-                      {s.paidOnline > 0 && " · ada yang sudah dibayar online"}
-                    </div>
-                  </div>
-                  <div className="text-right text-[13px] font-semibold">
-                    {s.source === "walkin" && !s.blockHours
-                      ? <Elapsed since={s.startsAt} />
-                      : <Countdown endsAt={s.endsAt} />}
-                    <div className="text-[11px] font-normal text-amber">
-                      {rupiah(settlementOf(s, a).due)}
-                      {splitPaidOf(s) > 0 && (
-                        <span className="ml-1 text-[10px] text-emerald-400">+{rupiah(splitPaidOf(s))} dibayar</span>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-        <p className="mt-2 text-[11px] leading-relaxed text-dim">
-          Yang paling cepat habis ada di atas. Meja dengan sisa ≤ 10 menit ditandai merah —
-          itu tanda untuk menawarkan perpanjangan sebelum slot berikutnya datang.
-        </p>
-      </section>
-
-          </div>
-          <div className="min-w-0">
-      {/* ── Ringkas: meja kosong siap dipakai ────────────── */}
-      <section>
-        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-cream before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:bg-amber before:content-['']">
-          Meja kosong
-        </h2>
-        <div className="flex flex-wrap gap-1.5">
-          {/* Ikut venue, seperti seluruh daftar lain di layar ini. Tanpa ini
-              kasir Smokehouse membaca deretan "1 2 3 … 27" — nomor meja
-              biliar — sebagai meja makannya yang kosong. */}
-          {mejaDijual(a).filter((t) => diVenue(t.id) && !byTable.get(t.id)).map((t) => (
-            <span
-              key={t.id}
-              className="rounded-lg border border-emerald-500/40 bg-emerald-500/8 px-2.5 py-1
-                text-[13px] font-semibold text-emerald-300"
-            >{classOf(a, t.id) === "resto" ? t.name
-              : classOf(a, t.id) === "regular" ? t.no
-                : `${CLASS_SHORT[classOf(a, t.id)]} ${t.no}`}</span>
-          ))}
-        </div>
-      </section>
-          </div>
-        </div>
-      )}
-
-      {tab === "pesanan" && (
-        <div className="space-y-6">
-      {/* ── Takeaway menunggu diambil & dibayar — komponen yang SAMA dengan layar Counter ── */}
-      <DaftarTakeaway venue={venue} onKabar={flash} />
-
-      {/* ── Pesanan dari HP tamu ─────────────────────────── */}
-      <section>
-        <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-cream before:bg-amber">
-          Pesanan dari HP · {orders.length}
-          {pesananBaru.length > 0 && (
-            <span className="rounded-full bg-amber px-2 py-0.5 text-[10px] font-bold text-ink">
-              {pesananBaru.length} baru
-            </span>
-          )}
-        </h2>
-        {orders.length === 0 ? (
-          <Empty text="Belum ada pesanan dari QR meja atau takeaway hari ini." />
-        ) : (
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
-            {orders.map((o) => {
-              // Tiket dicocokkan lewat kunci baris pesanan — bukan jam pesan, yang bisa kembar.
-              const tk = a.tickets.filter((t) => t.sessionId === (o.sessionId ?? o.id) && o.lines.some((l) => l.key === t.lineKey));
-              const served = tk.filter((t) => t.status === "served").length;
-              const open = o.status === "diterima" ? unservedLinesOf(a, o) : [];
-              const tabJalan = !o.sessionId || a.sessions.find((x) => x.id === o.sessionId)?.status === "running";
-              const bisaVoid = open.length > 0 && tabJalan && allow("ajukanVoid");
-              const baru = pesananBaru.some((x) => x.id === o.id);
-              return (
-                <div key={o.id} className={`px-3 py-2.5 ${baru ? "bg-amber/8" : ""}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-[13px] text-cream">
-                        {baru && <span className="mr-1.5 rounded bg-amber px-1.5 text-[10px] font-bold text-ink">BARU</span>}
-                        {o.mode === "takeaway" ? "Takeaway" : `QR ${nameOf(o.tableId)}`} · {o.guest}
+      {(lebar || tabPakai === "meja") && (
+        <KolomKasir judul={venue === "smh" ? "Meja" : "Billiard"} jumlah={mejaHariIni.filter((x) => x.status === "running").length}
+          warna="billiard" lebar={lebar}>
+          {mejaHariIni.length === 0 ? (
+            <Empty text={venue === "smh" ? "Belum ada bill meja hari ini." : "Belum ada bill meja biliar hari ini."} />
+          ) : (
+            <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
+              {mejaHariIni.map((s) => {
+                const t = label(s.tableId);
+                const jalan = s.status === "running";
+                const habis = waktuHabis(s);
+                const info = infoMain(a, s, venue, !!cariMeja(s.tableId)?.tanpaMeja, now);
+                const nilai = jalan ? settlementOf(s, a).due
+                  : s.settledAmount ?? (s.settledBilliard ?? 0) + (s.settledFnb ?? 0) - (s.settledDiscount ?? 0);
+                return (
+                  <div key={s.id} className={`flex items-center gap-2.5 px-3 py-2.5 ${habis ? "bg-red-500/10" : ""}`}>
+                    <div className="w-11 shrink-0 text-center">
+                      <div className="font-display text-lg leading-none text-cream">
+                        {cariMeja(s.tableId)?.tanpaMeja ? "—" : t.no}
                       </div>
-                      <div className="text-[11px] text-dim">
-                        {jam(o.at)} · {o.code} ·{" "}
-                        {o.paidOnline > 0 ? "lunas online"
-                          : o.payment ? `lunas di kasir (${o.payment.channel === "cash" ? "tunai" : o.payment.channel === "edc" ? "kartu" : "QRIS"})`
-                            : o.sessionId ? "masuk bill meja" : "belum dibayar"}
-                        {o.status === "diterima" && tk.length > 0 && ` · ${served}/${tk.length} diantar`}
+                      <div className="text-[9px] uppercase text-dim">{cariMeja(s.tableId)?.tanpaMeja ? "tab" : t.type}</div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-semibold text-cream">{s.guest}</div>
+                      <div className="truncate text-[11px] text-dim">
+                        {info.jenis === "billiard" ? info.paket : "F&B"} · {jam(s.startsAt)}{sesiBerwaktu(s) ? `–${jam(s.endsAt)}` : ""}
+                        {jalan && (s.source === "walkin" && !s.blockHours
+                          ? <> · <Elapsed since={s.startsAt} /></> : !habis && <> · sisa <Countdown endsAt={s.endsAt} /></>)}
                       </div>
-                      {o.status !== "diterima" && (
-                        <div className="text-[11px] text-red-300">
-                          {o.status === "void" ? "Dibatalkan (void)" : `Ditolak: ${o.reason}`}
-                        </div>
-                      )}
+                      <div className={`text-[11px] font-semibold ${habis && nilai > 0 ? "text-red-300" : jalan && nilai > 0 ? "text-sky-300" : "text-emerald-300"}`}>
+                        {!jalan ? `Lunas · ${kanalLabel(s.settledChannel)}`
+                          : nilai <= 0 ? (habis ? "Lunas online · waktu habis, tutup meja" : "Lunas online · sedang main")
+                            : habis ? "Waktu habis · tagih sekarang" : "Belum bayar"}
+                      </div>
                     </div>
                     <div className="shrink-0 text-right">
-                      <div className="font-serif text-[13px] tabular-nums text-cream">
-                        {rupiah(o.status === "diterima" ? o.value : o.paidOnline)}
-                      </div>
-                      {bisaVoid && voidFor !== o.id && (
-                        <button
-                          onClick={() => setVoidFor(o.id)}
-                          className="mt-0.5 min-h-[32px] text-[11px] text-red-300 underline underline-offset-2">
-                          void
-                        </button>
-                      )}
+                      <div className={`font-serif text-[13px] tabular-nums ${jalan ? "text-amber" : "text-mute"}`}>{rupiah(nilai)}</div>
+                      <button disabled={!jalan || !allow("tutupTab")} onClick={() => setBukaMeja(s.tableId)}
+                        className={`mt-1 min-h-[32px] w-[72px] rounded-lg text-[12px] font-bold ${jalan && allow("tutupTab")
+                          ? habis ? "bg-red-500 text-white hover:bg-red-400" : "bg-amber text-ink hover:bg-amber-deep"
+                          : "border border-line text-dim opacity-60"}`}>
+                        {!jalan ? "Lunas" : nilai <= 0 ? "Tutup" : "Bayar"}
+                      </button>
                     </div>
                   </div>
-                  {bisaVoid && voidFor === o.id && (
-                    <div className="mt-2 rounded-lg border border-red-500/30 bg-red-500/5 p-2">
-                      <div className="text-[11px] text-red-200/90">
-                        Void {open.length === o.lines.length ? "seluruh pesanan" : `${open.length} baris yang belum diserahkan`}
-                        {" "}({rupiah(open.reduce((n, l) => n + lineValue(l), 0))})
-                        {o.pay === "online" ? " — dana dicatat untuk dikembalikan." : " — tagihan di bill ikut berkurang."}
-                        {" "}Pilih alasan:
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                        {VOID_REASONS.map((r) => (
-                          <button key={r} onClick={() => voidOrder(o, r)}
-                            className="min-h-[34px] rounded-lg border border-line bg-ink px-2.5 text-[12px] text-cream">
-                            {r}
-                          </button>
-                        ))}
-                        <button onClick={() => setVoidFor(null)} className="min-h-[34px] px-2 text-[12px] text-dim">Batal</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
-          Pesanan QR yang dibayar online sudah lunas di bill meja; yang "bayar di kasir" ikut
-          ditagih saat tutup tab. Takeaway (pesan makanan tanpa meja) dibayar saat diambil di kasir —
-          tandai lunas di bagian atas. Yang sudah diserahkan tidak bisa di-void.
-        </p>
-      </section>
-
-        </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
+            Urutan: belum bayar di atas (waktu habis paling atas, lalu yang terbaru), lalu yang sudah lunas.
+            Paket yang habis / open bill yang berhenti otomatis pindah ke atas daftar ini — lampunya mati sendiri.
+          </p>
+        </KolomKasir>
       )}
+
+      {(lebar || tabPakai === "pesanan") && (
+        <KolomKasir judul="F&B" jumlah={orders.length} warna="fnb" lebar={lebar}>{panelPesanan}</KolomKasir>
+      )}
+      </div>
+
+      {lembarPesanan}
+      <AnimatePresence>
+        {bukaMeja && cariMeja(bukaMeja) && (
+          <TableSheet table={cariMeja(bukaMeja)!} session={byTable.get(bukaMeja)} onClose={() => setBukaMeja(null)} />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+/** Satu kolom kasir dengan kepala berwarna (Booking merah, Billiard biru, F&B kuning). */
+function KolomKasir({ judul, jumlah, warna, lebar, children }: {
+  judul: string; jumlah: number; warna: "booking" | "billiard" | "fnb"; lebar: boolean; children: React.ReactNode;
+}) {
+  const kepala = warna === "booking" ? "bg-[#8e3b3b] text-white" : warna === "billiard" ? "bg-sky-600 text-white" : "bg-amber text-ink";
+  return (
+    <section className={`min-w-0 overflow-hidden rounded-2xl border border-line bg-ink-2/40 ${lebar ? "" : "mt-3"}`}>
+      <div className={`flex items-center justify-between px-4 py-2.5 ${kepala}`}>
+        <span className="font-display text-xl uppercase tracking-wide">{judul}</span>
+        <span className="rounded-full bg-black/20 px-2 py-0.5 text-[12px] font-bold tabular-nums">{jumlah}</span>
+      </div>
+      <div className="space-y-4 p-3">{children}</div>
+    </section>
   );
 }
 

@@ -89,7 +89,8 @@ console.log("\n-- Paket Regular: harga & bonus ikut hari main --");
   const d = dunia(RABU);
   const reg = d.pk("Paket Regular");
   t("tersimpan dengan harga weekend", reg.weekend?.price, 55_000);
-  t("lastStartHour diturunkan dari jam selesai − durasi", reg.lastStartHour, 16);
+  // 16 Nov 2026: rentang = jam check-in → mulai terakhir = jam selesai − 1.
+  t("lastStartHour = jam selesai − 1 (rentang jam check-in)", reg.lastStartHour, 17);
   t("Rabu = weekday", hargaPaket(reg, RABU(13)), { price: 50_000, freeDrinks: 0, isi: [{ itemId: AQUA, qty: 2 }], weekend: false });
   t("Sabtu = weekend", hargaPaket(reg, SABTU(13)), { price: 55_000, freeDrinks: 0, isi: [{ itemId: TEH, qty: 2 }], weekend: true });
   t("Minggu = weekend", hargaPaket(reg, dariWib(2026, 11, 15, 13)).weekend, true);
@@ -173,8 +174,10 @@ console.log("\n-- Hari aktif & rentang jam --");
   const cek = (ts: number, h: number) => paketProblem(d.st(), pk.id, { kelas: "regular", hours: 2, startH: h, startsAt: ts });
   t("Rabu 13.00: boleh", cek(RABU(13), 13), null);
   t("Rabu 15.00 (selesai 17.00): boleh", cek(RABU(15), 15), null);
-  t("Rabu 12.00: sebelum jam mulai", cek(RABU(12), 12), "Paket Kerja berlaku 13.00–17.00 (mulai paling lambat 15.00)");
-  t("Rabu 16.00: lewat (selesai 18.00 > 17.00)", cek(RABU(16), 16), "Paket Kerja berlaku 13.00–17.00 (mulai paling lambat 15.00)");
+  t("Rabu 12.00: sebelum jam mulai", cek(RABU(12), 12), "Paket Kerja hanya bisa diambil (check-in) 13.00–16.00");
+  // Pemilik 16 Nov 2026: check-in sebelum jam selesai rentang masih boleh, main boleh lewat 17.00.
+  t("Rabu 16.00: masih boleh (main sampai 18.00)", cek(RABU(16), 16), null);
+  t("Rabu 17.00: rentang check-in sudah lewat", cek(RABU(17), 17), "Paket Kerja hanya bisa diambil (check-in) 13.00–16.00");
   t("Sabtu: tidak berlaku", cek(SABTU(13), 13), "Paket Kerja tidak berlaku hari Sabtu");
   t("booking online Sabtu juga ditolak",
     slotProblem(d.st(), { tableId: "T08", startsAt: SABTU(13), hours: 2, paket: pk.id }, KAMIS(12), true),
@@ -235,7 +238,7 @@ console.log("\n-- Isian yang tidak masuk akal ditolak --");
     } as never });
     t(label, d.st().packages.length, n);
   };
-  tolak("rentang lebih pendek dari durasi", { jamMulai: 16, jamSelesai: 17 });
+  tolak("rentang kosong (jam selesai = jam mulai)", { jamMulai: 16, jamSelesai: 16 });
   tolak("jam selesai lewat jam tutup 06.00", { jamSelesai: 31 });
   tolak("jam mulai sebelum jam buka", { jamMulai: 9 });
   tolak("tanpa hari aktif", { hari: [] });

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MenuItem } from "../../data/menu";
 import {
-  useAdmin, priceOf, kategoriJual, complimentMeja, settlementOf, lineValue, paketAktif, itemOf,
+  useAdmin, priceOf, kategoriJual, complimentMeja, settlementOf, lineValue, paketAktif, itemOf, sesiBerwaktu,
 } from "../../lib/adminStore";
 import { jenisCompliment, venueDari } from "../../data/venue";
 import { rupiah as rp } from "../../lib/core";
@@ -27,7 +27,10 @@ const LAWAN_CATATAN: Record<string, string[]> = {
 export default function OrderPicker({
   sessionId, onDone, alur = false, onLewati,
 }: {
-  sessionId: string; onDone: () => void;
+  /** `dikirim` = baris yang barusan dipesan (untuk Cafe Order). */
+  sessionId: string;
+  onDone: (dikirim: { nama: string; qty: number; varian?: string; catatan?: string; station?: "kitchen" | "bar" | "billiard" }[],
+    opsi: { bayarLangsung: boolean; baris: { key: string; qty: number }[] }) => void;
   /**
    * ALUR BERTAHAP (pemilik 15 Nov 2026): MENU → PESANAN → BILL, satu langkah
    * per layar, layar hampir penuh. Dipakai panel meja sesudah meja dibuka.
@@ -44,6 +47,13 @@ export default function OrderPicker({
   const [draft, setDraft] = useState<Record<string, { item: MenuItem; qty: number; variant?: string; note?: string }>>({});
   const sent = useRef(false);
   const [langkah, setLangkah] = useState<"menu" | "pesanan">("menu");
+  /**
+   * CARA BAYAR PESANAN INI (PDF pemilik): bayar DI AKHIR (masuk bill meja,
+   * ditagih saat tab ditutup) atau bayar LANGSUNG sekarang (masuk bill lalu
+   * langsung dibayar per item — layar bayar sebagian terbuka dengan pesanan
+   * ini sudah terpilih). Dua-duanya tetap masuk checker.
+   */
+  const [bayarLangsung, setBayarLangsung] = useState(false);
 
 
   const stokOf = (id: string) => a.stock.find((r) => r.itemId === id);
@@ -96,6 +106,16 @@ export default function OrderPicker({
     });
   }
 
+  /** Batal salah klik dari kartu menu: kurangi 1 porsi menu itu (baris terakhirnya). */
+  function kurangMenu(itemId: string) {
+    const k = Object.keys(draft).filter((x) => draft[x].item.id === itemId).pop();
+    if (k) kurang(k);
+  }
+  /** Buang satu baris pesanan seluruhnya. */
+  function hapus(k: string) {
+    setDraft((d) => { const { [k]: _, ...sisa } = d; return sisa; });
+  }
+
   function kurang(k: string) {
     setDraft((d) => {
       const cur = d[k];
@@ -109,16 +129,22 @@ export default function OrderPicker({
     // Ketuk ganda sebelum layar berganti tidak boleh mengirim pesanan dua kali.
     if (sent.current) return;
     sent.current = true;
+    const dikirim: { nama: string; qty: number; varian?: string; catatan?: string; station?: "kitchen" | "bar" | "billiard" }[] = [];
+    const baris: { key: string; qty: number }[] = [];
+    const cap = Date.now();
     for (const [k, d] of Object.entries(draft)) {
+      dikirim.push({ nama: d.item.name, qty: d.qty, station: d.item.station, ...(d.variant ? { varian: d.variant } : {}), ...(d.note?.trim() ? { catatan: d.note.trim() } : {}) });
+      const key = `${k}-${cap}`;
+      baris.push({ key, qty: d.qty });
       dispatchA({
         t: "addFnb", sessionId, name: d.item.name, station: d.item.station,
         line: {
-          key: `${k}-${Date.now()}`, itemId: d.item.id, qty: d.qty, variant: d.variant,
+          key, itemId: d.item.id, qty: d.qty, variant: d.variant,
           ...(d.note?.trim() ? { note: d.note.trim() } : {}),
         },
       });
     }
-    onDone();
+    onDone(dikirim, { bayarLangsung: bayarLangsung && bolehBayarLangsung, baris });
   }
 
   const lines = Object.entries(draft);
@@ -155,9 +181,10 @@ export default function OrderPicker({
             const sudah = Object.values(draft).filter((d) => d.item.id === it.id).reduce((n, d) => n + d.qty, 0);
             const gambar = fotoItem(it.id);
             return (
-              <button key={it.id} disabled={habis}
+              <div key={it.id} className="relative">
+              <button disabled={habis}
                 onClick={() => (it.variant ? setPick(it) : tambah(it))}
-                className={`relative overflow-hidden rounded-xl border text-left disabled:opacity-40 ${
+                className={`relative h-full w-full overflow-hidden rounded-xl border text-left disabled:opacity-40 ${
                   sudah > 0 ? "border-amber bg-amber/10" : "border-line bg-ink"
                 }`}>
                 {gambar && (
@@ -174,13 +201,18 @@ export default function OrderPicker({
                     {habis ? "habis" : st?.qty !== null && st !== undefined ? `sisa ${st.qty}` : "\u00a0"}
                   </div>
                 </div>
-                {sudah > 0 && (
-                  <span className="absolute right-1.5 top-1.5 min-w-[22px] rounded-full bg-amber px-1.5
-                    text-center text-[12px] font-bold leading-[22px] text-ink">
-                    {sudah}
-                  </span>
-                )}
               </button>
+                {/* Jumlah dipilih + BATAL salah klik (pemilik 15 Nov 2026). */}
+                {sudah > 0 && (
+                  <div className="absolute right-1.5 top-1.5 flex items-center overflow-hidden rounded-full bg-amber text-ink shadow">
+                    <button onClick={() => kurangMenu(it.id)} aria-label={`Kurangi ${it.name}`}
+                      className="flex h-[26px] w-[26px] items-center justify-center text-[16px] font-bold leading-none hover:bg-black/15">−</button>
+                    <span className="min-w-[18px] text-center text-[12px] font-bold tabular-nums">{sudah}</span>
+                    <button onClick={() => (it.variant ? setPick(it) : tambah(it))} aria-label={`Tambah ${it.name}`}
+                      className="flex h-[26px] w-[26px] items-center justify-center text-[16px] font-bold leading-none hover:bg-black/15">+</button>
+                  </div>
+                )}
+              </div>
             );
           };
 
@@ -256,6 +288,8 @@ export default function OrderPicker({
                 <button onClick={() => kurang(k)} className="h-7 w-7 rounded-lg border border-line text-amber">−</button>
                 <span className="w-5 text-center font-serif text-sm text-cream">{d.qty}</span>
                 <button onClick={() => tambahBaris(k)} className="h-7 w-7 rounded-lg border border-line text-amber">+</button>
+                <button onClick={() => hapus(k)} aria-label={`Hapus ${d.item.name}`}
+                  className="ml-1 h-7 rounded-lg border border-red-500/40 px-2 text-[11px] font-semibold text-red-300 hover:bg-red-500/10">Hapus</button>
               </div>
               {/* Tombol cepat catatan dapur — permintaan staf Smokehouse 14 Nov 2026. */}
               <div className="mt-1 flex flex-wrap gap-1">
@@ -314,10 +348,34 @@ export default function OrderPicker({
       )}
 
   </>);
+  const gratisMeja = !!(sesi && complimentMeja(a, sesi.tableId));
+  /*
+   * BAYAR LANGSUNG HANYA UNTUK MEJA PAKET (pemilik 15 Nov 2026): meja yang
+   * mengambil paket main (paket jam / booking) boleh membayar sekarang —
+   * tagihannya = PAKET BILIAR + pesanan. Open bill (meteran) dan tab tanpa
+   * meja tetap bayar di akhir, seperti alur sebelumnya.
+   */
+  const bolehBayarLangsung = !!sesi && sesiBerwaktu(sesi) && !gratisMeja;
+  /** Tagihan meja SEKARANG (paket + pesanan sebelumnya, dikurangi yang sudah dibayar). */
+  const tagihanSekarang = sesi
+    ? Math.max(0, settlementOf(sesi.blockHours ? { ...sesi, bayarDiMuka: true as const } : sesi, a).due) : 0;
+  const pilihBayar = bolehBayarLangsung && (
+    <div className="rounded-xl border border-line bg-ink p-1" role="radiogroup" aria-label="Cara bayar pesanan ini">
+      <div className="grid grid-cols-2 gap-1">
+        {([[false, "Bayar di akhir", "masuk bill meja · ditagih saat tutup"], [true, "Bayar langsung", "paket biliar + pesanan, sekarang"]] as const).map(([v, l, k]) => (
+          <button key={l} role="radio" aria-checked={bayarLangsung === v} onClick={() => setBayarLangsung(v)}
+            className={`min-h-[48px] rounded-lg px-2 text-left ${bayarLangsung === v ? "bg-amber text-ink" : "text-mute hover:text-cream"}`}>
+            <span className="block text-[13px] font-bold">{l}</span>
+            <span className={`block text-[10.5px] ${bayarLangsung === v ? "text-ink/70" : "text-dim"}`}>{k}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
   const tombolKirim = (
       <button onClick={kirim} disabled={lines.length === 0}
         className="min-h-[50px] w-full rounded-xl bg-amber font-semibold text-ink disabled:opacity-40">
-        Kirim ke Checker &amp; Tambah ke Bill
+        {bayarLangsung && bolehBayarLangsung ? `Kirim ke Checker & Bayar Sekarang · ${rupiah(tagihanSekarang + total)}` : "Kirim ke Checker & Tambah ke Bill"}
       </button>
   );
   const nItem = lines.reduce((n, [, d]) => n + d.qty, 0);
@@ -350,7 +408,11 @@ export default function OrderPicker({
             <div className="min-w-0 flex-1 text-[13px]">
               {nItem > 0
                 ? <><span className="font-semibold text-cream">{nItem} item dipilih</span>
-                    <span className="ml-2 font-serif text-amber">{rupiah(total)}</span></>
+                    <span className="ml-2 font-serif text-amber">{rupiah(total)}</span>
+                    <button onClick={() => setDraft({})}
+                      className="ml-3 rounded-md border border-red-500/40 px-2 py-0.5 text-[11px] font-semibold text-red-300 hover:bg-red-500/10">
+                      Kosongkan
+                    </button></>
                 : <span className="text-dim">Ketuk menu untuk menambah pesanan.</span>}
             </div>
             {onLewati && (
@@ -376,6 +438,7 @@ export default function OrderPicker({
                 </div>
               )}
               {blokDaftar}
+              {nItem > 0 && pilihBayar}
             </div>
           </div>
           <div className="mx-auto flex w-full max-w-2xl flex-wrap gap-2">
@@ -396,6 +459,7 @@ export default function OrderPicker({
       {pilihMenu}
       {blokVarian}
       {blokDaftar}
+      {lines.length > 0 && pilihBayar}
       {tombolKirim}
     </div>
   );

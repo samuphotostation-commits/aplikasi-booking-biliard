@@ -133,6 +133,7 @@ function Pencocokan({ r }: { r: Rekap }) {
         {Object.keys(r.uang.edcPer).length > 0
           ? Object.entries(r.uang.edcPer).map(([m, n]) => <Angka key={m} k={`EDC ${m}`} v={rupiah(n)} />)
           : <Angka k="EDC" v={rupiah(r.uang.edc)} />}
+        {(r.uang.checkout ?? 0) > 0 && <Angka k="Checkout (tanpa metode)" v={rupiah(r.uang.checkout)} />}
         <Angka k="Prabayar online" v={rupiah(r.uang.prabayar)} />
         <div className="border-t border-line pt-1"><Angka k="Total uang masuk" v={rupiah(r.uang.total)} tebal /></div>
         {beda !== 0 && (
@@ -210,6 +211,7 @@ function StrukVenue({ r, ringkas, tanggal }: { r: Rekap; ringkas?: boolean; tang
           <SBaris k="Tunai" v={rupiah(r.uang.tunai)} />
           <SBaris k="QRIS" v={rupiah(r.uang.qris)} />
           <SBaris k="EDC" v={rupiah(r.uang.edc)} />
+          {(r.uang.checkout ?? 0) > 0 && <SBaris k="Checkout" v={rupiah(r.uang.checkout)} />}
           <SBaris k="Prabayar online" v={rupiah(r.uang.prabayar)} />
           <SBaris k="Total uang masuk" v={rupiah(r.uang.total)} tebal />
           {r.dapurMejaBiliar > 0 && (
@@ -290,7 +292,7 @@ export default function RekapTigaJenis({ dari, sampai, venue, hariIni }: {
       rows.push(["", "Pendapatan", x.pendapatan], [], ["Jam", "Deskripsi", "Nilai"]);
       for (const b of x.biaya) rows.push([jamMenit(b.at), b.keterangan, b.nilai]);
       rows.push(["", "TOTAL BIAYA", x.totalBiaya], ["", "Total (Pendapatan - Biaya)", x.bersih], []);
-      rows.push(["", "Tunai", x.uang.tunai], ["", "QRIS", x.uang.qris], ["", "EDC", x.uang.edc],
+      rows.push(["", "Tunai", x.uang.tunai], ["", "QRIS", x.uang.qris], ["", "EDC", x.uang.edc], ["", "Checkout", x.uang.checkout ?? 0],
         ["", "Prabayar online", x.uang.prabayar], ["", "Total uang masuk", x.uang.total], []);
       if (x.dapurMejaBiliar > 0) rows.push(["", "Pesanan dapur untuk meja biliar (masuk rekap SPL)", x.dapurMejaBiliar], []);
       bagian("BELUM CHECKOUT", x.belumCheckout, x.totalBelumCheckout);

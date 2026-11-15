@@ -21,6 +21,7 @@ import { motion } from "framer-motion";
 import PilihMenu from "./PilihMenu";
 import DaftarTakeaway from "./DaftarTakeaway";
 import { cetakStruk } from "../../lib/cetak";
+import { LOGO_STRUK } from "../../data/logoStruk";
 import { VENUE_LABEL } from "../../data/venue";
 import { jam } from "./AdminShell";
 import type { MenuItem } from "../../data/menu";
@@ -68,8 +69,8 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
     setCetak({ at: Date.now() });
     // Satu putaran gambar supaya lembarnya sudah ada di DOM saat dicetak.
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const hasil = await cetakStruk();
-    if (!hasil.ok) setGalat(`Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
+    const hasil = await cetakStruk(2);   // bill: dua lembar terpotong
+    if (!hasil.ok || hasil.alasan) setGalat(hasil.ok ? hasil.alasan! : `Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
     setCetak(null);
   }
 
@@ -197,6 +198,7 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
       {cetak && (
         <div id="struk" className="cetak-saja bg-white p-2 text-[11px] text-black">
           <div className="text-center">
+            {venueAktif() !== "smh" && <img src={LOGO_STRUK} alt="SPL" className="mx-auto mb-1 h-[56px] w-auto" />}
             <div className="text-[13px] font-bold uppercase">{VENUE_LABEL[venueAktif()]}</div>
             <div className="text-[11px] font-bold uppercase">Bill — belum dibayar</div>
             <div className="mt-1">{new Date(cetak.at).toLocaleDateString("id-ID")} · {jam(cetak.at)}</div>
@@ -221,7 +223,7 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
             <span>TOTAL</span><span className="tabular-nums">{rupiah(total)}</span>
           </div>
           <div className="mt-2 text-center text-[10px]">
-            Harga sudah termasuk pajak<br />
+            A new kind of Billiard Experience<br />
             Bill ini BELUM pembayaran — bayar di kasir
           </div>
         </div>
@@ -296,6 +298,7 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
       {cetak && (
         <div id="struk" className="cetak-saja bg-white p-2 text-[11px] text-black">
           <div className="text-center">
+            {venueAktif() !== "smh" && <img src={LOGO_STRUK} alt="SPL" className="mx-auto mb-1 h-[56px] w-auto" />}
             <div className="text-[13px] font-bold uppercase">{VENUE_LABEL[venueAktif()]}</div>
             <div className="text-[11px] font-bold uppercase">Bill — belum dibayar</div>
             <div className="mt-1">{new Date(cetak.at).toLocaleDateString("id-ID")} · {jam(cetak.at)}</div>
@@ -320,7 +323,7 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
             <span>TOTAL</span><span className="tabular-nums">{rupiah(total)}</span>
           </div>
           <div className="mt-2 text-center text-[10px]">
-            Harga sudah termasuk pajak<br />
+            A new kind of Billiard Experience<br />
             Bill ini BELUM pembayaran — bayar di kasir
           </div>
         </div>

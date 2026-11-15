@@ -153,8 +153,15 @@ export function tarifJam(rates: Rates, type: TableType, hour: number, dow?: numb
   const we = hariWeekend(dow);
   const pilih = (biasa: number, akhirPekan?: number) => (we && akhirPekan && akhirPekan > 0 ? akhirPekan : biasa);
   if (type === "vip") return pilih(rates.vip, rates.vipWe);
+  // VICTORY (dulu VVIP): SIANG = `vvip`, MALAM = `vvipNight` (kosong = sama dengan siang).
   // Jejak lama (sebelum kelas VVIP ada) tidak punya tarif VVIP — pakai tarif VIP.
-  if (type === "vvip") return pilih(rates.vvip ?? rates.vip, rates.vvipWe ?? rates.vipWe);
+  if (type === "vvip") {
+    const siang = rates.vvip ?? rates.vip, siangWe = rates.vvipWe ?? rates.vipWe;
+    if (hour < 18) return pilih(siang, siangWe);
+    return rates.vvipNight && rates.vvipNight > 0
+      ? pilih(rates.vvipNight, rates.vvipNightWe)
+      : pilih(siang, rates.vvipNightWe || siangWe);
+  }
   return hour < 18 ? pilih(rates.regularDay, rates.regularDayWe) : pilih(rates.regularNight, rates.regularNightWe);
 }
 

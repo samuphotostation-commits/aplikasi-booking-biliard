@@ -218,6 +218,8 @@ const oracleOpenBill = (s: LiveSession, rates: State["rates"], end: number, st: 
   const type = sessType(s);
   if (type === "resto") return 0;                        // meja resto tidak punya meteran
   if (s.blockHours) {                                    // paket per jam: harga blok, bukan meteran
+    // Dibayar di muka (bayar langsung): paket ditagih penuh, tanpa toleransi batal.
+    if (s.bayarDiMuka || (s.payments?.length ?? 0) > 0) return s.tableAmount;
     const sampai = s.status === "running" ? end : (s.settledAt ?? s.endsAt);
     return Math.ceil(Math.max(0, sampai - s.startsAt) / 60_000) <= 5 ? 0 : s.tableAmount;
   }
@@ -677,7 +679,9 @@ function runSim(sim: number) {
       if (ok && s0 && s1) {
         const pays = s1.payments ?? [];
         const p = pays[pays.length - 1];
-        const counterB = s0.source === "walkin" ? oracleOpenBill(s0, b.rates, now, b) : (extraTable[s0.id] ?? 0);
+        // Bayar sebagian di meja paket = bayar di muka: paketnya ditagih penuh.
+        const s0t = s0.blockHours ? { ...s0, bayarDiMuka: true as const } : s0;
+        const counterB = s0.source === "walkin" ? oracleOpenBill(s0t, b.rates, now, b) : (extraTable[s0.id] ?? 0);
         const counterF = s0.fnb.filter((l) => !prepaid.has(`${s0.id}|${l.key}`)).reduce((n, l) => n + lineValue(l), 0);
         const akhirTagih2 = s0.source === "walkin" && !s0.blockHours && s0.status === "running"
           ? oracleMeterEnd(s0, now, b) : now;
