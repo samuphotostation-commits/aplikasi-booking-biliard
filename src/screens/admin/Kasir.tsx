@@ -2,6 +2,7 @@ import { useState } from "react";
 import { KonfirmasiBayar } from "./KonfirmasiBayar";
 import { QrisKasir } from "./QrisKasir";
 import { LayarCounter } from "./PesanTanpaMeja";
+import DaftarTakeaway from "./DaftarTakeaway";
 import PanelStruk from "./PanelStruk";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../components/UI";
@@ -602,78 +603,8 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
 
       {tab === "pesanan" && (
         <div className="space-y-6">
-      {/* ── Takeaway menunggu diambil & dibayar ─────────── */}
-      {takeawayBelumBayar.length > 0 && (
-        <section>
-          <h2 className="mb-2.5 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] before:h-3.5 before:w-1 before:shrink-0 before:rounded-full before:content-[''] text-amber before:bg-amber">
-            Takeaway menunggu diambil · {takeawayBelumBayar.length} ·{" "}
-            {rupiah(takeawayBelumBayar.reduce((n, o) => n + o.value, 0))}
-          </h2>
-          <div className="divide-y divide-line overflow-hidden rounded-xl border border-amber/40 bg-amber/5">
-            {takeawayBelumBayar.map((o) => {
-              const tk = a.tickets.filter((t) => t.sessionId === o.id);
-              const siap = tk.length > 0 && tk.every((t) => t.status === "ready" || t.status === "served");
-              return (
-                <div key={o.id} className="px-3 py-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-[13px] text-cream">
-                        {o.guest} · <span className="font-mono text-mute">{o.code}</span>
-                      </div>
-                      <div className="text-[11px] text-dim">
-                        {jam(o.at)} · {o.lines.reduce((n, l) => n + l.qty, 0)} porsi ·{" "}
-                        {siap ? <span className="text-emerald-400">siap diambil</span> : "dapur sedang menyiapkan"}
-                        {o.phone && ` · ${o.phone}`}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right font-serif text-[13px] tabular-nums text-cream">
-                      {rupiah(o.value)}
-                    </div>
-                  </div>
-                  {allow("tutupTab") && (
-                    <div className="mt-1.5 space-y-1.5">
-                      {/* QR dinamis bernominal tepat untuk pesanan ini; yang menandai
-                          lunas tetap tombol di bawahnya, ditekan kasir. */}
-                      <QrisKasir amount={o.value} ringkas={`Pesanan ${o.code}`} kode={o.code} />
-                    {lunasi?.id === o.id ? (
-                      <KonfirmasiBayar judul={`Tandai ${o.code} lunas?`} total={o.value} metode={lunasi.label}
-                        tombol="Ya, lunas" onBatal={() => setLunasi(null)}
-                        onYa={() => {
-                          const { ch, label, mesin } = lunasi;
-                          const tolak = dispatchA({ t: "settleOrder", id: o.id, channel: ch, ...(mesin ? { mesin } : {}) });
-                          const lunas = !!peek().orders.find((x) => x.id === o.id)?.payment;
-                          setLunasi(null);
-                          flash(lunas
-                            ? `${o.code} lunas ${rupiah(o.value)} (${label}).`
-                            : tolak ?? "Belum tercatat — buka shift dulu, atau pesanan sudah berubah.");
-                        }} />
-                    ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {([
-                        ["cash", "Tunai", undefined],
-                        ["qris_online", "QRIS", undefined],
-                        ...mesinEdc(a).map((m) => ["edc", `EDC ${m}`, m] as const),
-                      ] as const).map(([ch, label, mesin]) => (
-                        <button key={`${ch}-${mesin ?? ""}`}
-                          onClick={() => setLunasi({ id: o.id, ch, label, ...(mesin ? { mesin } : {}) })}
-                          className="min-h-[36px] rounded-lg border border-line bg-ink px-3 text-[12px] font-semibold text-cream">
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
-            Pesanan makanan tanpa meja. Uangnya baru masuk laporan setelah ditandai lunas di sini —
-            jadi angka rekap tidak pernah menghitung pesanan yang belum diambil.
-          </p>
-        </section>
-      )}
+      {/* ── Takeaway menunggu diambil & dibayar — komponen yang SAMA dengan layar Counter ── */}
+      <DaftarTakeaway venue={venue} onKabar={flash} />
 
       {/* ── Pesanan dari HP tamu ─────────────────────────── */}
       <section>

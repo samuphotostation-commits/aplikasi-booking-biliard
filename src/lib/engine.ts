@@ -193,6 +193,19 @@ export const PIN_EMPAT_ANGKA = dariWib(2026, 11, 8, 5);
 export const SHIFT_PER_VENUE = dariWib(2026, 11, 8, 5);
 
 /**
+ * TAKEAWAY: BAYAR DULU, BARU MASUK CHECKER (pemilik 15 Nov 2026: "harusnya
+ * kalau takeaway bayar dahulu baru nanti masuk list checker untuk diproses,
+ * karena tidak ada mejanya").
+ *
+ * Pesanan tanpa meja yang belum dibayar (Counter, atau HP tamu "bayar di
+ * kasir") tidak membuat tiket dapur/bar — stoknya tetap dipesan supaya tidak
+ * terjual dua kali. Tiketnya dibuat saat kasir menandainya lunas
+ * (`settleOrder`). Takeaway yang lunas online tetap langsung ke checker.
+ * Tanggal dipakai supaya pesanan lama di jejak diputar ulang apa adanya.
+ */
+export const TAKEAWAY_BAYAR_DULU = dariWib(2026, 11, 15, 13);
+
+/**
  * KASIR WAJIB TERIKAT SATU VENUE (pemilik 14 Nov 2026: "cashier SPL Sport dan
  * Smokehouse berbeda, jadi ketika buka shift harusnya masing-masing berbeda").
  *
@@ -277,6 +290,8 @@ export type GuestOrder = {
   venue?: Venue;
   /** Takeaway yang dibayar saat diambil di kasir. Tanpa ini = belum dibayar. */
   payment?: Payment;
+  /** Takeaway yang belum dibayar: tiket checker DITAHAN sampai dibayar (lihat `TAKEAWAY_BAYAR_DULU`). */
+  menungguBayar?: true;
 };
 
 /** Baris ringkas sesi yang sudah tutup buku — cukup untuk rekap, CSV, dan status riwayat pelanggan. */
@@ -4272,10 +4287,16 @@ function reduce(s: State, a: Action): State {
         ...(s.me ? { by: s.me.name } : {}),
         ...(mesinSah(s, a.channel, a.mesin) ? { mesin: mesinSah(s, a.channel, a.mesin) } : {}),
       };
+      // Takeaway yang tiketnya ditahan: SEKARANG baru masuk checker & dapur.
+      const { menungguBayar: _m, ...lunas } = { ...o, payment: bayar };
+      const tiketBaru = o.menungguBayar
+        ? ticketsFor({ id: o.id, tableName: `Takeaway ${o.code.slice(-4)}`, kode: o.code }, o.lines, now, `Takeaway · ${o.guest} · LUNAS`)
+        : [];
       return {
         ...s,
-        orders: s.orders.map((x) => (x.id === o.id ? { ...x, payment: bayar } : x)),
-        log: note(s, `Takeaway dibayar · ${o.code} · ${o.guest} · ${a.channel.toUpperCase()}`, sisa),
+        orders: s.orders.map((x) => (x.id === o.id ? lunas : x)),
+        tickets: tiketBaru.length ? [...tiketBaru, ...s.tickets] : s.tickets,
+        log: note(s, `Takeaway dibayar · ${o.code} · ${o.guest} · ${a.channel.toUpperCase()}${tiketBaru.length ? " · masuk checker" : ""}`, sisa),
       };
     }
 
@@ -4559,6 +4580,8 @@ function guestOrder(s: State, o: GuestOrderRequest, now: number): State {
       id: o.id, tableName: o.mode === "meja" && tObj ? tObj.name : `Takeaway ${o.code.slice(-4)}`,
       lantai: o.mode === "meja" ? tObj?.lantai : undefined, kode: o.code,
     };
+  const tahanTiket = !sess && o.mode !== "meja" && !prepaid && now >= TAKEAWAY_BAYAR_DULU;
+  if (tahanTiket) order.menungguBayar = true;
   return {
     ...s, stock, soldOut: syncSoldOut(stock, s.soldOut),
     sessions: sess
@@ -4568,7 +4591,8 @@ function guestOrder(s: State, o: GuestOrderRequest, now: number): State {
         } : x)
       : s.sessions,
     orders: [order, ...s.orders],
-    tickets: [...ticketsFor(target, lines, now, `${sess ? "QR" : o.mode === "meja" ? `QR ${tObj?.name ?? ""}` : "Takeaway"} · ${guest}`), ...s.tickets],
+    tickets: tahanTiket ? s.tickets
+      : [...ticketsFor(target, lines, now, `${sess ? "QR" : o.mode === "meja" ? `QR ${tObj?.name ?? ""}` : "Takeaway"} · ${guest}`), ...s.tickets],
     log: note(s, `Pesanan ${sess ? `QR ${namaMeja(s, sess.tableId)}` : o.mode === "meja" ? `QR ${tObj?.name ?? o.tableId ?? ""}` : "takeaway"} · ${guest}${bukaSendiri ? " · meja dibuka pesanan ini" : ""} · ${prepaid ? "lunas online" : "masuk bill meja"}`, priced.total, "sistem"),
   };
 }

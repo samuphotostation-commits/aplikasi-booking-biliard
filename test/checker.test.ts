@@ -13,7 +13,7 @@
    ═══════════════════════════════════════════════════════════════════ */
 import {
   replay, runningOn, itemOf, mejaDipakai, namaMeja, mejaDijual, clampRange, recapRange,
-  rekapSaring, menuSaring, kategoriJual, susunKategori, kodeSesi, cadanganMeja, lantaiVenue, complimentMeja, kategoriMejaDari, kategoriMejaVenue, guestOrderProblem, venueTerdampakMenu, kelasShiftJam, shiftDate, menuShift, shiftHariItu, omzetPerShift, slotProblem, rateWith,
+  rekapSaring, menuSaring, kategoriJual, susunKategori, kodeSesi, cadanganMeja, lantaiVenue, complimentMeja, kategoriMejaDari, kategoriMejaVenue, TAKEAWAY_BAYAR_DULU, venueTiket, guestOrderProblem, venueTerdampakMenu, kelasShiftJam, shiftDate, menuShift, shiftHariItu, omzetPerShift, slotProblem, rateWith,
   type Action, type Entry, type Genesis,
 } from "../src/lib/engine";
 import { htmlKertas, kelompokkan } from "../src/lib/cetakDapur";
@@ -600,6 +600,37 @@ console.log("\n-- 10 · Promo per venue (SPL Sport / Smokehouse / kedua venue) -
   t("kru kasir tidak bisa mengubah kategori meja", kategoriMejaDari(d.st(), "S107")?.id, "smh-reguler");
   d.push(jam(13, 9), { t: "setKategoriMeja", tableId: "T05", kategori: "smh-vip" });
   t("meja biliar tidak memakai kategori meja resto", d.st().mejaKategori?.["T05"], undefined);
+}
+
+// ── 16. TAKEAWAY: BAYAR DULU, BARU MASUK CHECKER (pemilik 15 Nov 2026) ──
+{
+  console.log("\n-- 16 · Takeaway dibayar dulu, baru masuk checker --");
+  const d = dunia();
+  const t0 = Math.max(jam(14), TAKEAWAY_BAYAR_DULU + 60_000);
+  const pesan = (id: string, pay: "kasir" | "online", paidOnline = 0, venue: "spl" | "smh" = "smh") =>
+    d.push(t0, { t: "guestOrder", order: {
+      id, code: `SPL-${id.toUpperCase()}`, guest: "Tamu kasir", mode: "takeaway", venue, pay, paidOnline,
+      lines: [{ key: `${id}-a`, itemId: NASGOR, qty: 2 }],
+    } });
+  pesan("tk1", "kasir");
+  const o1 = d.st().orders.find((o) => o.id === "tk1")!;
+  t("takeaway belum dibayar: pesanan diterima", o1.status, "diterima");
+  t("…tapi BELUM ada tiket checker", d.st().tickets.filter((x) => x.sessionId === "tk1").length, 0);
+  t("…ditandai menunggu bayar", o1.menungguBayar, true);
+  t("…stoknya tetap dipesan (tidak bisa terjual dua kali)", o1.lines.reduce((n, l) => n + l.qty, 0), 2);
+
+  d.push(t0 + 60_000, { t: "settleOrder", id: "tk1", channel: "cash" });
+  const o1b = d.st().orders.find((o) => o.id === "tk1")!;
+  const tk = d.st().tickets.filter((x) => x.sessionId === "tk1");
+  t("sesudah dibayar: lunas & tanda menunggu bayar hilang", [!!o1b.payment, o1b.menungguBayar], [true, undefined]);
+  t("sesudah dibayar: tiket masuk checker", tk.length > 0 && tk.every((x) => x.status === "new"), true);
+  t("tiket membawa kode pesanan", tk[0]?.kode, "SPL-TK1");
+  t("tiket takeaway ikut venue Smokehouse", venueTiket(d.st(), tk[0]!), "smh");
+
+  const harga = itemOf(d.st(), NASGOR)!.price * 2;
+  pesan("tk2", "online", harga);
+  t("takeaway lunas online: langsung masuk checker", d.st().tickets.some((x) => x.sessionId === "tk2"), true);
+  t("…tanpa tanda menunggu bayar", d.st().orders.find((o) => o.id === "tk2")?.menungguBayar, undefined);
 }
 
 console.log(`\n${total - bad}/${total} lulus`);

@@ -214,7 +214,7 @@ console.log("\n-- B · Kasir mencatat pesanan langsung di meja --");
     o.rincian.filter((x) => !x.prabayar).length, 2);
 }
 
-console.log("\n-- C · Takeaway: dapur menyiapkan, bayar saat diambil --");
+console.log("\n-- C · Takeaway: bayar dulu, baru dapur menyiapkan (aturan pemilik 15 Nov 2026) --");
 {
   const d = dunia();
   const nilai = 2 * harga(NASGOR);
@@ -227,13 +227,14 @@ console.log("\n-- C · Takeaway: dapur menyiapkan, bayar saat diambil --");
   }, null);
   const st = d.st();
   t("pesanan takeaway diterima", st.orders.find((o) => o.id === "g-T1")?.status, "diterima");
-  t("tiket dapur keluar walau belum dibayar",
-    st.tickets.some((x) => x.via?.includes("Takeaway")), true);
+  t("tiket dapur BELUM keluar sebelum dibayar",
+    st.tickets.some((x) => x.via?.includes("Takeaway")), false);
   t("BELUM jadi omzet sebelum dibayar", recap(st, undefined, "smh").gross, 0);
 
   d.push(jam(19, 30), { t: "settleOrder", id: "g-T1", channel: "cash" });
   const st2 = d.st();
   t("sesudah dibayar baru jadi omzet", recap(st2, undefined, "smh").gross, nilai);
+  t("sesudah dibayar tiket dapur keluar", st2.tickets.some((x) => x.via?.includes("Takeaway")), true);
   t("masuk kolom tunai", recap(st2, undefined, "smh").byChannel.cash?.gross, nilai);
 
   const hari = tanggalWib(jam(19));

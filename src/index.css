@@ -178,10 +178,21 @@ html.lenis, html.lenis body { height: auto; }
 }
 
 /* Saat mencetak, hanya struk yang muncul di kertas */
+/* CETAK STRUK (perbaikan 15 Nov 2026: struk tercetak dengan bidang HITAM di
+   kiri-kanan). Aplikasi Windows mencetak dengan printBackground — latar gelap
+   halaman ikut tercetak di sisa kertas 80 mm di luar struk 58 mm. Sekarang:
+   latar halaman putih, struk selebar kertas, tanpa sudut membulat/bayangan. */
 @media print {
+  @page { margin: 0; }
+  html, body { background: #fff !important; }
   body * { visibility: hidden !important; }
-  #struk, #struk * { visibility: visible !important; }
-  #struk { position: fixed; inset: 0 auto auto 0; width: 58mm; background: #fff !important; }
+  #struk, #struk * { visibility: visible !important; color: #000 !important; }
+  #struk {
+    position: fixed; inset: 0 auto auto 0; width: 100% !important; max-width: 80mm;
+    margin: 0 !important; padding: 2mm 3mm !important;
+    border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+    background: #fff !important;
+  }
 }
 
 /* Hanya muncul di kertas — dipakai struk rekap harian di tab Rekap. */

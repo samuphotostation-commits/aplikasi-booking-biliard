@@ -19,6 +19,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import PilihMenu from "./PilihMenu";
+import DaftarTakeaway from "./DaftarTakeaway";
 import { cetakStruk } from "../../lib/cetak";
 import { VENUE_LABEL } from "../../data/venue";
 import { jam } from "./AdminShell";
@@ -33,6 +34,8 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
   const [nama, setNama] = useState("");
   const [draft, setDraft] = useState<Record<string, { item: MenuItem; qty: number }>>({});
   const [galat, setGalat] = useState<string | null>(null);
+  /** Kabar sukses di layar Counter lebar (layar tetap terbuka sesudah membuat pesanan). */
+  const [kabar, setKabar] = useState<string | null>(null);
   const [cetak, setCetak] = useState<{ at: number } | null>(null);
   const sent = useRef(false);
 
@@ -93,6 +96,13 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
     if (!masuk || masuk.status !== "diterima") {
       sent.current = false;
       setGalat(masuk?.reason ?? "Pesanan ditolak — cek shift, jam dapur, atau stok.");
+      return;
+    }
+    if (lebar) {
+      // Layar Counter tetap terbuka: pesanan barunya muncul di daftar takeaway
+      // di bawah formulir dan bisa langsung ditagih (perbaikan 15 Nov 2026).
+      setDraft({}); setNama(""); setGalat(null); sent.current = false;
+      setKabar(`Pesanan ${code} dibuat — tagih di daftar di bawah. Pesanan masuk checker setelah dibayar.`);
       return;
     }
     onDone(code);
@@ -216,10 +226,16 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
           </div>
         </div>
       )}
+      {kabar && (
+        <p role="status" className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-200">{kabar}</p>
+      )}
+      <div className="border-t border-line pt-3">
+        <DaftarTakeaway venue={venueAktif()} onKabar={(t) => setKabar(t)} kosongTampil />
+      </div>
       <p className="text-[11px] leading-relaxed text-dim">
-        Pesanannya langsung muncul di daftar <span className="text-cream">Takeaway menunggu
-        diambil &amp; dibayar</span> di atas — di situ ada QR dinamis dan tombol Tunai / EDC /
-        QRIS untuk menagihnya. Belum dihitung sebagai omzet sampai dibayar.
+        Pesanan baru langsung muncul di daftar <span className="text-cream">Takeaway menunggu diambil</span> di
+        atas ini — lengkap dengan QR dinamis dan tombol Tunai / EDC / QRIS. <span className="text-cream">Bayar dulu,
+        baru masuk checker</span> untuk dimasak. Belum dihitung omzet sampai dibayar.
       </p>
         </section>
       </div>
