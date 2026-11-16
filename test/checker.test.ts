@@ -710,20 +710,11 @@ console.log("\n-- 10 · Promo per venue (SPL Sport / Smokehouse / kedua venue) -
   t("di layar, waktu habis → lampu MATI (tanpa menunggu kejadian)", tickState(d.st(), jam(15, 0)).lights.T05, false);
   d.push(jam(15, 1), { t: "tick" });
   t("waktu habis → lampu MATI", d.st().lights.T05, false);
-  t("tab tetap terbuka (bayar tetap di kasir)", runningOn(d.st(), "T05")?.status, "running");
+  // 16 Nov 2026: paket yang habis & belum dibayar → meja kosong, tagihan pindah ke Kasir.
+  const pindah = d.st().sessions.find((x) => x.mejaAsal === "T05");
+  t("tab belum lunas pindah ke Kasir (meja kosong)", [runningOn(d.st(), "T05"), pindah?.status], [undefined, "running"]);
   t("open bill tidak ikut mati", d.st().lights.T06, true);
   t("tercatat di jejak", d.st().log.some((x) => /Lampu .* dimatikan otomatis/.test(x.what)), true);
-
-  d.push(jam(15, 2), { t: "toggleLight", tableId: "T05", on: true });
-  d.push(jam(15, 10), { t: "tick" });
-  t("dinyalakan lagi oleh kasir → tidak dimatikan ulang", d.st().lights.T05, true);
-
-  const sesi = runningOn(d.st(), "T05")!;
-  d.push(jam(15, 11), { t: "toggleLight", tableId: "T05", on: false });
-  d.push(jam(15, 12), { t: "extend", id: sesi.id, minutes: 60 });
-  t("diperpanjang sesudah mati → lampu menyala lagi", d.st().lights.T05, true);
-  d.push(jam(16, 1), { t: "tick" });
-  t("jam selesai baru habis → mati lagi", d.st().lights.T05, false);
 }
 
 // ── 20. DUA LEMBAR DI BROWSER TANPA MENGETIK "2" (pemilik 15 Nov 2026) ──
@@ -879,7 +870,12 @@ console.log("\n-- 10 · Promo per venue (SPL Sport / Smokehouse / kedua venue) -
   t("…dihitung dari menit 0: setengah jam penuh (dibulatkan ke atas Rp 1.000)", lewat.amount, Math.ceil(45_000 / 2 / 1000) * 1000);
   t("…segmen mulai dari jam mulai main, bukan menit ke-6", lewat.segments[0]?.minutes, 30);
   const empatPuluh = billOpenSession("regular", W(20), W(20, 40), tarif);
-  t("main 40 menit: ditagih 40 menit dari menit 0", empatPuluh.amount, Math.ceil((45_000 * 40) / 60 / 1000) * 1000);
+  t("main 40 menit: ditagih 40 menit (per menit sesudah 30)", empatPuluh.billedMinutes, 40);
+  t("…= 40/60 tarif (bulat naik Rp 1.000 saat bayar)", empatPuluh.amount, Math.ceil((45_000 * 40) / 60 / 1000) * 1000);
+  const duaPuluh = billOpenSession("regular", W(20), W(20, 21), tarif);
+  t("main 21 menit: ditagih 30 menit pertama", duaPuluh.billedMinutes, 30);
+  const tigaSatu = billOpenSession("regular", W(20), W(20, 31), tarif);
+  t("main 31 menit: 31 menit (per menit)", tigaSatu.billedMinutes, 31);
 }
 
 // ── 26. PAKET BATAS 14.00: MULAI 13.50 MASIH BOLEH (pemilik 16 Nov 2026) ──
@@ -897,6 +893,69 @@ console.log("\n-- 10 · Promo per venue (SPL Sport / Smokehouse / kedua venue) -
   t("…main 2 jam sampai 15.50 (boleh lewat 14.00)", sesi ? sesi.endsAt - sesi.startsAt : 0, 2 * 3_600_000);
   d.push(jam(14, 0), { t: "walkin", tableId: "T16", guest: "Jam 14.00", paketId: pk.id });
   t("mulai 14.00: sudah lewat batas → ditolak", runningOn(d.st(), "T16")?.paket, undefined);
+}
+
+// ── 27. PAKET HABIS: lampu mati, lunas ditutup, belum lunas pindah ke Kasir · PAKET UJI ──
+{
+  console.log("\n-- 27 · Paket habis → meja kosong · paket uji --");
+  const d = dunia();
+  // belum lunas
+  d.push(jam(14), { t: "walkin", tableId: "T17", guest: "Belum bayar", hours: 1 });
+  const a1 = runningOn(d.st(), "T17")!;
+  // sudah dibayar di muka
+  d.push(jam(14), { t: "walkin", tableId: "T18", guest: "Bayar di muka", hours: 1 });
+  const b1 = runningOn(d.st(), "T18")!;
+  d.push(jam(14, 1), { t: "paySplit", id: b1.id, channel: "checkout", amount: settlementOf({ ...b1, bayarDiMuka: true }, d.st(), jam(14, 1)).due });
+  t("sebelum habis: kedua meja masih jalan", [!!runningOn(d.st(), "T17"), !!runningOn(d.st(), "T18")], [true, true]);
+  d.push(jam(15, 0), { t: "tick" });
+  const st = d.st();
+  t("belum lunas: meja T17 KOSONG di papan", runningOn(st, "T17"), undefined);
+  const pindah = st.sessions.find((x) => x.id === a1.id)!;
+  t("…tagihannya tetap terbuka (menunggu di Kasir)", pindah.status, "running");
+  t("…mencatat meja asal T17", pindah.mejaAsal, "T17");
+  t("…lampu T17 mati", st.lights.T17, false);
+  t("…tidak tampil sebagai tab tanpa meja", tabTanpaMeja(st, "spl").aktif.some((x) => x.id === a1.id), false);
+  t("lunas di muka: tab ditutup sendiri", st.sessions.find((x) => x.id === b1.id)?.status, "done");
+  t("…meja T18 kosong", runningOn(st, "T18"), undefined);
+  t("…lampu T18 mati", st.lights.T18, false);
+  // meja yang dikosongkan langsung bisa dipakai tamu berikutnya
+  d.push(jam(15, 1), { t: "walkin", tableId: "T17", guest: "Tamu baru" });
+  t("meja T17 bisa dibuka tamu baru", runningOn(d.st(), "T17")?.guest, "Tamu baru");
+  // tagihan yang pindah dibayar di Kasir
+  d.push(jam(15, 5), { t: "settle", id: a1.id, channel: "checkout" });
+  t("tagihan pindahan dibayar Check Out", d.st().sessions.find((x) => x.id === a1.id)?.status, "done");
+  t("…sewa mejanya tetap harga paket", d.st().sessions.find((x) => x.id === a1.id)?.settledBilliard, a1.tableAmount);
+
+  // PAKET UJI
+  d.push(jam(16), { t: "walkin", tableId: "T19", guest: "", menitUji: 2 });
+  const u = runningOn(d.st(), "T19");
+  t("paket uji dibuka (manager)", u?.uji, true);
+  t("…Rp 0", settlementOf(u!, d.st(), jam(16, 1)).due, 0);
+  t("…lampu menyala", d.st().lights.T19, true);
+  d.push(jam(16, 2), { t: "tick" });
+  t("…2 menit kemudian: lampu mati", d.st().lights.T19, false);
+  t("…meja kosong (ditutup otomatis, Rp 0)", d.st().sessions.find((x) => x.id === u!.id)?.status, "done");
+  d.push(jam(16, 3), { t: "walkin", tableId: "T20", guest: "", menitUji: 2 }, "u-rian");
+  t("kru kasir tidak bisa membuka paket uji", runningOn(d.st(), "T20"), undefined);
+}
+
+// ── 28. CANCEL MEJA DALAM 5 MENIT PERTAMA (pemilik 16 Nov 2026) ──
+{
+  console.log("\n-- 28 · Cancel meja ≤ 5 menit: gratis; tampilan langsung 30 menit --");
+  const d = dunia();
+  d.push(jam(14), { t: "walkin", tableId: "T21", guest: "Batal" });
+  const x = runningOn(d.st(), "T21")!;
+  const tampil = settlementOf(x, d.st(), jam(14, 3));
+  t("menit ke-3: layar langsung menampilkan biaya 30 menit", tampil.dueTampil > 0, true);
+  t("…tapi yang ditagih kalau ditutup sekarang Rp 0", tampil.due, 0);
+  d.push(jam(14, 3), { t: "settle", id: x.id, channel: "checkout" });
+  const tutup = d.st().sessions.find((y) => y.id === x.id)!;
+  t("cancel menit ke-3: meja ditutup", tutup.status, "done");
+  t("…tanpa biaya", tutup.settledAmount ?? 0, 0);
+  d.push(jam(15), { t: "walkin", tableId: "T21", guest: "Main" });
+  const y = runningOn(d.st(), "T21")!;
+  t("lewat 5 menit (menit ke-6): langsung 30 menit dari menit 0", settlementOf(y, d.st(), jam(15, 6)).detail?.billedMinutes, 30);
+  t("menit ke-45: dihitung 45 menit (per menit sesudah 30)", settlementOf(y, d.st(), jam(15, 45)).detail?.billedMinutes, 45);
 }
 
 console.log(`\n${total - bad}/${total} lulus`);

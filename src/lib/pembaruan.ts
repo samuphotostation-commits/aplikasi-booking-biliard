@@ -101,12 +101,37 @@ export async function perbaruiSekarang(): Promise<void> {
 }
 
 let dipantau = false;
+/*
+ * SEMUA PC KASIR HARUS MEMAKAI VERSI YANG SAMA (pemilik 16 Nov 2026: "di-install
+ * di 2 PC tidak sinkron, harusnya sinkron semua").
+ *
+ * Jejak kejadian dibagikan lewat server, tapi tiap perangkat MENGHITUNG
+ * ULANG sendiri dengan mesinnya. Perangkat yang tertinggal versi menolak
+ * aksi yang belum ia kenal (mis. bayar "Checkout") — layarnya lalu berbeda
+ * dengan PC lain. Dulu pembaruan hanya ditawarkan lewat spanduk dan baru
+ * diperiksa tiap 10 menit, jadi PC yang tidak disentuh bisa tertinggal lama.
+ *
+ * Sekarang: diperiksa tiap 2 menit, dan begitu ada versi baru, dipasang
+ * SENDIRI saat layar diam 45 detik (tidak sedang diketik/diklik). Antrean
+ * aksi yang belum terkirim tersimpan di perangkat, jadi aman dimuat ulang.
+ */
+let terakhirDisentuh = Date.now();
+const DIAM_MS = 45_000;
+function pasangOtomatisKalauDiam() {
+  if (!adaPembaruan(k) || k.memperbarui) return;
+  if (Date.now() - terakhirDisentuh < DIAM_MS) return;
+  void perbaruiSekarang();
+}
 /** Mulai memeriksa berkala (sekali saja untuk seluruh aplikasi). */
 export function mulaiPantauPembaruan(): void {
   if (dipantau || !buildHalaman()) return;
   dipantau = true;
   void periksaPembaruan();
-  setInterval(() => void periksaPembaruan(), 10 * 60_000);
+  setInterval(() => void periksaPembaruan(), 2 * 60_000);
+  for (const ev of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+    window.addEventListener(ev, () => { terakhirDisentuh = Date.now(); }, { passive: true, capture: true });
+  }
+  setInterval(pasangOtomatisKalauDiam, 15_000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && (!k.diperiksa || Date.now() - k.diperiksa > 60_000)) void periksaPembaruan();
   });

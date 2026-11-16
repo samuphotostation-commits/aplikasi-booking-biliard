@@ -103,6 +103,20 @@ const aplikasiLama = (r: Hasil) => !r.ok && /printer belum dipilih/.test(r.alasa
  * lewat dialog bawaan. Mengembalikan alasan kalau gagal supaya layar bisa
  * memberi tahu kasir — bukan diam-diam tidak mencetak.
  */
+/** Cetak SATU elemen struk tertentu (mis. bill otomatis saat paket habis), N lembar terpotong. */
+export async function cetakElemen(el: HTMLElement, salinan = 1): Promise<{ ok: boolean; alasan?: string }> {
+  const j = jembatan();
+  const html = htmlStrukDariLayar(el);
+  if (!j) return cetakLewatDialog(html, salinan);
+  let catatan: string | undefined;
+  for (let i = 0; i < Math.max(1, salinan); i++) {
+    const r = await kirimStruk(j, html, printerTersimpan());
+    if (!r.ok) return i > 0 ? { ok: true, alasan: `hanya ${i} dari ${salinan} lembar tercetak: ${r.alasan ?? ""}` } : r;
+    catatan ??= r.alasan;
+  }
+  return { ok: true, alasan: catatan };
+}
+
 export async function cetakStruk(salinan = 1): Promise<{ ok: boolean; alasan?: string }> {
   const j = jembatan();
   /*

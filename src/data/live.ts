@@ -130,6 +130,15 @@ export type LiveSession = {
   lampuMatiUntuk?: number;
   /** Paket per jam yang DIBAYAR DI MUKA (bayar langsung): toleransi batal 5 menit tidak berlaku lagi. */
   bayarDiMuka?: true;
+  /**
+   * Meja asal sebuah tagihan paket yang WAKTUNYA HABIS tapi belum dibayar
+   * (pemilik 16 Nov 2026: "otomatis papan meja kosong, bill pindah ke Kasir").
+   * Tagihannya dipindah ke slot tagihan tak terlihat supaya mejanya kosong
+   * untuk tamu berikutnya; nama mejanya tetap ditulis dari sini.
+   */
+  mejaAsal?: string;
+  /** Sesi UJI SISTEM (paket uji beberapa menit, Rp 0) untuk mencoba lampu & cetak. */
+  uji?: true;
   /** Booking: kapan mejanya benar-benar siap setelah jam mulai (bookingnya dipindah meja, atau
    *  sesi yang menghalanginya dipindah/di-void). Hitungan 20 menit no-show dimulai dari sini. */
   readyAt?: number;

@@ -12,7 +12,7 @@ import {
   dalamJamBuka, batasJamTutup,
   settlementOf, lineValue, maintenanceBlockers, relocationTargets, classOf, sessionType, meterEndOf,
   splitPaidOf, paidLineKeys, porsiTerbayar, sisaPorsi, nilaiPorsi, GRACE_MIN, maxWalkinHours, priceWith, grupSesi, mesinEdc, punyaLampu,
-  sesiBerwaktu, paketOf as paketOfSesi, type State,
+  sesiBerwaktu, paketOf as paketOfSesi, type State, type Action,
   statusVoid, statusVoidBaris, voidMenungguSesi, paketAktif, paketProblem, mejaDijual, cariMeja, mejaDipakai, kodeSesi, tabTanpaMeja, complimentMeja, kategoriMejaDari, cadanganMeja, lantaiVenue, hargaPaket as hargaPaketPada, uraianPaket, itemOf, type Paket,
 } from "../../lib/adminStore";
 import { rupiah } from "../../lib/core";
@@ -22,6 +22,7 @@ import ClashAlert from "./ClashAlert";
 import OrderPicker from "./OrderPicker";
 import { LayarCounter } from "./PesanTanpaMeja";
 import { StrukResmi, barisStruk, nomorStruk, infoMain, type DataStruk } from "./StrukResmi";
+import { catatDibukaDiSini } from "./PemantauPaket";
 import TambahMeja from "./TambahMeja";
 import { useLampuAlat, type RingkasLampu } from "../../lib/lampuAlat";
 import { Button } from "../../components/UI";
@@ -60,7 +61,13 @@ export default function Board() {
   // Denah yang sedang dijual — bukan daftar meja di kode. Meja cadangan yang
   // diaktifkan pemilik muncul di sini tanpa perubahan kode apa pun.
   const mejaVenueIni = mejaDijual(a).filter((t) => t.venue === venue);
-  const rows = mejaVenueIni.filter(cocok);
+  /*
+   * URUT (pemilik 16 Nov 2026: "meja harusnya berurut tampilannya"): reguler
+   * dulu menurut nomor, lalu ruang VICTORY menurut nomor — tidak bergantung
+   * pada urutan katalog (meja cadangan yang diaktifkan belakangan ikut urut).
+   */
+  const rows = mejaVenueIni.filter(cocok).sort((x, y) =>
+    (classOf(a, x.id) === "regular" ? 0 : 1) - (classOf(a, y.id) === "regular" ? 0 : 1) || x.no - y.no);
   /*
    * + MEJA PER LANTAI (panduan UI/UX pemilik 15 Nov 2026). Mejanya diambil
    * dari katalog yang dikenal mesin — sama persis dengan Pengaturan → Meja —
@@ -134,7 +141,7 @@ export default function Board() {
     // Tab tanpa meja yang MASIH BERJALAN tetap tampil sampai ditutup.
     return [
       // + PESANAN F&B (PDF pemilik hlm 4): pengganti tombol pesan makan/minum di luar bill meja.
-      allow("tutupTab") && filter === "all" && <UbinPesananFnb key="pesanan-fnb" onOpen={() => setCounter(true)} />,
+      venue === "smh" && allow("tutupTab") && filter === "all" && <UbinPesananFnb key="pesanan-fnb" onOpen={() => setCounter(true)} />,
       ...aktif.map((x) => <Tile key={x.tableId} table={cariMeja(x.tableId)!} onOpen={() => setOpen(x.tableId)} />),
     ];
   };
@@ -146,58 +153,72 @@ export default function Board() {
     <div className="pb-6">
       <ClashAlert />
 
-      <div className="grid grid-cols-4 gap-2">
-        <Stat n={hitung.kosong} label="Kosong" tone="text-emerald-400" onClick={() => setFilter("free")} on={filter === "free"} />
-        <Stat n={hitung.jalan} label="Dipakai" tone="text-red-400" onClick={() => setFilter("running")} on={filter === "running"} />
-        <Stat n={hitung.booking} label="Booking" tone="text-amber" onClick={() => setFilter("soon")} on={filter === "soon"} />
-        {/* Meja makan tidak punya lampu — yang berguna di resto adalah
-            berapa pesanan yang masih ditunggu dapur. */}
-        {venue === "smh"
-          ? <Stat n={dapurJalan} label="Di dapur" tone="text-sky-300" onClick={() => setFilter("all")} on={filter === "all"} />
-          : <Stat n={hitung.lampu} label="Lampu" tone="text-yellow-300" onClick={() => setFilter("all")} on={filter === "all"} />}
+      {/*
+        BILAH ATAS RINGKAS (pemilik 16 Nov 2026: "bagian informasi yang di atas
+        hapus saja … dekatkan legenda ke daftar meja, kurangi jarak supaya lebih
+        banyak kartu terlihat"). Kotak-kotak angka besar diganti SATU bilah tepat
+        di atas meja: jumlah per status (ketuk = saring) sekaligus legenda warna,
+        lalu tombol lampu di kanan.
+      */}
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        {([
+          ["free", "Kosong", hitung.kosong, "border-emerald-400/70 text-emerald-300", "bg-emerald-400"],
+          ["running", venue === "smh" ? "Terisi" : "Open bill / main", hitung.jalan, "border-sky-300/70 text-sky-200", "bg-sky-300"],
+          ["soon", "Booking", hitung.booking, "border-amber/70 text-amber", "bg-amber"],
+        ] as const).map(([k, l, n, warna, titik]) => (
+          <button key={k} onClick={() => setFilter(filter === k ? "all" : k)} aria-pressed={filter === k}
+            className={`flex min-h-[34px] items-center gap-1.5 rounded-full border px-3 text-[12px] font-bold ${warna} ${
+              filter === k ? "bg-white/10 ring-2 ring-white/30" : "bg-ink-2"}`}>
+            <span className={`h-2.5 w-2.5 rounded-full ${titik}`} />{l}
+            <span className="font-display text-[16px] leading-none tabular-nums">{n}</span>
+          </button>
+        ))}
+        {venue !== "smh" && (
+          <span className="flex min-h-[34px] items-center gap-1.5 rounded-full border border-red-400/60 bg-ink-2 px-3 text-[12px] font-bold text-red-300">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-400" />{MENIT_TERAKHIR} mnt terakhir / habis
+          </span>
+        )}
+        {venue === "smh" && dapurJalan > 0 && (
+          <span className="flex min-h-[34px] items-center rounded-full border border-line bg-ink-2 px-3 text-[12px] text-sky-300">Di dapur {dapurJalan}</span>
+        )}
+        {filter !== "all" && (
+          <button onClick={() => setFilter("all")} className="px-1 text-[12px] text-amber underline underline-offset-4">semua meja</button>
+        )}
+        {allow("kontrolLampu") && venue !== "smh" && (
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-dim">Lampu {hitung.lampu} nyala:</span>
+            <button onClick={() => dispatchA({ t: "allLights", on: false })}
+              className="min-h-[32px] rounded-lg border border-line bg-ink-2 px-2.5 text-[12px] text-mute">Matikan semua</button>
+            <button onClick={() => dispatchA({ t: "allLights", on: true })}
+              className="min-h-[32px] rounded-lg border border-line bg-ink-2 px-2.5 text-[12px] text-mute">Nyalakan semua</button>
+            <LampuAlatTanda ringkas={lampuAlat.ringkas} />
+          </span>
+        )}
       </div>
 
-      {allow("kontrolLampu") && venue !== "smh" && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-[11px] text-dim">Lampu meja:</span>
-          <button onClick={() => dispatchA({ t: "allLights", on: false })}
-            className="min-h-[34px] rounded-lg border border-line bg-ink-2 px-3 text-[12px] text-mute">
-            Matikan semua
-          </button>
-          <button onClick={() => dispatchA({ t: "allLights", on: true })}
-            className="min-h-[34px] rounded-lg border border-line bg-ink-2 px-3 text-[12px] text-mute">
-            Nyalakan semua
-          </button>
-          <LampuAlatTanda ringkas={lampuAlat.ringkas} />
-        </div>
-      )}
-
-      {filter !== "all" && (
-        <button onClick={() => setFilter("all")}
-          className="mt-2 text-xs text-amber underline underline-offset-4">
-          Tampilkan semua {mejaVenueIni.length} meja
-        </button>
-      )}
-
-      {kabarCounter && <p role="status" className="mt-3 text-[12px] text-amber">{kabarCounter}</p>}
-
-      {/* Denah dalam kartu (perapian 14 Nov 2026), dengan keterangan warna status. */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-wider text-dim">
-        <span>Warna:</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-400" />kosong</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-sky-300" />sedang main</span>
-        {venue !== "smh" && <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-400" />{MENIT_TERAKHIR} menit terakhir / habis</span>}
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber" />booking</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-dim" />rusak</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-red-500" />tab ≥ {PERINGATAN_TAB_JAM} jam</span>
-      </div>
+      {kabarCounter && <p role="status" className="mt-2 text-[12px] text-amber">{kabarCounter}</p>}
       {kabarMeja && <p role="status" className="mt-2 rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-[12px] text-amber">{kabarMeja}</p>}
       {lantai.length === 0 ? (
-        <div className="mt-2 rounded-2xl border border-line bg-ink-2/60 p-2.5">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-            {mejaTanpaNomor()}
-            {rows.map((t) => <Tile key={t.id} table={t} onOpen={() => setOpen(t.id)} />)}
-            {kotakTambah(0)}
+        <div className="mt-2 rounded-2xl border border-line bg-ink-2/60 p-2">
+          {/* 7 meja ke samping × 5 ke bawah per halaman, BERURUT seperti
+              membaca: baris 1 = meja 1–7, baris 2 = 8–14, dst. Meja ke-36 dan
+              seterusnya ada di halaman berikutnya — digulir KE SAMPING. */}
+          <div className="flex gap-2">
+            {/* Pesanan F&B tetap di kiri — tidak ikut tergulir. */}
+            {allow("tutupTab") && filter === "all" && (
+              <div className="w-[112px] shrink-0"><UbinPesananFnb onOpen={() => setCounter(true)} /></div>
+            )}
+            <div className="papan-gulir flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-1.5">
+              {halamanPapan([
+                ...mejaTanpaNomor(),
+                ...rows.map((t) => <Tile key={t.id} table={t} onOpen={() => setOpen(t.id)} />),
+                kotakTambah(0),
+              ]).map((isi, i) => (
+                <div key={i} className="grid min-w-[1098px] shrink-0 basis-full snap-start auto-rows-fr grid-cols-7 gap-2">
+                  {isi}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       ) : (
@@ -261,7 +282,7 @@ function ringkasPesanan(s: LiveSession): [string, number][] {
 }
 
 function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () => void }) {
-  const { a, byTable } = useAdmin();
+  const { a, byTable, dispatchA, peek, allow } = useAdmin();
   const s = byTable.get(table.id);
   const st = statusStyle(s?.status ?? "free");
   const lampu = a.lights[table.id];
@@ -270,7 +291,8 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
   /** Jenis compliment & kategori meja — dari pengaturan pemilik, bukan katalog. */
   const komp = complimentMeja(a, table.id);
   const katMeja = kategoriMejaDari(a, table.id);
-  const bill = s && s.status === "running" ? settlementOf(s, a).due : 0;
+  // Layar memakai tagihan TANPA pembulatan (pembulatan naik baru saat bayar/cetak).
+  const bill = s && s.status === "running" ? settlementOf(s, a).dueTampil : 0;
   /** Tab berjalan ≥ 8 jam (pemilik 14 Nov 2026): ubinnya merah — kemungkinan lupa ditutup. */
   const tabPanjang = s?.status === "running" && Date.now() - s.startsAt >= PERINGATAN_TAB_JAM * 3_600_000;
   /*
@@ -392,70 +414,94 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
         : rusak ? "border-line bg-ink text-dim" : "border-line bg-ink-2 text-cream hover:border-line-2";
     const persen = berwaktu
       ? Math.min(100, Math.max(0, ((Date.now() - s!.startsAt) / Math.max(1, s!.endsAt - s!.startsAt)) * 100)) : null;
-    const isian = (k: string, v: React.ReactNode, tegas = false) => (
-      <div className="flex min-w-0 items-baseline justify-between gap-1.5 border-b border-black/10 py-[2px]">
-        <span className="shrink-0 text-[9.5px] font-bold uppercase tracking-wider opacity-60">{k}</span>
-        <span className={`truncate text-[12.5px] font-extrabold tabular-nums ${tegas && akhir ? "text-red-800" : ""}`}>{v}</span>
-      </div>
-    );
-    const chip = "rounded-md px-1.5 py-[1px] text-[10px] font-extrabold uppercase tracking-wider";
+    const batal = s && allow("tutupTab") && bisaBatalMeja(s, a);
+    /*
+     * URUTAN ISI KARTU (pemilik 16 Nov 2026):
+     *   1. nomor meja · LABEL STATUS (Open Bill / paket / Kosong / Booking) · VIP
+     *   2. TAGIHAN BESAR di tengah kartu — terbaca tanpa membuka detail
+     *   3. di bawahnya: jam mulai · durasi (paket: sampai jam & sisa waktu)
+     */
+    const labelStatus = main ? (berwaktu ? namaPaketSesi(a, s!) : "Open Bill")
+      : pesan ? (status === "hold" ? "Menunggu bayar" : "Booking") : rusak ? "Rusak" : "Kosong";
+    const pitaStatus = main ? (akhir ? "bg-red-600 text-white" : "bg-[#06303b] text-[#aeefff]")
+      : pesan ? "bg-amber text-ink" : rusak ? "bg-ink-3 text-dim" : "bg-emerald-500 text-ink";
     return (
+      <div className="relative h-full">
+      {batal && (
+        <button onClick={() => batalkanMeja(s!, dispatchA, peek)}
+          title={`Batal gratis — masih dalam ${GRACE_MIN} menit pertama`}
+          className="absolute bottom-1.5 right-1.5 z-10 rounded-lg bg-red-600 px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)] hover:bg-red-500">
+          Cancel
+        </button>
+      )}
       <motion.button layout whileTap={{ scale: 0.97 }} whileHover={{ y: -2 }} onClick={onOpen}
-        aria-label={`${nama} · ${st.label}`}
-        className={`relative flex min-h-[140px] w-full flex-col overflow-hidden rounded-2xl border-2 p-2.5 text-left transition-colors ${kartu} ${
-          tabPanjang ? "ring-2 ring-red-500 ring-offset-2 ring-offset-ink" : ""}`}
+        aria-label={`${nama} · ${labelStatus}`}
+        className={`relative flex h-full min-h-[112px] w-full flex-col overflow-hidden rounded-xl border-2 px-2.5 py-2 text-left transition-colors ${kartu} ${
+          tabPanjang ? "ring-2 ring-red-500 ring-offset-1 ring-offset-ink" : ""} ${!main && kosong ? "border-emerald-500/50" : ""}`}
         style={rusak ? { backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 8px, transparent 8px 16px)" } : undefined}>
-        <div className="flex items-start gap-2">
-          <span className={`shrink-0 font-display leading-[0.82] ${table.tanpaMeja ? "max-w-[46%] break-words text-[20px]" : "text-[54px]"} ${
-            main ? "" : kosong ? "text-cream/85" : ""}`}>{label}</span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-1">
-              <span className="min-w-0 truncate text-[13px] font-extrabold leading-tight">
-                {main ? namaPaketSesi(a, s!) : pesan ? (status === "hold" ? "Menunggu bayar" : "Booking") : rusak ? "Rusak" : "Kosong"}
-              </span>
-              {punyaLampu(table.id) && (
-                <span title={nyala ? "Lampu menyala" : "Lampu mati"}
-                  className={`mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full border ${nyala
-                    ? "border-yellow-600 bg-yellow-300 shadow-[0_0_10px_3px_rgba(253,224,71,0.8)]"
-                    : main ? "border-black/30 bg-black/70" : "border-white/20 bg-white/10"}`} />
-              )}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1">
-              {main && (komp ? <span className={`${chip} bg-sky-700 text-white`}>Rp 0 · compliment</span>
-                : s!.source === "online" && bill <= 0 ? <span className={`${chip} bg-emerald-700 text-white`}>Lunas</span>
-                  : <span className={`${chip} bg-black/80 font-serif normal-case tracking-normal text-amber`}>{rupiah(bill)}</span>)}
-              {main && akhir && <span className={`${chip} bg-red-600 text-white`}>{habisWaktu ? "Waktu habis" : `${MENIT_TERAKHIR} mnt terakhir`}</span>}
-              {!main && kosong && <span className={`${chip} border border-emerald-400/70 text-emerald-300`}>Siap</span>}
-              {kelas !== "regular" && !table.tanpaMeja && (
-                <span className={`${chip} ${main ? "bg-black/15" : "bg-white/10 text-mute"}`}>{CLASS_SHORT[kelas]}</span>
-              )}
-              {s?.lembur && <span className={`${chip} bg-amber text-ink`}>lembur</span>}
-            </div>
+        {/* 1 · nomor, status, kelas, lampu */}
+        <div className="flex items-center gap-1.5">
+          <span className={`shrink-0 font-display leading-none ${table.tanpaMeja ? "max-w-[55%] truncate text-[17px]" : "text-[30px]"} ${
+            !main && kosong ? "text-cream" : ""}`}>{label}</span>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            <span className={`max-w-full truncate rounded px-1.5 py-[2px] text-[10.5px] font-extrabold uppercase tracking-wide ${pitaStatus}`}>
+              {labelStatus}
+            </span>
+            {kelas !== "regular" && !table.tanpaMeja && (
+              <span className={`rounded px-1.5 py-[2px] text-[10px] font-extrabold uppercase tracking-wide ${
+                main ? "bg-[#7a1f3d] text-white" : "border border-fuchsia-400/70 text-fuchsia-200"}`}>{CLASS_SHORT[kelas]}</span>
+            )}
+            {s?.lembur && <span className="rounded bg-amber px-1 text-[9px] font-bold uppercase text-ink">lembur</span>}
           </div>
+          {punyaLampu(table.id) && (
+            <span title={nyala ? "Lampu menyala" : "Lampu mati"}
+              className={`h-3 w-3 shrink-0 rounded-full border ${nyala
+                ? "border-yellow-600 bg-yellow-300 shadow-[0_0_8px_3px_rgba(253,224,71,0.8)]"
+                : main ? "border-black/30 bg-black/60" : "border-white/20 bg-white/10"}`} />
+          )}
         </div>
+
+        {/* 2 · tagihan besar */}
+        <div className="flex flex-1 items-center">
+          {main ? (
+            komp ? <span className="text-[17px] font-extrabold">Rp 0 · compliment</span>
+              : s!.source === "online" && bill <= 0 ? <span className="text-[19px] font-extrabold text-emerald-800">LUNAS</span>
+                : <span className="font-serif text-[24px] font-extrabold leading-none tabular-nums">{rupiah(bill)}</span>
+          ) : pesan && s ? (
+            <span className="min-w-0 truncate text-[14px] font-bold text-amber">{s.guest}</span>
+          ) : (
+            <span className={`text-[12px] font-semibold ${rusak ? "text-dim" : "text-emerald-300/80"}`}>
+              {rusak ? "tidak dipakai" : "siap dipakai · ketuk untuk buka"}
+            </span>
+          )}
+        </div>
+
+        {/* 3 · jam mulai & durasi */}
         {main ? (
-          <div className="mt-auto pt-1.5">
-            <div className="grid grid-cols-2 gap-x-3">
-              {isian("Check-in", jam(s!.startsAt))}
-              {isian("Durasi", berwaktu ? lamaMain(s!.endsAt - s!.startsAt) : <Elapsed since={s!.startsAt} />)}
-              {isian("Check out", berwaktu ? jam(s!.endsAt) : "—")}
-              {isian("Sisa", berwaktu ? sisaWaktu(s!.endsAt) : "—", true)}
+          <div className="text-[11px] font-bold tabular-nums leading-tight">
+            <div className="flex justify-between gap-1">
+              <span>Mulai {jam(s!.startsAt)}</span>
+              <span>{berwaktu ? lamaMain(s!.endsAt - s!.startsAt) : <Elapsed since={s!.startsAt} />}</span>
             </div>
+            {berwaktu && (
+              <div className={`flex justify-between gap-1 ${akhir ? "text-red-800" : "opacity-75"}`}>
+                <span>s/d {jam(s!.endsAt)}</span><span>{akhir && habisWaktu ? "habis" : `sisa ${sisaWaktu(s!.endsAt)}`}</span>
+              </div>
+            )}
             {persen !== null && (
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-black/15" aria-hidden="true">
+              <div className="mt-1 h-1 overflow-hidden rounded-full bg-black/15" aria-hidden="true">
                 <div className={`h-full rounded-full ${akhir ? "bg-red-600" : "bg-sky-700"}`} style={{ width: `${persen}%` }} />
               </div>
             )}
-            {tabPanjang && <div className="mt-0.5 text-[9.5px] font-extrabold uppercase tracking-wider text-red-800">≥ {PERINGATAN_TAB_JAM} jam — cek tab</div>}
+            {tabPanjang && <div className="text-[9.5px] font-extrabold uppercase text-red-800">≥ {PERINGATAN_TAB_JAM} jam — cek tab</div>}
           </div>
         ) : pesan && s ? (
-          <div className="mt-auto truncate text-[11.5px] font-semibold text-amber">
-            {s.guest} · {jam(s.startsAt)}{s.pax ? ` · ${s.pax} org` : ""}
-          </div>
+          <div className="text-[11px] font-semibold text-amber/90">mulai {jam(s.startsAt)}{s.pax ? ` · ${s.pax} org` : ""}</div>
         ) : (
-          <div className="mt-auto text-[11px] text-dim">{rusak ? "tidak dipakai" : "ketuk untuk buka meja"}</div>
+          null
         )}
       </motion.button>
+      </div>
     );
   }
 
@@ -564,11 +610,40 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
   );
 }
 
+/*
+ * CANCEL MEJA DALAM 5 MENIT PERTAMA (pemilik 16 Nov 2026): meja yang baru
+ * dibuka boleh dibatalkan GRATIS selama 5 menit pertama — tombolnya ada di
+ * papan. Hanya kalau belum ada pesanan dan belum ada uang masuk; mesin tetap
+ * memastikan tagihannya Rp 0 (aturan toleransi 5 menit yang sama).
+ */
+function bisaBatalMeja(s: LiveSession, a: Parameters<typeof settlementOf>[1]): boolean {
+  if (s.status !== "running" || s.source !== "walkin" || s.uji) return false;
+  if (Date.now() - s.startsAt > GRACE_MIN * 60_000) return false;
+  if (s.fnb.length > 0 || (s.payments?.length ?? 0) > 0 || s.paidOnline > 0) return false;
+  return settlementOf(s, a).due === 0;
+}
+function batalkanMeja(s: LiveSession, dispatchA: (x: Action) => string | null | void, peek: () => State) {
+  if (!confirm(`Batalkan ${s.guest} di meja ini? Gratis (Rp 0) karena masih dalam ${GRACE_MIN} menit pertama.`)) return;
+  dispatchA({ t: "settle", id: s.id, channel: venueDari(s.tableId) === "spl" ? "checkout" : "cash" });
+  const tutup = peek().sessions.find((x) => x.id === s.id)?.status === "done";
+  if (!tutup) alert("Tidak bisa dibatalkan — lewat 5 menit, sudah ada pesanan, atau shift belum buka.");
+}
+
+/** Ubin papan dipotong per halaman 7 × 5 = 35 (yang kosong/`false` dibuang dulu). */
+const UBIN_PER_HALAMAN = 35;
+function halamanPapan(ubin: React.ReactNode[]): React.ReactNode[][] {
+  const ada = ubin.filter(Boolean);
+  const hal: React.ReactNode[][] = [];
+  for (let i = 0; i < ada.length; i += UBIN_PER_HALAMAN) hal.push(ada.slice(i, i + UBIN_PER_HALAMAN));
+  return hal.length ? hal : [[]];
+}
+
 /** Indikator papan (PDF pemilik): biru terang = sedang main, merah = 4 menit terakhir. */
 const MENIT_TERAKHIR = 4;
 
 /** Nama paket / open bill untuk ubin papan. */
 function namaPaketSesi(a: Pick<State, "packages">, s: LiveSession): string {
+  if (s.uji) return `Paket uji ${Math.round((s.endsAt - s.startsAt) / 60_000)} mnt`;
   if (s.paket) return paketOfSesi(a, s.paket)?.name ?? "Paket";
   if (s.blockHours) return `Paket ${s.blockHours} Jam`;
   if (s.source === "online") return `Booking ${Math.max(1, Math.round((s.endsAt - s.startsAt) / 3_600_000))} Jam`;
@@ -594,7 +669,7 @@ function UbinPesananFnb({ onOpen }: { onOpen: () => void }) {
   return (
     <motion.button layout whileTap={{ scale: 0.96 }} whileHover={{ y: -2 }} onClick={onOpen}
       aria-label="Pesanan F&B di luar bill meja"
-      className="group flex min-h-[126px] w-full flex-col items-center justify-center gap-1.5 rounded-[18px] border-2 border-dashed border-amber/60 bg-gradient-to-br from-amber/15 via-ink-2 to-ink-2 text-center shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-amber hover:from-amber/25">
+      className="group flex h-full min-h-[112px] w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-amber/60 bg-gradient-to-br from-amber/15 via-ink-2 to-ink-2 text-center shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-amber hover:from-amber/25">
       <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber text-[26px] font-bold leading-none text-ink shadow-[0_0_14px_rgba(232,163,61,0.55)] transition-transform group-hover:scale-110">+</span>
       <span className="font-display text-[19px] uppercase leading-none tracking-wide text-cream">Pesanan F&amp;B</span>
       <span className="text-[10px] text-dim">makanan · minuman · rokok — di luar bill meja</span>
@@ -778,7 +853,9 @@ export function TableSheet({
   const flash = (text: string) => { setNote(text); setTimeout(() => setNote(null), 5000); };
   const komp = complimentMeja(a, table.id);
   /** Judul panel: tab tanpa meja memakai NAMA ORANGNYA. */
-  const judulMeja = table.tanpaMeja ? (session ? `Tab · ${session.guest}` : "Meja tanpa nomor") : namaMeja(a, table.id);
+  const judulMeja = table.tanpaMeja
+    ? (session ? (session.mejaAsal ? `${namaMeja(a, session.mejaAsal)} · waktu habis` : `Tab · ${session.guest}`) : "Meja tanpa nomor")
+    : namaMeja(a, table.id);
 
   /*
    * ALUR PESAN (panduan UI/UX pemilik 15 Nov 2026, diluruskan pemilik: "ini
@@ -953,6 +1030,7 @@ export function TableSheet({
       billiard: final.billiard, fnb: final.fnb, diskon: final.discount,
       promo: final.promo?.promo.name,
       ...(final.compliment > 0 ? { compliment: final.compliment } : {}),
+      pembulatan: final.pembulatan,
       prabayar: session.paidOnline + splitPaidOf(session), bayar: 0,
       metode: "Lunas Online (QRIS)", kasir: a.me?.name ?? "-",
       items: session.fnb.map((l) => ({ ...barisStruk(l), lunas: lunasKey.has(l.key) })),
@@ -1005,6 +1083,7 @@ export function TableSheet({
         ? { diskonManual: jumlah((h) => h.bill.diskonManual) } : {}),
       ...(jumlah((h) => h.bill.compliment) > 0
         ? { compliment: jumlah((h) => h.bill.compliment) } : {}),
+      pembulatan: jumlah((h) => h.bill.pembulatan),
       prabayar: jumlah((h) => h.sesi.paidOnline + splitPaidOf(h.sesi)),
       bayar: totalDue,
       metode: label, kasir: a.me?.name ?? "-",
@@ -1207,7 +1286,7 @@ export function TableSheet({
                       aria-pressed={jamPaket === null && !paketPilih}
                       className={`min-h-[44px] rounded-lg border px-2 text-[13px] font-semibold ${
                         jamPaket === null && !paketPilih ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink-2 text-cream"
-                      }`}>Open bill<div className="text-[10px] font-normal text-dim">meteran per menit</div></button>
+                      }`}>Open bill<div className="text-[10px] font-normal text-dim">30 menit pertama, lalu per menit</div></button>
                     <button onClick={() => { setPaketPilih(null); setJamPaket(jamPaket === null ? Math.min(2, maksJam || 1) : jamPaket); }}
                       aria-pressed={jamPaket !== null} disabled={maksJam < 1}
                       className={`min-h-[44px] rounded-lg border px-2 text-[13px] font-semibold disabled:opacity-35 ${
@@ -1280,6 +1359,31 @@ export function TableSheet({
                 </div>
               )}
 
+              {/* PAKET UJI SISTEM (pemilik 16 Nov 2026): untuk mencoba lampu, bill
+                  otomatis, dan meja kosong saat waktu habis — Rp 0, hanya pengurus. */}
+              {kelas !== "resto" && !table.tanpaMeja && allow("kelolaMeja") && (
+                <div className="rounded-xl border border-dashed border-sky-400/60 bg-sky-400/5 p-3">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky-200">Paket uji sistem · Rp 0</div>
+                  <p className="mt-0.5 text-[11px] leading-snug text-dim">
+                    Lampu menyala, lalu saat waktunya habis: lampu mati, bill tercetak di PC ini, meja kosong lagi.
+                  </p>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    {[1, 2, 5].map((m) => (
+                      <button key={m}
+                        onClick={() => {
+                          dispatchA({ t: "walkin", tableId: table.id, guest: "", menitUji: m });
+                          const uji = peek().sessions.find((x) => x.tableId === table.id && x.status === "running" && x.uji);
+                          if (uji) { catatDibukaDiSini(uji.id); flash(`Paket uji ${m} menit dimulai.`); onClose(); }
+                          else flash("Paket uji ditolak — meja tidak kosong, shift belum buka, atau bukan akun pengurus.");
+                        }}
+                        className="min-h-[40px] rounded-lg border border-sky-400/60 text-[13px] font-semibold text-sky-100 hover:bg-sky-400/15">
+                        {m} menit
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
             <div className="min-w-0 space-y-3 lg:sticky lg:top-0">
               <div className="rounded-xl border border-line bg-ink px-3.5 py-3 text-[13px]">
@@ -1321,7 +1425,7 @@ export function TableSheet({
                     <>
                       <li>• Batal dalam <span className="text-cream">{GRACE_MIN} menit</span> pertama: tidak ditagih</li>
                       <li>• Lewat {GRACE_MIN} menit (mis. {GRACE_MIN} menit 1 detik): langsung terhitung <span className="text-cream">30 menit sejak menit 0</span></li>
-                      <li>• Setelah itu dihitung <span className="text-cream">per menit</span> sampai tab ditutup (berhenti sendiri pukul 06.00 hanya kalau tidak ada shift buka)</li>
+                      <li>• Setelah 30 menit dihitung <span className="text-cream">per menit</span> sampai tab ditutup</li>
                     </>
                   )}
                 </ul>
@@ -1351,7 +1455,10 @@ export function TableSheet({
                     t: "walkin", tableId: table.id, guest,
                     ...(paketDipakai ? { paketId: paketDipakai.id } : jamPaket !== null ? { hours: jamPaket } : {}),
                   });
-                  const dibuka = peek().sessions.some((x) => x.tableId === table.id && x.status === "running");
+                  const sesiBaru = peek().sessions.find((x) => x.tableId === table.id && x.status === "running");
+                  const dibuka = !!sesiBaru;
+                  // Paket/blok jam: bill-nya keluar otomatis di PC ini saat waktunya habis.
+                  if (sesiBaru && sesiBerwaktu(sesiBaru)) catatDibukaDiSini(sesiBaru.id);
                   if (!dibuka) flash("Meja tidak jadi dibuka — cek jam operasional atau booking berikutnya.");
                   // Langsung ke MENU — SPL maupun Smokehouse (alur pemilik 15 Nov 2026).
                   // Tamu yang belum mau pesan: tombol "Lewati" di layar menu.
@@ -1424,8 +1531,8 @@ export function TableSheet({
                   {bill?.detail && (
                     <div className="px-4 py-2.5">
                       <div className="mb-1 flex justify-between text-[13px]">
-                        <span className="text-dim">Meja ({bill.detail.billedMinutes} menit)</span>
-                        <span className="font-serif text-cream">{rupiah(billiard)}</span>
+                        <span className="text-dim">Meja ({bill.detail.graceApplied ? 30 : bill.detail.billedMinutes} menit)</span>
+                        <span className="font-serif text-cream">{rupiah(calc?.mejaTampil ?? billiard)}</span>
                       </div>
                       {bill.detail.segments.map((sg, i) => (
                         <div key={i} className="flex justify-between text-[11px] text-dim">
@@ -1440,8 +1547,7 @@ export function TableSheet({
                       )}
                       {bill.detail.graceApplied && (
                         <p className="mt-1 text-[11px] text-emerald-400">
-                          Masih dalam toleransi batal {GRACE_MIN} menit — kalau ditutup sekarang meja tidak ditagih.
-                          Lewat menit ke-{GRACE_MIN}, langsung terhitung 30 menit.
+                          Ditagih 30 menit sejak meja dibuka. Kalau batal/ditutup dalam {GRACE_MIN} menit pertama, meja tidak ditagih.
                         </p>
                       )}
                       {meterBerhenti && (
@@ -1474,7 +1580,7 @@ export function TableSheet({
                   ) : (
                     <div className="flex items-center justify-between bg-amber/10 px-4 py-3">
                       <span className="font-semibold text-cream">{sudahSplit > 0 ? "Sisa tagihan" : "Tagihan berjalan"}</span>
-                      <span className="font-serif text-xl font-bold text-amber">{rupiah(due)}</span>
+                      <span className="font-serif text-xl font-bold text-amber">{rupiah(calc?.dueTampil ?? due)}</span>
                     </div>
                   )}
                 </div>
@@ -1691,6 +1797,7 @@ export function TableSheet({
                           promo: cek.promo?.promo.name,
                           ...(cek.diskonManual > 0 ? { diskonManual: cek.diskonManual } : {}),
                           ...(cek.compliment > 0 ? { compliment: cek.compliment } : {}),
+                          pembulatan: cek.pembulatan,
                           prabayar: session.paidOnline + splitPaidOf(session), bayar: cek.due,
                           metode: "belum dibayar", kasir: a.me?.name ?? "-",
                           belumLunas: true,
@@ -1723,7 +1830,7 @@ export function TableSheet({
                           {session.source === "online" && due <= 0 ? "Status" : sudahSplit > 0 ? "Sisa tagihan" : "Tagihan berjalan"}
                         </span>
                         <span className={`font-serif text-xl font-bold tabular-nums ${session.source === "online" && due <= 0 ? "text-emerald-400" : "text-amber"}`}>
-                          {session.source === "online" && due <= 0 ? "LUNAS" : rupiah(due)}
+                          {session.source === "online" && due <= 0 ? "LUNAS" : rupiah(calc?.dueTampil ?? due)}
                         </span>
                       </div>
                       {/* SPL (pemilik 16 Nov 2026): tiga pembayaran SEDERET dan jadi fokus —
@@ -1818,6 +1925,12 @@ export function TableSheet({
                   {session.source === "online" ? "Sisa Tagihan Tambahan" : "Total ditagih"}
                 </div>
                 <div className="font-serif text-3xl font-bold text-amber">{rupiah(due)}</div>
+                {/* Pembulatan naik baru terjadi saat bayar (pemilik 16 Nov 2026). */}
+                {(calc?.pembulatan ?? 0) > 0 && (
+                  <div className="mt-0.5 text-[12px] text-cream">
+                    Tagihan {rupiah(calc!.dueTampil)} + pembulatan {rupiah(calc!.pembulatan)}
+                  </div>
+                )}
                 <div className="mt-1 text-[11px] text-dim">
                   {session.source === "online" ? (
                     <>Sewa awal {rupiah(session.paidOnline)} sudah lunas online · Meja {rupiah(billiard)} · F&amp;B {rupiah(fnb)}</>

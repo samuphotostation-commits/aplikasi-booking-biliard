@@ -92,6 +92,13 @@ export const paketAktif = (st: Pick<State, "packages">): Paket[] =>
  * Layar dan mesin memanggil fungsi yang SAMA, jadi harga yang tampil di
  * layar adalah harga yang ditagih. */
 export const kelasPaket = (pk: Paket): "regular" | "vip" => pk.kelas ?? "regular";
+/**
+ * Meja kelas ini boleh memakai paket itu? Pemilik 16 Nov 2026: kelas VIP
+ * dilebur ke VICTORY ("semuanya jadi VICTORY"), jadi paket kelas "vip"
+ * (kunci lama dipertahankan) kini berlaku di ruang VIP lama MAUPUN VICTORY.
+ */
+export const kelasCocokPaket = (pk: Paket, kelasMeja: TableType): boolean =>
+  kelasPaket(pk) === "vip" ? kelasMeja === "vip" || kelasMeja === "vvip" : kelasMeja === "regular";
 export const jamMulaiPaket = (pk: Paket): number => pk.jamMulai ?? OPEN_IDX;
 export const jamSelesaiPaket = (pk: Paket): number =>
   pk.jamSelesai ?? Math.min(CLOSE_IDX, pk.lastStartHour + Math.max(pk.hours, 1));
@@ -840,7 +847,9 @@ export type Action =
   | { t: "closeShift"; countedCash: number; expected?: number; venue?: Venue }
   /** `hours` diisi = buka meja paket per jam (harga blok, ada jam selesai); kosong = open bill meteran.
    *  `paketId` diisi = buka meja memakai paket pemilik (harga, jam, jatah minuman & isinya dari paket itu). */
-  | { t: "walkin"; tableId: string; guest: string; hours?: number; paketId?: string }
+  | { t: "walkin"; tableId: string; guest: string; hours?: number; paketId?: string;
+      /** PAKET UJI (pemilik 16 Nov 2026): main beberapa menit Rp 0 untuk mencoba lampu & cetak otomatis. */
+      menitUji?: number }
   | { t: "checkin"; code: string }
   | { t: "extend"; id: string; minutes: number }
   /** Angka uang dari layar DIABAIKAN — dihitung ulang dari state. */
@@ -1115,7 +1124,7 @@ export const lantaiVenue = (venue: Venue): number[] =>
 /** Tab tanpa meja venue itu: yang sedang dipakai, dan slot yang masih kosong. */
 export function tabTanpaMeja(st: Pick<State, "sessions">, venue: Venue) {
   const slot = SEMUA_MEJA.filter((t) => t.tanpaMeja && t.venue === venue);
-  const aktif = st.sessions.filter((x) => x.status === "running" && slot.some((t) => t.id === x.tableId));
+  const aktif = st.sessions.filter((x) => x.status === "running" && !x.mejaAsal && slot.some((t) => t.id === x.tableId));
   const kosong = slot.filter((t) => !st.sessions.some((x) => x.tableId === t.id && x.status !== "done" && x.status !== "noshow"));
   return { aktif, kosong };
 }
@@ -1427,6 +1436,7 @@ export function billiardTotalOf(
   s: LiveSession, rates: State["rates"], now = clock(), st?: RiwayatShift,
 ): { amount: number; detail: BillBreakdown | null } {
   if (s.source !== "walkin" || s.status === "maintenance") return { amount: s.tableAmount, detail: null };
+  if (s.uji) return { amount: 0, detail: null };
   // Paket per jam: harga blok yang sudah disepakati, bukan meteran. Toleransi batal
   // 5 menit tetap berlaku — tamu yang langsung pindah/batal tidak ditagih.
   if (s.blockHours) {
@@ -1578,8 +1588,33 @@ export function settlementOf(
      * tidak akan pernah tahu itu terjadi.
      */
     compliment: complimentOf(s),
+    ...tampilanTagihan(s, st, bill.detail, billiard, due),
   };
 }
+
+/*
+ * TAMPILAN TAGIHAN KASIR (pemilik 16 Nov 2026):
+ *   - "bill langsung charge 30 menit saat buka meja" — sejak meja dibuka layar
+ *     sudah menampilkan biaya 30 menit, walau 5 menit pertama masih gratis
+ *     kalau batal (aturan uangnya TIDAK berubah: tutup ≤ 5 menit = Rp 0);
+ *   - "setiap billing tidak dikenakan pembulatan; saat pembayaran atau cetak
+ *     billing kena pembulatan naik" — layar memakai angka MENTAH, sedangkan
+ *     tagihan yang dibayar (`due`) tetap angka yang sudah dibulatkan naik.
+ *     Selisihnya ditulis sebagai "Pembulatan" di layar bayar dan di struk.
+ */
+function tampilanTagihan(
+  s: LiveSession, st: Pick<State, "rates">, detail: BillBreakdown | null, billiard: number, due: number,
+) {
+  if (!detail) return { mejaTampil: billiard, pembulatan: 0, dueTampil: due, dalamToleransi: false };
+  if (detail.graceApplied) {
+    // Masih dalam 5 menit pertama: tampilkan biaya 30 menit pertama (mentah).
+    const awal = billOpenSession(sessionType(s), s.startsAt, s.startsAt + MIN_BILLED_MINUTES_ENGINE * 60_000, s.rates ?? st.rates).rawAmount;
+    return { mejaTampil: awal, pembulatan: 0, dueTampil: due + awal, dalamToleransi: true };
+  }
+  const pembulatan = Math.max(0, billiard - detail.rawAmount);
+  return { mejaTampil: detail.rawAmount, pembulatan, dueTampil: Math.max(0, due - pembulatan), dalamToleransi: false };
+}
+const MIN_BILLED_MINUTES_ENGINE = 30;
 
 /** Uang tunai yang seharusnya ada di laci untuk shift yang sedang jalan. */
 /** Shift yang sedang buka di satu venue. */
@@ -1638,7 +1673,7 @@ export function paketProblem(
   if (!pk || pk.aktif === false || pk.dihapus) return "paket tidak tersedia";
   if (pk.hours <= 0) return `${pk.name} bukan paket meja`;
   const kelas = kelasPaket(pk);
-  if (r.kelas !== kelas) return `${pk.name} hanya untuk meja ${kelas === "vip" ? "VIP" : "reguler"}`;
+  if (!kelasCocokPaket(pk, r.kelas)) return `${pk.name} hanya untuk ${kelas === "vip" ? "ruang VICTORY" : "meja reguler"}`;
   if (r.hours !== pk.hours) return `${pk.name} lamanya ${pk.hours} jam`;
   if (!paketHariIni(pk, r.startsAt)) return `${pk.name} tidak berlaku hari ${HARI_NAMA[hariOperasional(r.startsAt)]}`;
   if (r.startH < jamMulaiPaket(pk) || r.startH > mulaiTerakhirPaket(pk)) {
@@ -2245,14 +2280,18 @@ function closeBooks(s: State, today: string, now: number): State {
 }
 
 export function tickState(s: State, now = clock()): State {
+  // Paket/booking yang WAKTUNYA HABIS diselesaikan paling dulu (lampu mati,
+  // ditutup atau dipindah ke Kasir) — meja yang kosong karenanya ikut
+  // menentukan kapan booking berikutnya di meja itu dilepas sebagai no-show.
+  const s0 = selesaikanPaketHabis(matikanLampuHabis(s, now), now);
   // Lepas dulu no-show & hold yang jatuh tempo, BARU tutup buku — no-show milik hari yang
   // diarsipkan harus ikut masuk arsip hari itu, bukan tertinggal di luar rekapnya.
-  const released = withStockMoves(s, releaseDue(s, now), now, () => "kembali");
+  const released = withStockMoves(s0, releaseDue(s0, now), now, () => "kembali");
   const today = businessDateOf(now);
-  if (today <= released.day) return matikanLampuHabis(rapikanLampu(rapikanGrup(released)), now);
+  if (today <= released.day) return rapikanLampu(rapikanGrup(released));
   // Tab tertinggal tanpa tagihan ditutup DULU, baru bukunya — kalau tidak, satu
   // tab yang lupa ditutup mengunci rekap hari itu selamanya.
-  return matikanLampuHabis(rapikanLampu(rapikanGrup(closeBooks(closeAbandoned(released, today, now), today, now))), now);
+  return rapikanLampu(rapikanGrup(closeBooks(closeAbandoned(released, today, now), today, now)));
 }
 
 function releaseDue(s: State, now: number): State {
@@ -2537,7 +2576,7 @@ export const jejakVenue = (s: Pick<State, "log">, venue: Venue) =>
  * di papan dan rekap venue resto.
  */
 /** Sesi yang punya JAM SELESAI tetap (paket per jam / booking online) — bukan open bill meteran. */
-export const sesiBerwaktu = (x: LiveSession) => !(x.source === "walkin" && !x.blockHours);
+export const sesiBerwaktu = (x: LiveSession) => !(x.source === "walkin" && !x.blockHours && !x.uji);
 
 /**
  * LAMPU MATI SENDIRI SAAT WAKTU MAIN HABIS (pemilik 15 Nov 2026: "meja yang
@@ -2573,6 +2612,57 @@ function matikanLampuHabis(s: State, now: number): State {
     ...s, lights, log,
     sessions: s.sessions.map((x) => (ids.has(x.id) ? { ...x, lampuMatiUntuk: x.endsAt } : x)),
   };
+}
+
+/**
+ * PAKET HABIS → MEJA KOSONG (pemilik 16 Nov 2026).
+ *
+ * Begitu waktu paket/booking habis:
+ *   - SUDAH LUNAS (dibayar di muka / prabayar online / paket uji Rp 0):
+ *     tab ditutup sendiri tanpa uang baru, mejanya kosong.
+ *   - BELUM LUNAS: tagihannya DIPINDAH ke slot tagihan tak terlihat (slot tab
+ *     tanpa meja venue itu) dengan `mejaAsal`, supaya meja di papan kosong
+ *     untuk tamu berikutnya, dan bill-nya menunggu di Kasir → Billiard.
+ * Lampu mejanya mati (lihat `matikanLampuHabis`). Waktu tutupnya = jam
+ * habisnya paket, jadi hasilnya sama di semua perangkat & saat diputar ulang.
+ */
+function selesaikanPaketHabis(s: State, now: number): State {
+  const habis = s.sessions.filter((x) => x.status === "running" && sesiBerwaktu(x) && now >= x.endsAt
+    && !x.mejaAsal && !cariMeja(x.tableId)?.tanpaMeja);
+  if (habis.length === 0) return s;
+  let st = s;
+  for (const x of habis) {
+    const lights = punyaLampu(x.tableId) ? { ...st.lights, [x.tableId]: false } : st.lights;
+    const bill = settlementOf(x, st, x.endsAt);
+    if (bill.due <= 0) {
+      st = {
+        ...st, lights,
+        sessions: st.sessions.map((y) => (y.id !== x.id ? y : {
+          ...y, status: "done" as const, settledChannel: undefined, settledAmount: 0,
+          settledBilliard: bill.billiard, settledFnb: bill.fnb, settledDiscount: bill.discount,
+          settledLini: liniSesi(y, bill.billiard), settledAt: x.endsAt,
+          ...(bill.compliment > 0 ? { settledCompliment: bill.compliment } : {}),
+          ...(bill.compliment > 0 && complimentMeja(st, x.tableId) ? { settledComplimentJenis: complimentMeja(st, x.tableId) } : {}),
+        })),
+        log: [{ at: x.endsAt, who: "sistem", what: `Waktu habis · ${namaMeja(st, x.tableId)} · ${x.guest} · lunas, meja ditutup otomatis` },
+          ...st.log].slice(0, 500),
+      };
+      continue;
+    }
+    const venue = venueDari(x.tableId);
+    const slot = SEMUA_MEJA.find((t) => t.tanpaMeja && t.venue === venue
+      && !st.sessions.some((y) => y.tableId === t.id && (y.status === "running" || y.status === "booked" || y.status === "hold")));
+    if (!slot) { st = { ...st, lights }; continue; }
+    st = {
+      ...st, lights,
+      // Booking berikutnya di meja ini mulai menghitung 20 menit dari jam meja kosong.
+      sessions: markReady(st.sessions, x, x.endsAt).map((y) => (y.id !== x.id ? y : { ...y, tableId: slot.id, mejaAsal: x.tableId })),
+      log: [{ at: x.endsAt, who: "sistem", what: `Waktu habis · ${namaMeja(st, x.tableId)} · ${x.guest} · meja kosong, tagihan ${bill.due} menunggu di Kasir` },
+        ...st.log].slice(0, 500),
+    };
+  }
+  // Grup gabung bayar tidak boleh memuat tab yang sudah tertutup.
+  return rapikanGrup(st);
 }
 
 function rapikanLampu(s: State): State {
@@ -2924,6 +3014,31 @@ function reduce(s: State, a: Action): State {
         if (paketProblem(s, a.paketId, { kelas, hours: pk.hours, startH: h, startsAt: now })) return s;
         // Jam tutup tidak membatasi kasir: buka meja selalu butuh shift (`shiftAksi`).
         // Jendela jam paket sendiri tetap dijaga `paketProblem` di atas.
+      }
+
+      /*
+       * PAKET UJI SISTEM (pemilik 16 Nov 2026: "buatkan sistem paket khusus
+       * testing untuk test sistem dan lampu"). 1–15 menit, Rp 0, hanya
+       * superadmin/manager. Sesudah waktunya habis jalannya SAMA dengan paket
+       * sungguhan: lampu mati, bill tercetak, meja kosong.
+       */
+      if (a.menitUji !== undefined) {
+        const menit = Math.round(a.menitUji);
+        if (!allow(s, "kelolaMeja") || a.paketId || a.hours !== undefined || table.tanpaMeja || kelas === "resto"
+          || !(menit >= 1 && menit <= 15)) return s;
+        const akhir = now + menit * 60_000;
+        if (!tableFreeForRange(s.sessions, a.tableId, now, akhir, undefined, now)) return s;
+        const uji: LiveSession = {
+          id: nextId(`w-${a.tableId}`), tableId: a.tableId, source: "walkin",
+          guest: a.guest?.trim() || `UJI SISTEM ${menit} menit`, startsAt: now, endsAt: akhir,
+          status: "running", fnb: [], paidOnline: 0, tableAmount: 0, rates: { ...s.rates },
+          tableType: kelas, uji: true,
+        };
+        return {
+          ...s, sessions: [...s.sessions, uji],
+          lights: punyaLampu(a.tableId) ? { ...s.lights, [a.tableId]: true } : s.lights,
+          log: note(s, `Meja dibuka · PAKET UJI ${menit} menit (Rp 0) · ${table.name}`),
+        };
       }
 
       // `hours` diisi = tamu membeli blok jam dengan harga tetap (ada jam selesai).
@@ -6734,6 +6849,7 @@ export function validAction(a: unknown): a is Action {
     case "closeShift": return isNum(a.countedCash) && (a.expected === undefined || isNum(a.expected)) &&
       (a.venue === undefined || oneOf(a.venue, ["spl", "smh"] as const));
     case "walkin": return isStr(a.tableId) && isOptStr(a.guest) && (a.hours === undefined || isNum(a.hours)) &&
+      (a.menitUji === undefined || isNum(a.menitUji)) &&
       isOptStr(a.paketId);
     case "checkin": return isStr(a.code);
     case "extend": return isStr(a.id) && isNum(a.minutes);

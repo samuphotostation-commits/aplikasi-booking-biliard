@@ -25,6 +25,8 @@ export type DataStruk = {
   checkout?: number;
   /** Persen pajak lini BILIAR dari Pengaturan pajak — dicantumkan di bagian meja. */
   pajakMeja?: { ppn: number; service: number };
+  /** Pembulatan naik saat bayar/cetak (bagian dari `billiard`). Ditulis "Round" di struk. */
+  pembulatan?: number;
     no: string; meja: string; tamu: string; mulai: number; selesai: number;
     menit: number | null; billiard: number; fnb: number; diskon: number; promo?: string;
     /** Bagian diskon yang diberikan manual (SMH-11b) — dinamai apa adanya di struk. */
@@ -95,148 +97,102 @@ export function StrukResmi({ data, venue, cetakUlang }: {
 }) {
   /** Jam cetak: saat kertas ini dibuat (cetak ulang = jam cetak ulangnya). */
   const dicetak = cetakUlang?.at ?? Date.now();
+  /*
+   * FORMAT STRUK (pemilik 16 Nov 2026, foto struk lama): logo SPL di KIRI
+   * ATAS, di sebelah kanannya SPORTS / POOL / LOUNGE tiga baris, BILLING di
+   * kanan; lalu Meja #, no seri & tanggal, paket, jam main, Total Meja,
+   * kotak "Deskripsi Barang", Round, Grand Total. Rapat supaya hemat kertas.
+   */
+  const pembulatan = data.pembulatan ?? 0;
+  const biayaMeja = data.billiard - pembulatan;
+  const totalBarang = data.items.reduce((n, x) => n + x.total, 0);
+  const grand = data.billiard + totalBarang - data.diskon;
+  const smh = venue === "smh";
+  const nomorMeja = data.meja.replace(/^meja\s+/i, "");
   return (
-    <div id="struk" className="rounded-xl bg-cream p-4 font-mono text-[12px] leading-relaxed text-ink">
-      <div className="text-center">
-        {/* Bill SPL memakai LOGO SPL (pemilik 16 Nov 2026). */}
-        {venue !== "smh" && (
-          <img src={LOGO_STRUK} alt="SPL" className="mx-auto mb-1 h-[64px] w-auto" />
-        )}
-        <div className="text-[15px] font-bold leading-tight tracking-widest">
-          {venue === "smh" ? "SMOKE HOUSE" : "SPL SPORTS"}
+    <div id="struk" className="rounded-xl bg-cream px-3 py-2.5 font-mono text-[11px] leading-[1.35] text-ink">
+      {/* ── Kepala: logo kiri, nama 3 baris, BILLING kanan ── */}
+      <div className="flex items-center gap-2 border-b-2 border-ink pb-1">
+        {!smh && <img src={LOGO_STRUK} alt="SPL" className="h-[44px] w-auto shrink-0" />}
+        <div className="min-w-0 flex-1 font-bold leading-[1.05]">
+          {smh ? (
+            <><div className="text-[14px] tracking-widest">SMOKE HOUSE</div><div className="text-[11px] tracking-[0.3em]">RESTO</div></>
+          ) : (
+            <><div className="text-[15px] tracking-[0.18em]">SPORTS</div>
+              <div className="text-[10px] tracking-[0.35em]">POOL</div>
+              <div className="text-[10px] tracking-[0.35em]">LOUNGE</div></>
+          )}
         </div>
-        <div className="text-[15px] font-bold leading-tight tracking-widest">
-          {venue === "smh" ? "RESTO" : "POOL LOUNGE"}
+        <div className="shrink-0 text-right">
+          <div className="text-[12px] font-bold tracking-widest">BILLING</div>
+          <div className="text-[9px] font-bold">{data.jenis === "billiard" ? "BILLIARD" : "F&B"}</div>
         </div>
-        <div className="mt-1 text-[13px] font-bold tracking-widest">
-          {data.jenis === "billiard" ? "BILL BILLIARD" : "BILL F&B"}
-        </div>
-        {cetakUlang && (
-          <div className="my-1 border-y-2 border-ink py-1 text-[14px] font-bold tracking-widest">** CETAK ULANG **</div>
-        )}
-        {data.belumLunas && (
-          <div className="my-1 border-y-2 border-ink py-1 text-[14px] font-bold tracking-widest">
-            BILL SEMENTARA · BELUM DIBAYAR
-          </div>
-        )}
       </div>
-      <div className="mt-1.5 flex justify-between text-[13px] font-bold">
-        <span>Meja :</span><span>{data.meja.replace(/^meja\s+/i, "")}</span>
+      {cetakUlang && <div className="mt-1 border-y border-ink text-center text-[12px] font-bold tracking-widest">** CETAK ULANG **</div>}
+      {data.belumLunas && <div className="mt-1 border-y border-ink text-center text-[11px] font-bold tracking-wider">BILL SEMENTARA · BELUM DIBAYAR</div>}
+
+      {/* ── Meja, nomor, tanggal ── */}
+      <div className="mt-1 flex items-start justify-between gap-2">
+        <span className="text-[13px] font-bold">{data.jenis === "billiard" ? `Meja #${nomorMeja}` : nomorMeja}</span>
+        <span className="text-right text-[10px] leading-tight">{data.no}<br />{tanggalStruk(dicetak)} {jamMenit(dicetak)}</span>
       </div>
-      <div className="my-1.5 border-t border-dashed border-ink/40" />
-      {/* Isi kepala sesuai arahan pemilik (PDF 15 Nov 2026): no seri, tanggal,
-          kasir, jam cetak — lalu khusus biliar: paket, check-in, durasi, check-out. */}
-      <Baris k={`No. : ${data.no}`} v={tanggalStruk(dicetak)} />
-      <div className="break-words">Kasir : {data.kasir}</div>
-      <Baris k="Jam cetak" v={jamDetik(dicetak)} />
-      {/*
-        DUA BAGIAN TERPISAH (pemilik 15 Nov 2026, panduan PDF lampiran 2):
-        BILLIARD — sewa meja: paket/open table, check-in, durasi, check-out,
-        subtotalnya sendiri; lalu F&B — pesanan makanan/minuman dengan
-        subtotalnya sendiri. Total di bawah tetap angka dari mesin.
-      */}
+      <div className="flex justify-between gap-2 text-[10px]">
+        <span className="min-w-0 truncate italic">{data.jenis === "billiard" ? data.paket ?? "Open Table" : data.tamu}</span>
+        <span className="shrink-0">Kasir: {data.kasir}</span>
+      </div>
+
+      {/* ── Bagian meja biliar ── */}
       {data.jenis === "billiard" && (
-        <>
-          <JudulBagian teks="Billiard" />
-          <Baris k="Paket" v={data.paket ?? "Open Table"} />
-          <Baris k="Check-in" v={jamMenit(data.mulai)} />
-          <Baris k="Durasi" v={durasi(data.mulai, data.checkout, data.menit)} />
-          <Baris k="Check-out" v={data.checkout ? jamMenit(data.checkout) : "masih main"} />
-          <div className="mt-0.5 flex justify-between border-t border-dotted border-ink/40 pt-0.5 font-bold">
-            <span>Subtotal Billiard</span><span className="tabular-nums">{ribuan(data.billiard)}</span>
-          </div>
-          {/* PPN meja biliar sesuai Pengaturan → Pajak (harga sudah termasuk pajak). */}
+        <div className="mt-1 border-t border-dashed border-ink/50 pt-0.5">
+          <Baris k="Jam" v={`${jamMenit(data.mulai)} s/d ${data.checkout ? jamMenit(data.checkout) : "main"}`} />
+          <Baris k="Lama" v={durasi(data.mulai, data.checkout, data.menit)} />
+          <Baris k="Biaya meja" v={ribuan(biayaMeja)} />
+          <div className="flex justify-between font-bold"><span>Total Meja</span><span className="tabular-nums">{ribuan(biayaMeja)}</span></div>
           {data.pajakMeja && data.pajakMeja.ppn > 0 && data.billiard > 0 && (
-            <Baris k={`  termasuk PPN ${data.pajakMeja.ppn}%`} v={ribuan(pecahPajak(data.billiard, data.pajakMeja).tax)} />
+            <div className="flex justify-between text-[9.5px]"><span>termasuk PPN {data.pajakMeja.ppn}%</span>
+              <span className="tabular-nums">{ribuan(pecahPajak(biayaMeja, data.pajakMeja).tax)}</span></div>
           )}
-          {data.pajakMeja && data.pajakMeja.service > 0 && data.billiard > 0 && (
-            <Baris k={`  termasuk service ${data.pajakMeja.service}%`} v={ribuan(pecahPajak(data.billiard, data.pajakMeja).service)} />
-          )}
-        </>
+        </div>
       )}
-
-      {(data.items.length > 0 || data.jenis !== "billiard") && (
-        <>
-          <JudulBagian teks="F&B" />
-          <div className="flex justify-between gap-1 text-[11px] font-bold">
-            <span className="flex-1">Qty Menu</span>
-            <span className="w-[52px] text-right">@Harga</span>
-            <span className="w-[56px] text-right">Jumlah</span>
-          </div>
-        </>
-      )}
-      {/* Bill F&B yang (jarang) punya sewa meja tetap menuliskannya sebagai baris. */}
       {data.jenis !== "billiard" && data.billiard > 0 && (
-        <BarisStruk qty={1} nama={`SEWA MEJA${data.menit ? ` ${data.menit} MNT` : ""}`}
-          harga={data.billiard} total={data.billiard} />
+        <Baris k={`Sewa meja${data.menit ? ` ${data.menit} mnt` : ""}`} v={ribuan(biayaMeja)} />
       )}
-      {/* DUA KELOMPOK kalau ada yang sudah dibayar per orang.
-          Yang sudah dibayar tetap dicetak supaya tamu bisa
-          mencocokkan, tapi tidak dijumlahkan dua kali — jumlah di
-          bawah memakai angka dari mesin, bukan dari daftar ini. */}
-      {data.items.some((x) => x.lunas) ? (
-        <>
-          {data.items.filter((x) => !x.lunas).length > 0 && (
-            <>
-              <div className="mt-1 text-[11px] font-bold">BELUM DIBAYAR</div>
-              {data.items.filter((x) => !x.lunas).map((it, i) => (
-                <BarisStruk key={`b${i}`} qty={it.qty} nama={it.name} harga={it.harga} total={it.total} />
-              ))}
-            </>
-          )}
-          <div className="mt-1 text-[11px] font-bold">SUDAH DIBAYAR</div>
-          {data.items.filter((x) => x.lunas).map((it, i) => (
-            <BarisStruk key={`l${i}`} qty={it.qty} nama={`${it.name} (lunas)`} harga={it.harga} total={it.total} />
-          ))}
-        </>
-      ) : (
-        data.items.map((it, i) => (
-          <BarisStruk key={i} qty={it.qty} nama={it.name} harga={it.harga} total={it.total} />
-        ))
-      )}
+
+      {/* ── Kotak Deskripsi Barang ── */}
       {data.items.length > 0 && (
-        <div className="mt-0.5 flex justify-between border-t border-dotted border-ink/40 pt-0.5 font-bold">
-          <span>Subtotal F&amp;B</span><span className="tabular-nums">{ribuan(data.items.reduce((n, x) => n + x.total, 0))}</span>
+        <div className="mt-1 border border-ink px-1.5 py-0.5">
+          <div className="flex justify-between font-bold underline underline-offset-2"><span>Deskripsi Barang</span><span>Jumlah</span></div>
+          {data.items.some((x) => x.lunas) ? (<>
+            {data.items.filter((x) => !x.lunas).map((it, i) => <BarisStruk key={`b${i}`} qty={it.qty} nama={it.name} harga={it.harga} total={it.total} />)}
+            <div className="text-[9.5px] font-bold">SUDAH DIBAYAR</div>
+            {data.items.filter((x) => x.lunas).map((it, i) => <BarisStruk key={`l${i}`} qty={it.qty} nama={`${it.name} (lunas)`} harga={it.harga} total={it.total} />)}
+          </>) : data.items.map((it, i) => <BarisStruk key={i} qty={it.qty} nama={it.name} harga={it.harga} total={it.total} />)}
+          <div className="flex justify-between font-bold"><span className="underline underline-offset-2">Total F&amp;B</span><span className="tabular-nums">{ribuan(totalBarang)}</span></div>
         </div>
       )}
-      <div className="my-1.5 border-t border-dashed border-ink/40" />
 
-      <Baris k="Total" v={ribuan(data.billiard + data.items.reduce((n, x) => n + x.total, 0))} />
-      <Baris k={(data.diskonManual ?? 0) > 0 ? "Discount" : data.promo ? `Discount ${data.promo}` : "Discount"}
-        v={ribuan(data.diskon)} />
-      <div className="my-1 border-t border-ink/60" />
-      <div className="flex justify-between text-[13px] font-bold">
-        <span>Total Bersih</span>
-        <span>{ribuan(data.billiard + data.items.reduce((n, x) => n + x.total, 0) - data.diskon)}</span>
+      {/* ── Round & Grand Total ── */}
+      <div className="mt-1">
+        <Baris k={data.promo ? `Discount ${data.promo}` : "Discount"} v={data.diskon > 0 ? `-${ribuan(data.diskon)}` : "0"} />
+        <Baris k="Round" v={ribuan(pembulatan)} />
+        <div className="flex justify-between text-[13px] font-bold"><span>Grand Total</span><span className="tabular-nums">{ribuan(grand)}</span></div>
+        {data.prabayar > 0 && <Baris k="Sudah dibayar" v={ribuan(data.prabayar)} />}
+        {!data.belumLunas && (<>
+          <Baris k="Dibayar" v={ribuan(data.tunaiDiterima ?? data.bayar)} />
+          {(data.kembalian ?? 0) > 0 && <Baris k="Kembali" v={ribuan(data.kembalian ?? 0)} />}
+          <Baris k="Metode" v={data.metode} />
+        </>)}
       </div>
-      {data.prabayar > 0 && <Baris k="Sudah dibayar" v={ribuan(data.prabayar)} />}
-      <Baris k="Dibayar" v={ribuan(data.tunaiDiterima ?? data.bayar)} />
-      <div className="my-1 border-t border-ink/60" />
-      <div className="flex justify-between text-[13px] font-bold">
-        <span>Kembali</span><span>{ribuan(data.kembalian ?? 0)}</span>
-      </div>
-      {!data.belumLunas && <Baris k="Metode" v={data.metode} />}
-
-      {/* Compliment ditulis TERPISAH dan tidak ikut hitungan: barisnya
-          di atas sudah bernilai nol. Tetap dicetak supaya tamu tahu
-          apa yang diberikan, dan supaya kertasnya cocok dengan rekap. */}
       {(data.compliment ?? 0) > 0 && (
-        <div className="mt-1 text-[11px]">
-          Compliment (ditanggung venue) {rupiah(data.compliment ?? 0)}
-        </div>
+        <div className="text-[10px]">Compliment (ditanggung venue) {rupiah(data.compliment ?? 0)}</div>
       )}
-      {data.belumLunas && (
-        <div className="mt-2 text-center text-[11px] font-bold">
-          Bukan bukti pembayaran. Mohon diperiksa dulu sebelum dibayar.
-        </div>
-      )}
-      {!data.belumLunas && <div className="mt-2 text-center text-[11px] font-bold italic">A new kind of Billiard Experience</div>}
-      <div className="text-center text-[11px]"># TERIMA KASIH SUDAH BERKUNJUNG #</div>
-      {cetakUlang && (
-        <div className="mt-1 text-center text-[10px]">
-          Dicetak ulang {tanggalStruk(cetakUlang.at)} {jamDetik(cetakUlang.at)} oleh {cetakUlang.oleh}
-        </div>
-      )}
+      <div className="mt-1 border-t-2 border-ink pt-0.5 text-center text-[10px] leading-tight">
+        {data.belumLunas
+          ? <div className="font-bold">Bukan bukti pembayaran. Mohon diperiksa dulu.</div>
+          : <div className="font-bold italic">A new kind of Billiard Experience</div>}
+        <div>Terima Kasih Sudah Berkunjung</div>
+        {cetakUlang && <div className="text-[9px]">Dicetak ulang {tanggalStruk(cetakUlang.at)} {jamDetik(cetakUlang.at)} oleh {cetakUlang.oleh}</div>}
+      </div>
     </div>
   );
 }
@@ -245,10 +201,9 @@ function BarisStruk({ qty, nama, harga, total }: {
   qty: number; nama: string; harga: number; total: number;
 }) {
   return (
-    <div className="flex justify-between gap-1 text-[11px]">
+    <div className="flex justify-between gap-1" title={`@${ribuan(harga)}`}>
       <span className="min-w-0 flex-1 break-words">{qty} {nama}</span>
-      <span className="w-[52px] shrink-0 text-right tabular-nums">{ribuan(harga)}</span>
-      <span className="w-[56px] shrink-0 text-right tabular-nums">{ribuan(total)}</span>
+      <span className="shrink-0 text-right tabular-nums">{ribuan(total)}</span>
     </div>
   );
 }
@@ -273,7 +228,7 @@ function durasi(mulai: number, selesai?: number, menit?: number | null): string 
 export function infoMain(
   st: Pick<State, "packages" | "pajak" | "pajakLini">, s: LiveSession, venue: Venue, tanpaMeja: boolean, now: number,
 ): Pick<DataStruk, "jenis" | "paket" | "checkout" | "pajakMeja"> {
-  if (venue === "smh" || tanpaMeja) return { jenis: "fnb" };
+  if (venue === "smh" || (tanpaMeja && !s.mejaAsal)) return { jenis: "fnb" };
   const openBill = s.source === "walkin" && !s.blockHours && !s.paket;
   const paket = s.paket ? (paketOf(st, s.paket)?.name ?? "Paket")
     : s.blockHours ? `Paket ${s.blockHours} Jam`

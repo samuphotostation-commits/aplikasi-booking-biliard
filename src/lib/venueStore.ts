@@ -70,6 +70,8 @@ export type SyncInfo = {
    * perlu dilakukan — masuk lagi dengan PIN — tidak pernah disebutkan.
    */
   sesiHabis: boolean;
+  /** Kapan perangkat ini terakhir BERHASIL menarik data dari server (null = belum). */
+  terakhirTarik: number | null;
   /** Seluruh kejadian sejak genesis (termasuk yang sudah dilipat ke titik simpan). */
   entries: number;
   /** Kejadian sesudah titik simpan — yang diputar saat aplikasi dibuka. */
@@ -452,11 +454,17 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
     base = snapBase;
   }
 
+  /** Kapan terakhir berhasil menarik dari server — ditampilkan di penanda sinkron. */
+  let terakhirTarik: number | null = null;
+
   /** Ambil kejadian baru dari server. */
+  let menarik = false;
   async function pullOnce() {
-    if (!remote) return;
+    if (!remote || menarik) return;            // tarikan berkala tidak boleh bertumpuk
+    menarik = true;
     try {
       const res = await remote.pull(head);
+      terakhirTarik = Date.now();
       if (res.genesis.at !== genesis.at || res.genesis.seed !== genesis.seed) {
         // Kontak pertama (perangkat masih kosong) ≠ data direset di server.
         adoptWorld(res.genesis, head === 0 && entries.length === 0 && !snap);
@@ -466,6 +474,8 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
       notify();
     } catch {
       markOffline();
+    } finally {
+      menarik = false;
     }
   }
 
@@ -745,6 +755,7 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
   // Mode server: dengarkan siaran server, lalu ambil yang tertinggal & kirim antrean
   // yang masih menggantung dari sesi sebelumnya.
   let unsubscribe: (() => void) | null = null;
+  let tarikBerkala: ReturnType<typeof setInterval> | null = null;
   if (remote) {
     unsubscribe = attempt(() => remote.subscribe((list) => {
       markOnline();
@@ -752,6 +763,19 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
       notify();
     })) ?? null;
     void sync();
+    /*
+     * JARING PENGAMAN SINKRON ANTAR PC (pemilik 16 Nov 2026: "versi di PC sudah
+     * sama yang terbaru, tapi tetap masih beda").
+     *
+     * Kejadian dari PC lain datang lewat siaran realtime server. Siaran itu
+     * bisa putus diam-diam (PC kasir menyala seharian, Wi-Fi sempat goyang,
+     * sesi dibuat sesudah langganan dimulai) — dan dulu satu-satunya
+     * penarikan penuh hanya terjadi saat aplikasi dibuka, jaringan kembali,
+     * atau jendela kembali terlihat. PC yang selalu terbuka bisa tertinggal
+     * berjam-jam. Sekarang perangkat MENARIK sendiri tiap 8 detik (hanya
+     * kejadian sesudah nomor terakhirnya, jadi ringan) dan mengirim antrean.
+     */
+    tarikBerkala = attempt(() => setInterval(() => { if (!sending) void sync(); }, 8_000));
   }
 
   return {
@@ -871,6 +895,7 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
     stop() {
       unsubscribe?.();
       unsubscribe = null;
+      if (tarikBerkala) { attempt(() => clearInterval(tarikBerkala!)); tarikBerkala = null; }
       if (retryAt) { attempt(() => clearTimeout(retryAt!)); retryAt = null; }
     },
     info(): SyncInfo {
@@ -887,6 +912,7 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
            membuang tokennya saat server menolak — supaya tidak ada dua
            sumber kebenaran yang bisa berbeda. */
         sesiHabis: sesiMati(),
+        terakhirTarik,
         entries: (snap?.count ?? 0) + entries.length,
         tail: entries.length,
         snapshotAt: snap?.upto.at ?? null,

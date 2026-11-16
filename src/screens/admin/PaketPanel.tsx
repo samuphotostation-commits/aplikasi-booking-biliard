@@ -240,7 +240,7 @@ export default function PaketPanel({ venue }: { venue: Venue }) {
               </div>
               <div className="mt-0.5 text-[11px] uppercase tracking-wider text-brick-lit">
                 {VENUE_LABEL[pk.venue ?? "spl"]}
-                {pk.hours > 0 && ` · meja ${kelasPaket(pk) === "vip" ? "VIP" : "reguler"}`}
+                {pk.hours > 0 && ` · ${kelasPaket(pk) === "vip" ? "ruang VICTORY" : "meja reguler"}`}
                 {mati && " · nonaktif"}
               </div>
               <ul className="mt-1.5 space-y-0.5 text-[12px] text-mute">
@@ -331,7 +331,7 @@ export default function PaketPanel({ venue }: { venue: Venue }) {
             <div>
               <span className="mb-1 block text-[11px] text-dim">Jenis paket (meja yang boleh memakai)</span>
               <div className="grid grid-cols-2 gap-2">
-                {([["regular", "Paket Regular", "meja reguler"], ["vip", "Paket VIP", "meja VIP saja"]] as const).map(([k, l, ket]) => (
+                {([["regular", "Paket Regular", "meja reguler"], ["vip", "Paket VICTORY", "ruang VICTORY saja"]] as const).map(([k, l, ket]) => (
                   <button key={k} type="button" aria-pressed={form.kelas === k} onClick={() => set({ kelas: k })}
                     className={`min-h-[46px] rounded-lg border text-[13px] font-semibold ${
                       form.kelas === k ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink text-mute"}`}>

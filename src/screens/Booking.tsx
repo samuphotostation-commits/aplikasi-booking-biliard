@@ -35,7 +35,7 @@ export default function Booking() {
   const [params] = useSearchParams();
   const tipe = params.get("tipe");
   const vipMode = tipe === "vip" || tipe === "vvip";
-  const [filter, setFilter] = useState<"all" | TableType>(tipe === "vvip" ? "vvip" : tipe === "vip" ? "vip" : "all");
+  const [filter, setFilter] = useState<"all" | TableType>(vipMode ? "vvip" : "all");
   const [justPicked, setJustPicked] = useState<string | null>(null);
 
   const days = useMemo(
@@ -58,7 +58,8 @@ export default function Booking() {
   // Jumlah meja per jam mengikuti jenis yang sedang dicari: mode VIP menghitung VIP saja,
   // Paket menghitung kelas meja paketnya saja (Paket Regular → reguler, Paket VIP → VIP).
   const pkDraft = draft.paketId ? paketOf(venue, draft.paketId) : undefined;
-  const kelasWajib: TableType | undefined = pkDraft ? kelasPaket(pkDraft) : undefined;
+  // Paket kelas "vip" (kunci lama) = paket ruang VICTORY — VIP dilebur ke VICTORY.
+  const kelasWajib: TableType | undefined = pkDraft ? (kelasPaket(pkDraft) === "vip" ? "vvip" : "regular") : undefined;
   const countType: TableType | undefined = kelasWajib ?? (filter === "all" ? undefined : filter);
 
   const isMejaMain = (id: string) =>
@@ -79,12 +80,14 @@ export default function Booking() {
   const picked = (draft.tableId ? cariMeja(draft.tableId) : undefined) ?? null;
   /** Kelas meja mengikuti pengaturan pemilik (VIP bebas asap rokok / VVIP boleh merokok), bukan bawaan data. */
   const kelas = (id: string) => classOf(venue, id);
+  /** Kelas untuk MENYARING & label: ruang VIP lama dihitung sebagai VICTORY. */
+  const kelasRuang = (id: string): TableType => (kelas(id) === "vip" ? "vvip" : kelas(id));
   const kelasPicked = picked ? kelas(picked.id) : "regular";
   // Meja resto dipesan lewat halaman reservasi resto, bukan di sini.
   const freeBiliar = free.filter((t) => kelas(t.id) !== "resto");
   // Paket hanya untuk kelas mejanya — aturan yang sama ditegakkan mesin.
   const cocokSaring = (id: string) =>
-    (filter === "all" || kelas(id) === filter) && (!kelasWajib || kelas(id) === kelasWajib);
+    (filter === "all" || kelasRuang(id) === filter) && (!kelasWajib || kelasRuang(id) === kelasWajib);
   const shown = freeBiliar.filter((t) => cocokSaring(t.id));
   /**
    * SEMUA meja biliar ikut ditampilkan — yang terisi pun. Dulu meja terpakai
@@ -175,9 +178,9 @@ export default function Booking() {
     <div className="pb-40">
       <PageHeader
         kicker={vipMode ? "Reservasi" : "Pilih"}
-        title={vipMode ? "VIP Room" : "Booking Meja"}
+        title={vipMode ? "VICTORY Room" : "Booking Meja"}
         sub={vipMode
-          ? `Ruang privat sampai 8 orang · VIP bebas asap rokok ${rupiah(venue.rates.vip)}/jam · VICTORY boleh merokok ${rupiah(venue.rates.vvip)}/jam${venue.rates.vvipNight ? ` (malam ${rupiah(venue.rates.vvipNight)})` : ""}.`
+          ? `Ruang privat sampai 8 orang, boleh merokok · ${rupiah(venue.rates.vvip)}/jam${venue.rates.vvipNight ? ` (malam ${rupiah(venue.rates.vvipNight)})` : ""}.`
           : "Lihat slot kosong secara langsung."}
       />
 
@@ -282,7 +285,7 @@ export default function Booking() {
                 <div className="flex-1">
                   <div className="font-script text-lg leading-none text-amber">{pk.name}</div>
                   <div className="text-[11px] text-dim">
-                    {kelasPaket(pk) === "vip" ? "Meja VIP · " : ""}
+                    {kelasPaket(pk) === "vip" ? "Ruang VICTORY · " : ""}
                     {hargaPk(pk).weekend ? "Harga weekend · " : ""}
                     {uraianPaket(venue, pk, mainTs).join(" · ") || `${pk.hours} jam`}
                   </div>
@@ -325,10 +328,9 @@ export default function Booking() {
           <>
             <div className="mb-3 flex gap-2">
               {([
-                ["all", `Semua (${freeBiliar.filter((t) => !kelasWajib || kelas(t.id) === kelasWajib).length})`],
-                ["regular", `Reguler (${kelasWajib && kelasWajib !== "regular" ? 0 : freeBiliar.filter((t) => kelas(t.id) === "regular").length})`],
-                ["vip", `VIP (${kelasWajib && kelasWajib !== "vip" ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vip").length})`],
-                ["vvip", `VICTORY (${kelasWajib ? 0 : freeBiliar.filter((t) => kelas(t.id) === "vvip").length})`],
+                ["all", `Semua (${freeBiliar.filter((t) => !kelasWajib || kelasRuang(t.id) === kelasWajib).length})`],
+                ["regular", `Reguler (${kelasWajib && kelasWajib !== "regular" ? 0 : freeBiliar.filter((t) => kelasRuang(t.id) === "regular").length})`],
+                ["vvip", `VICTORY (${kelasWajib && kelasWajib !== "vvip" ? 0 : freeBiliar.filter((t) => kelasRuang(t.id) === "vvip").length})`],
               ] as const).map(([v, l]) => (
                 <button
                   key={v}
@@ -347,7 +349,7 @@ export default function Booking() {
               ))}
             </div>
             {draft.paketId && (
-              <p className="-mt-1 mb-2 text-[11px] text-dim">{pkDraft?.name ?? "Paket"} khusus meja {kelasWajib === "vip" ? "VIP" : "reguler"}.</p>
+              <p className="-mt-1 mb-2 text-[11px] text-dim">{pkDraft?.name ?? "Paket"} khusus {kelasWajib === "vvip" ? "ruang VICTORY" : "meja reguler"}.</p>
             )}
             {lost && (
               <p className="mb-2 rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-[12px] leading-snug text-amber">
@@ -383,11 +385,9 @@ export default function Booking() {
                           : "cursor-not-allowed border-line/60 bg-ink text-dim opacity-70"
                         : on
                           ? "border-amber bg-amber text-ink"
-                          : k === "vvip"
+                          : k === "vvip" || k === "vip"
                             ? "border-brick bg-brick/25 text-cream"
-                            : k === "vip"
-                              ? "border-amber/50 bg-amber/10 text-cream"
-                              : "border-line bg-ink-2 text-cream"
+                            : "border-line bg-ink-2 text-cream"
                     }`}
                   >
                     <PocketPulse show={justPicked === t.id} />
@@ -402,7 +402,7 @@ export default function Booking() {
                     )}
                     <div className={`font-display text-lg leading-none ${terisi ? "line-through decoration-dim/70" : ""}`}>{t.no}</div>
                     <div className={`text-[9px] uppercase tracking-wider ${on ? "text-ink/70" : "text-dim"}`}>
-                      {k === "regular" ? "Reguler" : k === "vip" ? "VIP" : "VICTORY"}
+                      {k === "regular" ? "Reguler" : "VICTORY"}
                     </div>
                     <div className={`text-[9px] ${on ? "text-ink/70" : isMain ? "font-bold text-amber" : terisi ? "font-bold text-amber/80" : "text-dim"}`}>
                       {terisi ? LABEL_STATUS[st] : `${t.capacity} org`}
@@ -415,7 +415,6 @@ export default function Booking() {
             {/* Legenda — warna bukan satu-satunya pembawa info (PRD §9.3) */}
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-dim">
               <Legend swatch="bg-ink-2 border-line-2" label="Reguler kosong" />
-              <Legend swatch="bg-amber/10 border-amber/50" label="VIP · bebas asap rokok" />
               <Legend swatch="bg-brick/25 border-brick" label="VICTORY · boleh merokok" />
               <Legend swatch="bg-amber border-amber" label="Dipilih" />
               <Legend swatch="bg-amber/10 border-amber/40" label="Sedang main (tidak bisa dipilih)" />

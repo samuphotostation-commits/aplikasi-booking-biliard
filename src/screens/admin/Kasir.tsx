@@ -674,19 +674,21 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
           ) : (
             <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-ink-2">
               {mejaHariIni.map((s) => {
-                const t = label(s.tableId);
+                // Tagihan paket yang waktunya habis tetap disebut dengan meja aslinya.
+                const t = label(s.mejaAsal ?? s.tableId);
+                const tab = !!cariMeja(s.tableId)?.tanpaMeja && !s.mejaAsal;
                 const jalan = s.status === "running";
                 const habis = waktuHabis(s);
                 const info = infoMain(a, s, venue, !!cariMeja(s.tableId)?.tanpaMeja, now);
-                const nilai = jalan ? settlementOf(s, a).due
+                const nilai = jalan ? settlementOf(s, a).dueTampil
                   : s.settledAmount ?? (s.settledBilliard ?? 0) + (s.settledFnb ?? 0) - (s.settledDiscount ?? 0);
                 return (
                   <div key={s.id} className={`flex items-center gap-2.5 px-3 py-2.5 ${habis ? "bg-red-500/10" : ""}`}>
                     <div className="w-11 shrink-0 text-center">
                       <div className="font-display text-lg leading-none text-cream">
-                        {cariMeja(s.tableId)?.tanpaMeja ? "—" : t.no}
+                        {tab ? "—" : t.no}
                       </div>
-                      <div className="text-[9px] uppercase text-dim">{cariMeja(s.tableId)?.tanpaMeja ? "tab" : t.type}</div>
+                      <div className="text-[9px] uppercase text-dim">{tab ? "tab" : t.type}</div>
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] font-semibold text-cream">{s.guest}</div>

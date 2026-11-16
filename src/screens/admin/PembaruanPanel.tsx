@@ -30,7 +30,8 @@ export function SpandukPembaruan() {
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-4 py-2.5">
       <p className="text-[12px] leading-snug text-emerald-300">
         <span className="font-semibold">Versi baru aplikasi kasir tersedia.</span>{" "}
-        {win ? "Diunduh & dipasang otomatis, lalu layar dimuat ulang." : "Layar akan dimuat ulang."}{" "}
+        Dipasang <span className="font-semibold">otomatis</span> begitu layar tidak disentuh 45 detik
+        (supaya semua PC kasir selalu sama versinya), atau tekan tombol ini sekarang.{" "}
         Data &amp; pesanan yang belum terkirim tetap aman.
         {p.pesan && <span className="mt-1 block text-amber">{p.pesan}</span>}
       </p>

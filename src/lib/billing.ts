@@ -21,6 +21,11 @@ import { diWib } from "./occupancy";
 
 /** Menit minimum yang tetap ditagih walau tamu baru main sebentar. */
 export const MIN_BILLED_MINUTES = 30;
+/*
+ * OPEN BILL (pemilik 16 Nov 2026, ditegaskan ulang): 30 menit PERTAMA langsung
+ * ditagih sejak meja dibuka (5 menit pertama tetap bisa dibatalkan gratis),
+ * lalu SESUDAH 30 menit dihitung PER MENIT. Bukan kelipatan 30 menit.
+ */
 
 /**
  * TOLERANSI BATAL (permintaan pemilik). Meja yang baru dibuka lalu ditutup

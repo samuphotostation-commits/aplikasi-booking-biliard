@@ -116,7 +116,7 @@ export default function Gerbang() {
       <div className="relative h-svh overflow-hidden">
         <div ref={pintu} className="flex h-full flex-col md:flex-row">
           <Tombol p="sport" foto={FOTO_SPORT} judul="Main biliar."
-            sub={`${mejaBiliar} meja, ruang VIP & VICTORY, mulai ${rupiah(a.rates.regularDay)}/jam`} />
+            sub={`${mejaBiliar} meja, ruang VICTORY, mulai ${rupiah(a.rates.regularDay)}/jam`} />
           <Tombol p="smokehouse" foto={FOTO_HERO_SMH} judul="Makan enak."
             sub={`Iga asap, masakan rumahan, kopi, ${mejaMakan} meja makan`} />
         </div>
@@ -146,7 +146,7 @@ export default function Gerbang() {
                 <Mark size={22} /> SPL Sport
               </h3>
               <p className="mt-3 text-[15px] leading-relaxed text-cream/80">
-                Biliar dengan {mejaBiliar} meja dan ruang VIP &amp; VICTORY. Pilih meja dan jam dari HP, bayar QRIS,
+                Biliar dengan {mejaBiliar} meja dan ruang VICTORY. Pilih meja dan jam dari HP, bayar QRIS,
                 slotnya langsung terkunci.
               </p>
               <button type="button" onClick={() => masuk("sport")}

@@ -97,7 +97,8 @@ export const TABLES: PoolTable[] = [
   ...Array.from({ length: 4 }, (_, i) => ({
     id: `V${String(i + 1).padStart(2, "0")}`,
     no: i + 1,
-    name: `VIP ${i + 1}`,
+    // Nama tampilan saja (pemilik 16 Nov 2026: VIP dilebur ke VICTORY).
+    name: `VICTORY ${i + 1}`,
     type: (i < 2 ? "vip" : "vvip") as TableType,
     capacity: 8,
     venue: "spl" as const,
@@ -190,7 +191,7 @@ export const CADANGAN: PoolTable[] = [
   ...Array.from({ length: 4 }, (_, i) => ({
     id: `V${String(i + 5).padStart(2, "0")}`,
     no: i + 5,
-    name: `VIP ${i + 5}`,
+    name: `VICTORY ${i + 5}`,
     type: (i < 2 ? "vip" : "vvip") as TableType,
     capacity: 8,
     venue: "spl" as const,

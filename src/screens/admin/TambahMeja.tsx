@@ -25,7 +25,6 @@ import { CLASS_LABEL, VENUE_LABEL, type TableType, type Venue } from "../../data
 type KategoriBaru = { kunci: string; label: string; ket: string; kelas?: TableType; kategoriMeja?: string };
 const KATEGORI_SPL: KategoriBaru[] = [
   { kunci: "regular", label: "Reguler", ket: "tarif reguler", kelas: "regular" },
-  { kunci: "vip", label: "VIP", ket: "bebas asap rokok", kelas: "vip" },
   { kunci: "vvip", label: "VICTORY", ket: "boleh merokok", kelas: "vvip" },
 ];
 

@@ -11,6 +11,7 @@ import { fmtDateLong, rupiah } from "../../lib/core";
 import { usePantauKabar } from "../../lib/pantauKabar";
 import { usePantauCetak } from "../../lib/pantauCetak";
 import { SpandukPembaruan } from "./PembaruanPanel";
+import PemantauPaket from "./PemantauPaket";
 import { masukDenganGoogle, memberMungkin, selesaikanGoogleStaf } from "../../lib/member";
 
 /* Login per KARYAWAN (bukan per peran) supaya setiap tindakan punya nama
@@ -484,6 +485,8 @@ export default function AdminShell() {
    * semua halaman memakai lebar yang sama, dibatasi 1600 px di layar sangat lebar.
    */
   const lebarHalaman = "max-w-3xl lg:max-w-[1600px]";
+  /** Halaman Meja (papan): spanduk besar disembunyikan supaya lebih banyak meja terlihat. */
+  const diMeja = path === "/admin" || path === "/admin/";
 
 
   return (
@@ -499,6 +502,34 @@ export default function AdminShell() {
               {role ? ROLE_LABEL[role] : "—"} · {VENUE_LABEL[venue]} · {!shiftIni ? "shift belum buka" : shiftOrangLain ? `shift ${shiftIni.employeeName}` : "shift jalan"}
             </div>
           </div>
+          {/* Halaman Meja (pemilik 16 Nov 2026: "notif ini dihapus saja dari tampilan
+              meja agar tidak sempit"): spanduk demo & shift diganti tanda kecil di sini. */}
+          {diMeja && a.jamBebas && (
+            <span title="Mode demo menyala — matikan di Pengaturan"
+              className="shrink-0 rounded-full border border-amber/60 bg-amber/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber">Demo</span>
+          )}
+          {diMeja && !shiftIni && (
+            <button onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}
+              title={`Shift ${VENUE_LABEL[venue]} belum buka — meja & pembayaran belum bisa dipakai`}
+              className="shrink-0 rounded-full border border-red-400/60 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/20">
+              Shift belum buka · <span className="underline underline-offset-2">Buka</span>
+            </button>
+          )}
+          {/* PENANDA SINKRON (16 Nov 2026): nomor data terakhir dari server. Dua PC
+              yang menunjukkan nomor SAMA pasti melihat data yang sama. */}
+          {sync.mode === "server" && (() => {
+            const lalu = sync.terakhirTarik ? Math.round((Date.now() - sync.terakhirTarik) / 1000) : null;
+            const sehat = sync.online && lalu !== null && lalu < 30 && sync.pending === 0;
+            return (
+              <span title={`Data server #${sync.head}${lalu !== null ? ` · ditarik ${lalu} detik lalu` : ""}${sync.pending ? ` · ${sync.pending} belum terkirim` : ""}`}
+                className={`hidden shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold sm:flex ${
+                  sehat ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                    : sync.online ? "border-amber/50 bg-amber/10 text-amber" : "border-red-500/50 bg-red-500/10 text-red-300"}`}>
+                <span className={`h-2 w-2 rounded-full ${sehat ? "bg-emerald-400" : sync.online ? "bg-amber" : "bg-red-400"}`} />
+                {sehat ? "Sinkron" : sync.online ? (sync.pending ? `Mengirim ${sync.pending}` : "Menarik…") : "Terputus"} · #{sync.head}
+              </span>
+            );
+          })()}
           {r.voidMenunggu > 0 && role === "superadmin" && (
             <NavLink to="/admin/void"
               className="rounded-full bg-red-500/20 px-2.5 py-1 text-[11px] font-bold text-red-300">
@@ -592,7 +623,7 @@ export default function AdminShell() {
         {/* MODE DEMO — terlihat terus selagi menyala, di semua layar. Satu-satunya
             saklar yang melonggarkan aturan mesin: kalau tertinggal menyala di malam
             ramai, meja bisa dibuka pukul 04.00 tanpa ada yang menyadarinya. */}
-        {a.jamBebas && (
+        {a.jamBebas && !diMeja && (
           <p role="status"
             className="mb-3 rounded-xl border border-amber bg-amber/15 px-4 py-2 text-center text-[12px] font-semibold text-amber">
             Mode demo menyala — meja bisa dibuka kapan saja, di luar jam buka sekalipun.
@@ -677,6 +708,7 @@ export default function AdminShell() {
             <span className="font-semibold">Data tidak tersimpan di perangkat.</span> {sync.storageError}
           </p>
         )}
+        <PemantauPaket />
         <SpandukPembaruan />
         {seedBasi && (
           <p className="mb-3 rounded-xl border border-amber/50 bg-amber/10 px-4 py-2.5 text-[12px] leading-snug text-amber">
@@ -690,7 +722,7 @@ export default function AdminShell() {
             )}
           </p>
         )}
-        {!shiftIni && (
+        {!shiftIni && !diMeja && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber/50 bg-amber/10 px-4 py-2.5">
             <p className="text-[12px] leading-snug text-amber">
               Shift {VENUE_LABEL[venue]} belum buka. Laporan tetap bisa dilihat, tapi meja dan pembayaran di sini belum bisa dipakai.
@@ -699,7 +731,7 @@ export default function AdminShell() {
               className="min-h-[40px] rounded-lg bg-amber px-3 text-[13px] font-bold text-ink">Buka shift</button>
           </div>
         )}
-        {shiftIni && shiftOrangLain && (
+        {shiftIni && shiftOrangLain && !diMeja && (
           <p className="mb-3 rounded-xl border border-amber/50 bg-amber/10 px-4 py-2.5 text-[12px] leading-snug text-amber">
             Anda bekerja di shift <span className="font-semibold">{shiftIni.employeeName}</span> — uang tunai yang Anda
             terima masuk laci shift itu. Untuk serah terima, tutup shift {shiftIni.employeeName} di tab{" "}

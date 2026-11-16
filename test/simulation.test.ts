@@ -507,6 +507,19 @@ function runSim(sim: number) {
       const s1 = o?.sessionId ? a.sessions.find((x) => x.id === o.sessionId) : undefined;
       if (s0 && s1) for (const l of s1.fnb.slice(s0.fnb.length)) prepaid.add(`${s1.id}|${l.key}`);
     }
+    // Paket yang waktunya habis (16 Nov 2026): tab berpindah dari meja / tertutup
+    // sendiri tepat di jam habisnya — meja siap lagi pada jam itu.
+    for (const x0 of b.sessions) {
+      if (x0.status !== "running") continue;
+      const x1 = a.sessions.find((y) => y.id === x0.id);
+      const pergi = x1 && ((x1.mejaAsal && !x0.mejaAsal) || x1.status === "done") && x1.tableId !== x0.tableId || (x1?.status === "done" && x1.settledAt === x0.endsAt && !x1.settledChannel);
+      if (!pergi) continue;
+      for (const bk of b.sessions) {
+        if (bk.status === "booked" && bk.tableId === x0.tableId && x0.endsAt > bk.startsAt && x0.startsAt < bk.endsAt) {
+          readyFrom[bk.id] = Math.max(readyFrom[bk.id] ?? 0, x0.endsAt);
+        }
+      }
+    }
     // Meja booking baru siap saat penghalangnya dipindah/di-void, atau saat booking itu dipindah meja.
     if (ok && (act.t === "relocate" || act.t === "requestVoid" || act.t === "decideVoid")) {
       const left = b.sessions.filter((x) => x.status === "running" &&
@@ -963,7 +976,13 @@ function runSim(sim: number) {
       }
       if (s.status === "noshow" && act.t === "tick" && !b.sessions.some((x) => x.id === s.id && x.status === "noshow")) {
         const was = b.sessions.find((x) => x.id === s.id)!;
-        const due = noShowDue(b.sessions, was, readyFrom[s.id] ?? 0);
+        // Paket yang habis di detak yang sama sudah meninggalkan mejanya lebih dulu
+        // (ditutup / dipindah ke Kasir, 16 Nov 2026) — pakai keadaan sesudahnya.
+        const sesudahHabis = b.sessions.map((x) => {
+          const y = a.sessions.find((z) => z.id === x.id);
+          return y && x.id !== s.id && x.status === "running" && (y.status === "done" || y.mejaAsal) ? y : x;
+        });
+        const due = noShowDue(sesudahHabis, was, readyFrom[s.id] ?? 0);
         if (due === null) f("INV-39", `${s.id} dilepas padahal ${s.tableId} masih dipakai / tidak pernah bisa ditempati`);
         else if (s.settledAt !== due) f("INV-25", `${s.id} no-show dicatat ${s.settledAt}, seharusnya ${due}`);
       }

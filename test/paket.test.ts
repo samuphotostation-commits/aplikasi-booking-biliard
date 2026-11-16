@@ -120,7 +120,7 @@ console.log("\n-- Paket VIP hanya untuk meja VIP --");
   t("kelas tersimpan", vip.kelas, "vip");
   t("meja reguler: ditolak dengan alasannya",
     paketProblem(d.st(), vip.id, { kelas: "regular", hours: 2, startH: 20, startsAt: RABU(20) }),
-    "Paket VIP hanya untuk meja VIP");
+    "Paket VIP hanya untuk ruang VICTORY");
   t("Paket Regular di meja VIP: ditolak",
     paketProblem(d.st(), d.pk("Paket Regular").id, { kelas: "vip", hours: 2, startH: 13, startsAt: RABU(13) }),
     "Paket Regular hanya untuk meja reguler");
@@ -130,10 +130,13 @@ console.log("\n-- Paket VIP hanya untuk meja VIP --");
   d.push(RABU(20, 1), { t: "walkin", tableId: "V01", guest: "Tamu VIP", paketId: vip.id });
   t("meja VIP 1 hari Rabu: 65.000",
     d.st().sessions.find((x) => x.tableId === "V01")?.tableAmount, 65_000);
-  // V03 berkelas VVIP — bukan VIP.
-  t("meja VVIP: ditolak",
-    paketProblem(d.st(), vip.id, { kelas: "vvip", hours: 2, startH: 20, startsAt: RABU(20) }),
-    "Paket VIP hanya untuk meja VIP");
+  // Pemilik 16 Nov 2026: VIP dilebur ke VICTORY — paket kelas "vip" kini
+  // berlaku juga di ruang VICTORY (V03 berkelas vvip).
+  t("ruang VICTORY: paket VIP diterima",
+    paketProblem(d.st(), vip.id, { kelas: "vvip", hours: 2, startH: 20, startsAt: RABU(20) }), null);
+  d.push(RABU(20, 2), { t: "walkin", tableId: "V03", guest: "Tamu VICTORY", paketId: vip.id });
+  t("ruang VICTORY dengan paket: 65.000",
+    d.st().sessions.find((x) => x.tableId === "V03")?.tableAmount, 65_000);
 }
 {
   const d = dunia(SABTU);

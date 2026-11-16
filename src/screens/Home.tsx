@@ -54,7 +54,7 @@ const SUASANA = ["Malam di aula utama.", "Fokus di satu pukulan.", "Datang berdu
 
 const LANGKAH = [
   ["Pilih tanggal & jam", "Lihat meja mana yang masih kosong secara langsung."],
-  ["Pilih meja", "Reguler atau VIP Room, sesuai jumlah orang."],
+  ["Pilih meja", "Reguler atau VICTORY Room, sesuai jumlah orang."],
   ["Bayar QRIS", "Slot terkunci begitu pembayaran masuk. Dapat kode check-in."],
   ["Check-in ke petugas", "Waktu mulai dihitung saat lampu mejamu dinyalakan."],
 ];
@@ -72,6 +72,9 @@ export default function Home() {
   const mejaBiliar = useMemo(
     () => mejaDijual(venue).filter((t) => classOf(venue, t.id) !== "resto"), [venue]);
   const ruangVip = mejaBiliar.filter((t) => t.type === "vip" || t.type === "vvip").length;
+  // VIP dilebur ke VICTORY (pemilik 16 Nov 2026). Baris VIP hanya muncul selama
+  // masih ada ruang yang kelasnya VIP (belum dipindah di Pengaturan).
+  const adaVip = mejaBiliar.some((t) => classOf(venue, t.id) === "vip");
   // Meja yang benar-benar bisa dipakai sekarang, dari sesi nyata.
   const kosong = mejaBiliar.filter((t) =>
     tableFreeForRange(venue.sessions, t.id, nowTs, nowTs + 60_000, undefined, nowTs)).length;
@@ -88,7 +91,7 @@ export default function Home() {
   const TARIF = [
     { nama: "Reguler siang", ket: "11.00 sampai 18.00", harga: R.regularDay, we: R.regularDayWe },
     { nama: "Reguler malam", ket: "18.00 sampai tutup", harga: R.regularNight, we: R.regularNightWe },
-    { nama: "VIP Room", ket: "ruang tertutup, bebas asap rokok", harga: R.vip, we: R.vipWe },
+    ...(adaVip ? [{ nama: "VIP Room", ket: "ruang tertutup, bebas asap rokok", harga: R.vip, we: R.vipWe }] : []),
     { nama: "VICTORY Room", ket: `ruang tertutup, boleh merokok${R.vvipNight ? ` · malam ${rupiah(R.vvipNight)}/jam` : ""}`, harga: R.vvip, we: R.vvipWe ?? R.vipWe },
   ];
 
@@ -97,7 +100,7 @@ export default function Home() {
     { t: "Kalau berhalangan datang?", j: "Booking yang sudah dibayar bisa dijadwal ulang gratis satu kali, paling lambat 3 jam sebelum jam main, ke jadwal dalam 14 hari. Caranya di menu Pesanan. Kalau jadwal barunya bertarif lebih mahal, cukup bayar selisihnya." },
     { t: "Hitungan jamnya mulai dari kapan?", j: "Dari saat kamu duduk dan kasir menyalakan lampu mejanya, bukan dari jam yang kamu pilih. Datang telat sedikit tidak memotong waktu mainmu." },
     { t: "Kalau mainnya lewat jam 18.00?", j: `Dihitung per jam dengan dua tarif: ${rupiah(R.regularDay)}/jam sebelum 18.00 dan ${rupiah(R.regularNight)}/jam sesudahnya. Rinciannya muncul sebelum kamu bayar.` },
-    { t: "Bedanya VIP dan VICTORY?", j: `Dua-duanya ruang tertutup. VIP ${rupiah(R.vip)}/jam, bebas asap rokok. VICTORY ${rupiah(R.vvip)}/jam${R.vvipNight ? ` (malam ${rupiah(R.vvipNight)}/jam)` : ""}, merokok diperbolehkan.` },
+    { t: "Apa itu VICTORY Room?", j: `Ruang tertutup sampai 8 orang, merokok diperbolehkan. ${rupiah(R.vvip)}/jam${R.vvipNight ? ` (malam ${rupiah(R.vvipNight)}/jam)` : ""}.` },
     { t: "Bisa pesan makanan sambil main?", j: "Bisa, tanpa daftar akun. Menunya dipesan dari HP dari meja mana pun, dan pesanannya diantar ke mejamu." },
     { t: "Perlu akun untuk booking?", j: "Booking meja perlu akun member: cukup nomor HP dan PIN 6 angka, tanpa email. Pesan makanan dan takeaway tidak perlu akun." },
   ];
@@ -118,7 +121,7 @@ export default function Home() {
           </p>
           <div className="naik mt-6 flex flex-col gap-2.5 sm:flex-row" style={{ animationDelay: ".32s" }}>
             <Aksi onClick={() => nav("/booking")}>Booking meja</Aksi>
-            <Aksi2 onClick={() => nav("/booking?tipe=vip")}>Reservasi VIP &amp; VICTORY</Aksi2>
+            <Aksi2 onClick={() => nav("/booking?tipe=vip")}>Reservasi VICTORY Room</Aksi2>
           </div>
           <p className="naik mt-4 text-[13px] text-cream/80" style={{ animationDelay: ".4s" }}>
             {buka
@@ -159,12 +162,12 @@ export default function Home() {
             {paket.map((p0) => {
               const hp = hargaPaket(p0, nowTs);
               const p = { ...p0, price: hp.price, freeDrinks: hp.freeDrinks };
-              const hemat = p.hours * (kelasPaket(p0) === "vip" ? R.vip : R.regularDay) - p.price;
+              const hemat = p.hours * (kelasPaket(p0) === "vip" ? R.vvip : R.regularDay) - p.price;
               return (
                 <Muncul key={p.id} i={1}>
                   <div className="mt-8 border-l-2 border-amber pl-5">
                     <span className="font-display text-[11px] uppercase tracking-[0.18em] text-amber">
-                      {kelasPaket(p0) === "vip" ? "Meja VIP · " : ""}{hp.weekend ? "Harga weekend · " : ""}
+                      {kelasPaket(p0) === "vip" ? "Ruang VICTORY · " : ""}{hp.weekend ? "Harga weekend · " : ""}
                       Mulai {fmtHour(jamMulaiPaket(p0))}–{fmtHour(mulaiTerakhirPaket(p0))} WIB
                     </span>
                     <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-5">
