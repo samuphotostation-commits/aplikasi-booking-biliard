@@ -16,7 +16,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  useAdmin, settlementOf, splitPaidOf, itemOf, namaMeja, type State,
+  useAdmin, settlementOf, splitPaidOf, itemOf, namaMeja, sesiBerwaktu, type State,
 } from "../../lib/adminStore";
 import type { LiveSession } from "../../data/live";
 import { venueDari, type Venue } from "../../data/venue";
@@ -40,9 +40,14 @@ export function catatDibukaDiSini(id: string) {
   tulis([...x, { id, at: Date.now() }]);
 }
 
-/** Tab paket yang baru saja diselesaikan mesin karena waktunya habis. */
+/**
+ * Tab paket yang baru saja habis waktunya. Termasuk yang MASIH di mejanya
+ * (tempat tagihan di Kasir sedang penuh, atau tiknya belum diproses) — bill
+ * tetap keluar walau mejanya belum bisa dikosongkan.
+ */
 const baruHabis = (x: LiveSession, now: number) => now - x.endsAt < 30 * 60_000 && (
   (x.status === "running" && !!x.mejaAsal)
+  || (x.status === "running" && sesiBerwaktu(x) && now >= x.endsAt)
   || (x.status === "done" && x.settledAt === x.endsAt && !x.settledChannel && (x.settledAmount ?? 0) === 0));
 
 function dataBill(st: State, s: LiveSession): DataStruk {

@@ -5,9 +5,8 @@ import { SmokeMark } from "../components/Smoke";
 import { useVenueTamu } from "../lib/venueAktif";
 import { Ball } from "../components/motion/Billiard";
 import { useStore, type CartLine } from "../lib/store";
-import { useAdmin, businessDateOf, lineValue } from "../lib/adminStore";
+import { useAdmin, businessDateOf, lineValue, itemOf } from "../lib/adminStore";
 import { SEMUA_MEJA } from "../data/venue";
-import { findItem } from "../data/menu";
 import { fmtDateLong, rupiah } from "../lib/core";
 import { TICKET_LABEL, TONE_CLASS, bookingMilikAkun, customerStatus, jamOf } from "../lib/customerStatus";
 
@@ -159,7 +158,7 @@ export default function Success() {
                   </div>
                   <ul className="space-y-0.5">
                     {lines.map((l) => {
-                      const it = findItem(l.itemId);
+                      const it = itemOf(a, l.itemId);
                       return it ? (
                         <li key={l.key} className="flex justify-between text-[12px] text-mute">
                           <span>{l.qty}× {it.name}{l.variant ? ` (${l.variant})` : ""}</span>

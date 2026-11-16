@@ -258,6 +258,13 @@ function kurangiBayarPesanan(o: Pick<GuestOrder, "payment" | "paymentLain">, n: 
  * Tanggal dipakai supaya akun lama di jejak tetap terputar ulang apa adanya.
  */
 export const KASIR_WAJIB_VENUE = dariWib(2026, 11, 15, 6);
+/**
+ * SLOT TAGIHAN TAMBAHAN (temuan 16 Nov 2026: "bill otomatis paket tidak keluar
+ * sejak jam 2 siang"). Paket habis yang belum dibayar dipindah ke slot tab
+ * tanpa meja; kalau 20 slot penuh, tab tertahan di mejanya. Slot 21–60 baru
+ * dipakai mulai tanggal ini — jejak sebelumnya diputar ulang persis sama.
+ */
+export const TAB_TAMBAHAN_MULAI = dariWib(2026, 11, 16, 22);
 /** Peran yang wajib terikat satu venue. */
 export const PERAN_SATU_VENUE: readonly Role[] = ["kru_kasir", "karyawan", "waiter"];
 
@@ -770,6 +777,8 @@ export type State = {
   tableNames: Record<string, string>;
   /** Harga menu yang diubah superadmin. Yang tidak ada di sini = harga buku menu. */
   menuPrices: Record<string, number>;
+  /** Nama menu buku yang diganti pemilik (16 Nov 2026). Kosong = nama buku menu. */
+  menuNames?: Record<string, string>;
   /** Pergerakan stok terbaru (terbaru dulu) — dasar laporan stok 05.00–05.00. */
   stockMoves: StockMove[];
   soldOut: string[];
@@ -899,6 +908,7 @@ export type Action =
   /** Tautan unduh aplikasi. String kosong = hapus tautannya. */
   | { t: "setTautanUnduh"; windows: string; android: string }
   | { t: "setMenuPrice"; itemId: string; price: number }
+  | { t: "setMenuName"; itemId: string; name: string }
   /** Tambah/ubah barang milik pemilik sendiri (di luar buku menu). */
   /** Tandai menu dijual di satu venue saja (`null` = kedua venue). */
   | { t: "setMenuVenue"; itemId: string; venue: Venue | null }
@@ -1087,12 +1097,18 @@ export function priceWith(rates: State["rates"], type: TableType, startHour: num
  * Urutannya begitu supaya pemilik bisa menimpa entri buku menu kalau perlu,
  * dan supaya barang tambahan tidak pernah tertutup oleh id yang kebetulan sama.
  */
-export const itemOf = (st: Pick<State, "customItems">, itemId: string): MenuItem | undefined =>
-  st.customItems?.find((i) => i.id === itemId) ?? findItem(itemId);
+/** Nama pengganti dari pemilik dipasang di sini — SATU tempat untuk semua layar & struk. */
+type DenganNama = { menuNames?: Record<string, string> };
+const pakaiNama = (st: DenganNama, it: MenuItem): MenuItem =>
+  st.menuNames?.[it.id] ? { ...it, name: st.menuNames[it.id] } : it;
+export const itemOf = (st: Pick<State, "customItems"> & DenganNama, itemId: string): MenuItem | undefined => {
+  const it = st.customItems?.find((i) => i.id === itemId) ?? findItem(itemId);
+  return it && pakaiNama(st, it);
+};
 
 /** Seluruh barang yang bisa dijual — buku menu + tambahan pemilik. */
-export const semuaItem = (st: Pick<State, "customItems">): MenuItem[] =>
-  [...MENU.flatMap((c) => c.items), ...(st.customItems ?? [])];
+export const semuaItem = (st: Pick<State, "customItems"> & DenganNama): MenuItem[] =>
+  [...MENU.flatMap((c) => c.items).map((i) => pakaiNama(st, i)), ...(st.customItems ?? [])];
 
 /**
  * Daftar kategori untuk LAYAR PEMESANAN — buku menu + satu kategori
@@ -1230,12 +1246,12 @@ function kategoriJualSemua(
  * `kategoriJual`, yang membuang kategori kosong.
  */
 export function susunKategori(
-  st: Pick<State, "customItems" | "aturKategori">, opsi: { staf?: boolean } = {},
+  st: Pick<State, "customItems" | "aturKategori"> & DenganNama, opsi: { staf?: boolean } = {},
 ): MenuCategory[] {
   const atur = aturDari(st);
   const tambahan = (st.customItems ?? []).filter((i) => i.aktif !== false);
   const buku: MenuCategory[] = [
-    ...MENU,
+    ...MENU.map((c) => ({ ...c, items: c.items.map((i) => pakaiNama(st, i)) })),
     ...(tambahan.length ? [{ id: "tambahan", name: "Tambahan", kicker: "ditambah pemilik", items: tambahan }] : []),
   ];
   // Menu yang HANYA untuk kasir (rokok counter): kategori asalnya staffOnly,
@@ -2651,6 +2667,7 @@ function selesaikanPaketHabis(s: State, now: number): State {
     }
     const venue = venueDari(x.tableId);
     const slot = SEMUA_MEJA.find((t) => t.tanpaMeja && t.venue === venue
+      && (t.no <= 20 || now >= TAB_TAMBAHAN_MULAI)
       && !st.sessions.some((y) => y.tableId === t.id && (y.status === "running" || y.status === "booked" || y.status === "hold")));
     if (!slot) { st = { ...st, lights }; continue; }
     st = {
@@ -4185,6 +4202,35 @@ function reduce(s: State, a: Action): State {
         soldOut: s.soldOut.filter((x) => x !== a.id),
         log: note(s, `Menu dinonaktifkan · ${it.name}`),
       };
+    }
+
+    /*
+     * GANTI NAMA MENU (temuan 16 Nov 2026: "opsi ubah nama menu"). Barang
+     * tambahan pemilik: namanya langsung diganti. Barang buku menu: namanya
+     * disimpan sebagai pengganti — id-nya tetap, jadi pesanan, stok, dan
+     * laporan lama tetap menunjuk barang yang sama. Nama kosong / sama dengan
+     * buku menu = kembali ke nama bawaan.
+     */
+    case "setMenuName": {
+      if (!allow(s, "ubahTarif")) return s;
+      const nama = a.name.trim().replace(/\s+/g, " ").slice(0, 60);
+      const tambahan = (s.customItems ?? []).find((i) => i.id === a.itemId);
+      if (tambahan) {
+        if (!nama || nama === tambahan.name) return s;
+        return {
+          ...s, customItems: (s.customItems ?? []).map((i) => (i.id === a.itemId ? { ...i, name: nama } : i)),
+          log: note(s, `Nama menu diubah · ${tambahan.name} → ${nama}`),
+        };
+      }
+      const buku = findItem(a.itemId);
+      if (!buku) return s;
+      const lama = s.menuNames?.[buku.id] ?? buku.name;
+      const baru = nama || buku.name;
+      if (baru === lama) return s;
+      const menuNames = { ...(s.menuNames ?? {}) };
+      if (baru === buku.name) delete menuNames[buku.id];
+      else menuNames[buku.id] = baru;
+      return { ...s, menuNames, log: note(s, `Nama menu diubah · ${lama} → ${baru}`) };
     }
 
     case "setMenuPrice": {
@@ -6867,6 +6913,7 @@ export function validAction(a: unknown): a is Action {
     case "setPajakLini": return oneOf(a.lini, ["biliar", "bar", "resto"] as const) &&
       oneOf(a.key, ["ppn", "service"] as const) && isNum(a.value);
     case "setMenuPrice": return isStr(a.itemId) && isNum(a.price);
+    case "setMenuName": return isStr(a.itemId) && isStr(a.name) && a.name.length <= 200;
     case "setMenuVenue": return isStr(a.itemId) && (a.venue === null || oneOf(a.venue, ["spl", "smh"] as const));
     case "buatKategori": return isStr(a.id) && isStr(a.nama) && (a.grup === undefined || oneOf(a.grup, ["kitchen", "bar", "billiard"] as const));
     case "ubahKategori": return isStr(a.id) && (a.nama === undefined || isStr(a.nama))

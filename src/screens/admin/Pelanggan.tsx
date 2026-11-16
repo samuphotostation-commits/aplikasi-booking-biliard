@@ -9,6 +9,7 @@
  * bisa membacanya sama sekali (dijaga server, lihat supabase/schema-pelanggan.sql).
  */
 import { KepalaHalaman } from "./Tata";
+import { konfirmasi } from "../../lib/dialog";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin } from "../../lib/adminStore";
 import { venueStore } from "../../lib/venueStore";
@@ -156,7 +157,7 @@ export default function PelangganScreen() {
               {allow("lihatLaporanKeuangan") && (
                 <button
                   onClick={async () => {
-                    if (!confirm(`Hapus seluruh riwayat ${p.nama} (${nomorTampil(p.phone)}) dari database pelanggan?\n\nTransaksi di laporan keuangan tidak ikut terhapus.`)) return;
+                    if (!(await konfirmasi(`Hapus seluruh riwayat ${p.nama} (${nomorTampil(p.phone)}) dari database pelanggan?\n\nTransaksi di laporan keuangan tidak ikut terhapus.`))) return;
                     await store.lupakanPelanggan?.(p.phone);
                     void muat(cari);
                   }}

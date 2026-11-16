@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { QrisKasir } from "./QrisKasir";
+import { konfirmasi, beritahu } from "../../lib/dialog";
 import { KonfirmasiBayar } from "./KonfirmasiBayar";
 import { cetakSenyapMungkin, cetakStruk, cetakHtmlStruk } from "../../lib/cetak";
 import { htmlCafeOrderTerpisah, coOtomatis, type BarisCO } from "../../lib/strukCO";
@@ -428,7 +429,7 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
     return (
       <div className="relative h-full">
       {batal && (
-        <button onClick={() => batalkanMeja(s!, dispatchA, peek)}
+        <button onClick={() => void batalkanMeja(s!, dispatchA, peek)}
           title={`Batal gratis — masih dalam ${GRACE_MIN} menit pertama`}
           className="absolute bottom-1.5 right-1.5 z-10 rounded-lg bg-red-600 px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider text-white shadow-[0_2px_8px_rgba(0,0,0,0.5)] hover:bg-red-500">
           Cancel
@@ -622,11 +623,11 @@ function bisaBatalMeja(s: LiveSession, a: Parameters<typeof settlementOf>[1]): b
   if (s.fnb.length > 0 || (s.payments?.length ?? 0) > 0 || s.paidOnline > 0) return false;
   return settlementOf(s, a).due === 0;
 }
-function batalkanMeja(s: LiveSession, dispatchA: (x: Action) => string | null | void, peek: () => State) {
-  if (!confirm(`Batalkan ${s.guest} di meja ini? Gratis (Rp 0) karena masih dalam ${GRACE_MIN} menit pertama.`)) return;
+async function batalkanMeja(s: LiveSession, dispatchA: (x: Action) => string | null | void, peek: () => State) {
+  if (!(await konfirmasi(`Batalkan ${s.guest} di meja ini? Gratis (Rp 0) karena masih dalam ${GRACE_MIN} menit pertama.`, "Ya, batalkan"))) return;
   dispatchA({ t: "settle", id: s.id, channel: venueDari(s.tableId) === "spl" ? "checkout" : "cash" });
   const tutup = peek().sessions.find((x) => x.id === s.id)?.status === "done";
-  if (!tutup) alert("Tidak bisa dibatalkan — lewat 5 menit, sudah ada pesanan, atau shift belum buka.");
+  if (!tutup) await beritahu("Tidak bisa dibatalkan — lewat 5 menit, sudah ada pesanan, atau shift belum buka.");
 }
 
 /** Ubin papan dipotong per halaman 7 × 5 = 35 (yang kosong/`false` dibuang dulu). */
@@ -781,7 +782,7 @@ export function TableSheet({
     if (bersih !== namaMeja(a, table.id)) {
       dispatchA({ t: "setTableName", tableId: table.id, name: bersih });
       if (namaMeja(peek(), table.id) === namaMeja(a, table.id)) {
-        alert(`Nama "${bersih}" tidak bisa dipakai — sudah dipakai meja lain.`);
+        void beritahu(`Nama "${bersih}" tidak bisa dipakai — sudah dipakai meja lain.`);
         return;
       }
     }
@@ -1596,7 +1597,7 @@ export function TableSheet({
                     Pesanan
                   </div>
                   {session.fnb.map((l) => {
-                    const it = findItem(l.itemId);
+                    const it = itemOf(a, l.itemId);
                     if (!it) return null;
                     const lunas = lunasKey.has(l.key);
                     const diantar = sudahDiantar(l.key);
@@ -2288,7 +2289,7 @@ export function TableSheet({
                     className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
                     <span className={`h-4 w-4 shrink-0 rounded border ${pilih.includes(l.key) ? "border-amber bg-amber" : "border-line-2"}`} />
                     <span className="flex-1 truncate text-[13px] text-cream">
-                      {l.qty}× {findItem(l.itemId)?.name ?? l.itemId}
+                      {l.qty}× {itemOf(a, l.itemId)?.name ?? l.itemId}
                     </span>
                     <span className="font-serif text-[13px] tabular-nums text-mute">{rupiah(lineValue(l))}</span>
                   </button>
@@ -2395,17 +2396,17 @@ export function TableSheet({
                         className="flex min-h-[40px] min-w-0 flex-1 items-center gap-2 text-left">
                         <span className={`h-4 w-4 shrink-0 rounded border ${n > 0 ? "border-amber bg-amber" : "border-line-2"}`} />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] text-cream">{l.qty}× {findItem(l.itemId)?.name ?? l.itemId}</span>
+                          <span className="block truncate text-[13px] text-cream">{l.qty}× {itemOf(a, l.itemId)?.name ?? l.itemId}</span>
                           <span className="block text-[11px] text-dim">
                             {rupiah(nilaiPorsi(l, 1))}/porsi{sudah > 0 ? ` · ${sudah} sudah dibayar · sisa ${sisa}` : ""}
                           </span>
                         </span>
                       </button>
                       <div className="flex shrink-0 items-center gap-1">
-                        <button onClick={() => aturPorsi(l.key, n - 1)} disabled={n <= 0} aria-label={`Kurangi porsi ${findItem(l.itemId)?.name ?? ""}`}
+                        <button onClick={() => aturPorsi(l.key, n - 1)} disabled={n <= 0} aria-label={`Kurangi porsi ${itemOf(a, l.itemId)?.name ?? ""}`}
                           className="h-10 w-10 rounded-lg border border-line text-lg text-cream disabled:opacity-30">−</button>
                         <span className="w-10 text-center text-[13px] tabular-nums text-cream" aria-live="polite">{n}/{sisa}</span>
-                        <button onClick={() => aturPorsi(l.key, n + 1)} disabled={n >= sisa} aria-label={`Tambah porsi ${findItem(l.itemId)?.name ?? ""}`}
+                        <button onClick={() => aturPorsi(l.key, n + 1)} disabled={n >= sisa} aria-label={`Tambah porsi ${itemOf(a, l.itemId)?.name ?? ""}`}
                           className="h-10 w-10 rounded-lg border border-line text-lg text-cream disabled:opacity-30">+</button>
                       </div>
                       <span className="w-20 shrink-0 text-right font-serif text-[13px] tabular-nums text-mute">
@@ -2549,7 +2550,7 @@ export function TableSheet({
               <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3">
                 <div className="text-sm font-semibold text-red-200">
                   {voidLine
-                    ? `Void ${voidLine.qty}× ${findItem(voidLine.itemId)?.name ?? voidLine.itemId}`
+                    ? `Void ${voidLine.qty}× ${itemOf(a, voidLine.itemId)?.name ?? voidLine.itemId}`
                     : "Void seluruh sesi"}
                 </div>
                 <p className="mt-1 text-[12px] leading-snug text-red-200/80">
@@ -2576,7 +2577,7 @@ export function TableSheet({
                     req: voidLine
                       ? {
                           targetKind: "item", targetId: `${session.id}|${voidLine.key}`,
-                          label: `${voidLine.qty}× ${findItem(voidLine.itemId)?.name ?? voidLine.itemId} · ${table.name}`,
+                          label: `${voidLine.qty}× ${itemOf(a, voidLine.itemId)?.name ?? voidLine.itemId} · ${table.name}`,
                           amount: lineValue(voidLine), reason: alasan,
                         }
                       : {

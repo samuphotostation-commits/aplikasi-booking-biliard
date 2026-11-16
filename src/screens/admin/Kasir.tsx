@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { KonfirmasiBayar } from "./KonfirmasiBayar";
+import { catatDibukaDiSini } from "./PemantauPaket";
+import { konfirmasi } from "../../lib/dialog";
 import { QrisKasir } from "./QrisKasir";
 import { LayarCounter } from "./PesanTanpaMeja";
 import DaftarTakeaway, { bayarTakeaway } from "./DaftarTakeaway";
@@ -173,6 +175,9 @@ export default function Kasir() {
       setMsg({ ok: false, text: checkinProblem(after, code) ?? "Check-in tidak tercatat — coba lagi." });
       return;
     }
+    // Booking paket yang check-in di PC ini: bill-nya keluar otomatis di sini
+    // saat waktunya habis (dulu hanya meja yang dibuka dari Papan yang dicatat).
+    if (sesiBerwaktu(now2)) catatDibukaDiSini(now2.id);
     setMsg({ ok: true, text: `${found.guest} masuk ke ${nameOf(now2.tableId)}. Timer jalan.` });
     setCode("");
     setTimeout(() => setMsg(null), 4000);
@@ -602,11 +607,11 @@ export default function Kasir() {
                     </div>
                     {allow("ajukanVoid") && (
                       <button
-                        onClick={() => {
-                          if (!confirm(`Batalkan ${sessionType(s) === "resto" ? "reservasi" : "booking"} ${s.guest}?` +
+                        onClick={async () => {
+                          if (!(await konfirmasi(`Batalkan ${sessionType(s) === "resto" ? "reservasi" : "booking"} ${s.guest}?` +
                             (s.paidOnline > 0 ? `
 
-${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : ""))) return;
+${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : ""), "Ya, batalkan"))) return;
                           voidBooking(s);
                         }}
                         className="mt-0.5 min-h-[30px] text-[11px] text-red-300 underline underline-offset-2">

@@ -41,8 +41,38 @@ export const TINGGI_MIN_MM = LEBAR_KERTAS_MM + 6;
 const tegak = (html: string) =>
   html.replace("</head>", `<style>html,body{min-height:${TINGGI_MIN_MM}mm}</style></head>`);
 
-const jembatan = (): Jembatan | null =>
-  (globalThis as unknown as { splCetak?: Jembatan }).splCetak ?? null;
+/*
+ * FOKUS KEYBOARD KEMBALI SESUDAH MENCETAK (temuan 16 Nov 2026: "kolom ketik
+ * sering tidak bisa, harus logout lalu login ulang"). Mencetak membuka jendela
+ * cetak tersembunyi (aplikasi Windows) atau bingkai cetak (peramban); di
+ * Windows, sesudahnya jendela kasir bisa kehilangan fokus keyboard — tombol
+ * masih bisa diklik, kolom ketik diam. Setelah tiap cetak, fokus dikembalikan
+ * ke jendela kasir dan ke kolom yang tadi sedang dipakai — HANYA kalau
+ * jendela kasir memang sedang dipakai saat cetak dimulai.
+ */
+function pulihkanFokus(tadiFokus: boolean, kolom: Element | null) {
+  if (!tadiFokus) return;
+  try { window.focus(); } catch { /* abaikan */ }
+  const el = kolom as HTMLElement | null;
+  if (el && el !== document.body && el.isConnected && typeof el.focus === "function") {
+    try { el.focus({ preventScroll: true }); } catch { /* abaikan */ }
+  }
+}
+async function denganFokus<T>(kerja: () => Promise<T>): Promise<T> {
+  const tadi = typeof document !== "undefined" && document.hasFocus();
+  const kolom = typeof document !== "undefined" ? document.activeElement : null;
+  try { return await kerja(); } finally { pulihkanFokus(tadi, kolom); }
+}
+
+const jembatan = (): Jembatan | null => {
+  const j = (globalThis as unknown as { splCetak?: Jembatan }).splCetak ?? null;
+  if (!j) return null;
+  return {
+    ...j,
+    cetak: (printer) => denganFokus(() => j.cetak(printer)),
+    cetakHtml: (html, printer, opsi) => denganFokus(() => j.cetakHtml(html, printer, opsi)),
+  };
+};
 
 /** Apakah perangkat ini bisa mencetak tanpa dialog (aplikasi Windows)? */
 export const cetakSenyapMungkin = () => !!jembatan();
@@ -255,6 +285,8 @@ export function gandakan(html: string, n: number): string {
 
 /** Satu perintah cetak lewat bingkai tersembunyi. `dialog` = kotak printer sempat muncul. */
 function satuPerintah(html: string, salinan: number): Promise<{ ok: boolean; dialog: boolean }> {
+  const tadiFokus = document.hasFocus();
+  const kolomTadi = document.activeElement;
   return new Promise((selesai) => {
     const f = document.createElement("iframe");
     f.setAttribute("sandbox", "allow-modals allow-same-origin");
@@ -278,7 +310,7 @@ function satuPerintah(html: string, salinan: number): Promise<{ ok: boolean; dia
       f.contentWindow?.print();
       const dialog = performance.now() - mulai > 400;
       try { window.localStorage.setItem(K_LANGSUNG, dialog ? "0" : "1"); } catch { /* mode privat */ }
-      setTimeout(() => { f.remove(); selesai({ ok: true, dialog }); }, 600);
+      setTimeout(() => { f.remove(); pulihkanFokus(tadiFokus, kolomTadi); selesai({ ok: true, dialog }); }, 600);
     };
     document.body.appendChild(f);
   });

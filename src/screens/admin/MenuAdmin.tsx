@@ -1,8 +1,8 @@
 import { KepalaHalaman, TombolAksi } from "./Tata";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import type { MenuItem } from "../../data/menu";
-import { useAdmin, priceOf, kategoriJual, venueTerdampakMenu } from "../../lib/adminStore";
+import { findItem, type MenuItem } from "../../data/menu";
+import { useAdmin, priceOf, kategoriJual, venueTerdampakMenu, itemOf } from "../../lib/adminStore";
 import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
 import KategoriMenu from "./KategoriMenu";
@@ -67,7 +67,7 @@ export default function MenuAdmin() {
         return true;
       }),
     })).filter((c) => c.items.length > 0);
-  }, [q, tab, a.soldOut, a.stock, venue, a.menuVenue, a.customItems]);
+  }, [q, tab, a.soldOut, a.stock, venue, a.menuVenue, a.customItems, a.menuNames]);
 
   const habisCount = a.soldOut.length;
   const menipis = a.stock.filter((r) => r.qty !== null && r.qty <= r.lowAt);
@@ -200,7 +200,7 @@ export default function MenuAdmin() {
           </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {menipis.map((r) => {
-              const it = MENU.flatMap((c) => c.items).find((i) => i.id === r.itemId);
+              const it = itemOf(a, r.itemId);
               return (
                 <span key={r.itemId}
                   className="rounded-lg border border-red-500/30 bg-ink/50 px-2 py-1 text-[11px] text-cream">
@@ -299,7 +299,8 @@ export default function MenuAdmin() {
                       </div>
                     )}
 
-                    {/* Harga menu — superadmin saja */}
+                    {/* Nama & harga menu — superadmin saja */}
+                    {allow("ubahTarif") && <NamaEditor item={it} />}
                     {allow("ubahTarif") && <PriceEditor item={it} />}
 
                     {/* Pengelolaan stok — superadmin saja */}
@@ -371,6 +372,56 @@ export default function MenuAdmin() {
         </p>
       )}
       </>)}
+    </div>
+  );
+}
+
+/** Editor NAMA menu (temuan 16 Nov 2026). Nama baru langsung dipakai di kasir, HP tamu, checker & struk. */
+function NamaEditor({ item }: { item: MenuItem }) {
+  const { a, dispatchA } = useAdmin();
+  const bawaan = findItem(item.id)?.name;      // undefined = barang tambahan pemilik
+  const [buka, setBuka] = useState(false);
+  const [value, setValue] = useState(item.name);
+  useEffect(() => { setValue(item.name); }, [item.name]);
+  const bersih = value.trim().replace(/\s+/g, " ");
+  const simpan = () => {
+    if (!bersih || bersih === item.name) { setBuka(false); return; }
+    dispatchA({ t: "setMenuName", itemId: item.id, name: bersih });
+    setBuka(false);
+  };
+  if (!buka) {
+    return (
+      <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
+        <span className="text-[11px] text-dim">Nama</span>
+        <button onClick={() => setBuka(true)}
+          className="h-8 rounded-lg border border-line px-3 text-[11px] font-semibold text-mute hover:border-amber hover:text-amber">
+          Ubah nama
+        </button>
+        {bawaan && a.menuNames?.[item.id] && (
+          <>
+            <span className="min-w-0 truncate text-[11px] text-dim">asli: {bawaan}</span>
+            <button onClick={() => dispatchA({ t: "setMenuName", itemId: item.id, name: "" })}
+              className="ml-auto shrink-0 text-[11px] text-dim underline underline-offset-2">
+              Kembalikan
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
+      <span className="text-[11px] text-dim">Nama</span>
+      <input value={value} autoFocus maxLength={60}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") simpan(); if (e.key === "Escape") setBuka(false); }}
+        aria-label={`Nama baru untuk ${item.name}`}
+        className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-ink px-2 text-[13px] text-cream focus:border-amber focus:outline-none" />
+      <button disabled={!bersih || bersih === item.name} onClick={simpan}
+        className="h-8 shrink-0 rounded-lg bg-amber px-3 text-[11px] font-bold text-ink disabled:opacity-30">
+        Simpan
+      </button>
+      <button onClick={() => { setValue(item.name); setBuka(false); }} className="h-8 shrink-0 px-1 text-[11px] text-dim">Batal</button>
     </div>
   );
 }

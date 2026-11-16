@@ -218,8 +218,11 @@ export const CADANGAN: PoolTable[] = [
  * `mejaDijual` hanya memuat meja yang dipakai, dan slot ini tidak pernah
  * "dipakai" sebagai meja. Identitasnya adalah NAMA ORANGNYA (wajib).
  */
+// 20 → 60 slot per venue (16 Nov 2026): tagihan paket habis yang belum dibayar
+// ikut menempati slot ini; 20 bisa penuh di hari ramai. Slot 21+ hanya dipakai
+// mesin sesudah `TAB_TAMBAHAN_MULAI` (lihat engine) supaya jejak lama tetap sama.
 export const TAB_TANPA_MEJA: PoolTable[] = (["spl", "smh"] as const).flatMap((venue) =>
-  Array.from({ length: 20 }, (_, i) => ({
+  Array.from({ length: 60 }, (_, i) => ({
     id: `${venue === "spl" ? "TB" : "TH"}${String(i + 1).padStart(2, "0")}`,
     no: i + 1,
     name: `Tab ${i + 1}`,

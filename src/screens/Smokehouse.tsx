@@ -22,7 +22,7 @@ import { kartuKategori } from "../lib/kartuMenu";
 import { FOTO_KATEGORI, FOTO_ITEM, FOTO_HERO_SMH } from "../data/fotoMenu";
 import { MENU, findItem } from "../data/menu";
 import {
-  useAdmin, hourIdx, OPEN_IDX, CLOSE_IDX, mejaDijual, priceOf, penjualanProduk, shiftDate, businessDateOf,
+  useAdmin, itemOf, hourIdx, OPEN_IDX, CLOSE_IDX, mejaDijual, priceOf, penjualanProduk, shiftDate, businessDateOf,
 } from "../lib/adminStore";
 import { rupiah } from "../lib/core";
 import { fmtHour } from "../data/venue";
@@ -82,7 +82,7 @@ export default function Smokehouse() {
 
   const pilihan = laris.length >= 3
     ? laris
-    : ANDALAN.filter((id) => findItem(id)).map((id) => ({ itemId: id, nama: findItem(id)!.name, qty: 0 }));
+    : ANDALAN.filter((id) => findItem(id)).map((id) => ({ itemId: id, nama: itemOf(a, id)!.name, qty: 0 }));
   const pakaiAngka = laris.length >= 3;
 
   const kartu = useMemo(() => kartuKategori(a), [a]);
@@ -165,7 +165,7 @@ export default function Smokehouse() {
           <Muncul i={1} className="min-w-0 lg:col-span-7">
             <ul>
               {pilihan.map((p, i) => {
-                const it = findItem(p.itemId)!;
+                const it = itemOf(a, p.itemId)!;
                 const foto = FOTO_ITEM[p.itemId];
                 return (
                   <li key={p.itemId} className={`border-b border-cream/15 ${i > 3 ? "hidden md:block" : ""}`}>

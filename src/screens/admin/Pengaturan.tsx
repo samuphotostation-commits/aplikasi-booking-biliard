@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { konfirmasi } from "../../lib/dialog";
 import { Button } from "../../components/UI";
 import {
   useAdmin, maintenanceBlockers, classOf, mesinEdc,
@@ -355,10 +356,10 @@ export default function Pengaturan() {
   // TAMBAH MEJA: lihat `TambahMeja` — satu formulir untuk Pengaturan dan Papan.
 
   /** Semua ruang yang masih VIP → VICTORY, satu ketukan. */
-  function jadikanVictory() {
+  async function jadikanVictory() {
     const vip = biliar.filter((t) => classOf(peek(), t.id) === "vip");
     if (!vip.length) return;
-    if (!confirm(`${vip.length} ruang masih berkelas VIP (${vip.map((t) => namaMeja(a, t.id)).join(", ")}). Jadikan kelas VICTORY? Tarifnya ikut tarif VICTORY.`)) return;
+    if (!(await konfirmasi(`${vip.length} ruang masih berkelas VIP (${vip.map((t) => namaMeja(a, t.id)).join(", ")}). Jadikan kelas VICTORY? Tarifnya ikut tarif VICTORY.`))) return;
     for (const t of vip) dispatchA({ t: "setTableClass", tableId: t.id, type: "vvip" });
     const gagal = vip.filter((t) => classOf(peek(), t.id) === "vip");
     setTableNote(gagal.length
@@ -686,7 +687,7 @@ export default function Pengaturan() {
           {venue === "spl" ? (<>
             <span>{hitung("regular")} reguler</span>
             {hitung("vip") > 0 && (
-              <button onClick={jadikanVictory}
+              <button onClick={() => void jadikanVictory()}
                 className="rounded-full border border-amber/60 bg-amber/10 px-2.5 py-0.5 font-semibold text-amber hover:bg-amber/20">
                 {hitung("vip")} ruang masih VIP · Jadikan VICTORY
               </button>
@@ -817,11 +818,11 @@ export default function Pengaturan() {
                 tamu, dan dari penyebut utilisasi. Riwayatnya tetap utuh. */}
             <button
               disabled={maintenanceBlockers(a, mejaTerpilih.id).length > 0}
-              onClick={() => {
+              onClick={async () => {
                 const nm = namaMeja(a, mejaTerpilih.id);
-                if (!confirm(`Hapus ${nm} dari denah? `
+                if (!(await konfirmasi(`Hapus ${nm} dari denah? `
                   + `Mejanya hilang dari papan dan dari booking tamu. Riwayat & laporannya tetap tersimpan, `
-                  + `dan bisa ditambahkan lagi kapan saja.`)) return;
+                  + `dan bisa ditambahkan lagi kapan saja.`))) return;
                 dispatchA({ t: "setMejaDipakai", tableId: mejaTerpilih.id, dipakai: false });
                 if (mejaDipakai(peek(), mejaTerpilih.id)) {
                   setTableNote(`${nm} tidak bisa dihapus — masih ada tamu, pesanan, atau booking di meja itu.`);
@@ -1239,8 +1240,8 @@ function AkunStaf() {
               {e.active ? "nonaktifkan" : "aktifkan"}
             </button>
             <button
-              onClick={() => {
-                if (!confirm(`Hapus akun ${e.name}? Jejak tindakannya di laporan tetap tersimpan.`)) return;
+              onClick={async () => {
+                if (!(await konfirmasi(`Hapus akun ${e.name}? Jejak tindakannya di laporan tetap tersimpan.`))) return;
                 dispatchA({ t: "removeEmployee", id: e.id });
                 if (peek().employees.some((x) => x.id === e.id)) {
                   flash("Tidak bisa dihapus — shift orang ini masih buka, atau ini superadmin terakhir yang mengurus kedua venue.");

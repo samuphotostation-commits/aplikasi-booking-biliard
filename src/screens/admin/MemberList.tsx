@@ -9,6 +9,7 @@
  * mencentang izin (UU PDP). Member masuk dengan nomor HP + PIN, atau Google.
  */
 import { useCallback, useEffect, useState } from "react";
+import { konfirmasi } from "../../lib/dialog";
 import { useAdmin } from "../../lib/adminStore";
 import { venueStore } from "../../lib/venueStore";
 import type { MemberBaris } from "../../lib/supabaseRemote";
@@ -175,7 +176,7 @@ export default function DaftarMember() {
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   onClick={async () => {
-                    if (!confirm(`Atur ulang PIN ${m.nama} (${nomorTampil(m.phone)})?\n\nPastikan yang meminta benar pemilik nomor ini (cocokkan nama atau minta dia menelepon dari nomor itu).`)) return;
+                    if (!(await konfirmasi(`Atur ulang PIN ${m.nama} (${nomorTampil(m.phone)})?\n\nPastikan yang meminta benar pemilik nomor ini (cocokkan nama atau minta dia menelepon dari nomor itu).`))) return;
                     const r = await store.aturUlangPinMember?.(m.phone);
                     setPinBaru({ phone: m.phone, teks: r?.pin ? `PIN baru: ${r.pin} — bacakan ke tamu, lalu minta dia menggantinya di menu Akun.` : (r?.alasan ?? "Gagal") });
                   }}
@@ -187,7 +188,7 @@ export default function DaftarMember() {
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   onClick={async () => {
-                    if (!confirm(`Hapus akun member ${m.nama} (${nomorTampil(m.phone)})?\n\nRiwayat kunjungan & angka penjualan tidak ikut terhapus.`)) return;
+                    if (!(await konfirmasi(`Hapus akun member ${m.nama} (${nomorTampil(m.phone)})?\n\nRiwayat kunjungan & angka penjualan tidak ikut terhapus.`))) return;
                     await store.lupakanMember?.(m.phone);
                     void muat(cari);
                   }}

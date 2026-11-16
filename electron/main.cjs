@@ -128,6 +128,9 @@ ipcMain.handle("spl:cetak-html", async (_e, html, printer, opsi) => {
     return { ok: false, alasan: String(err && err.message ? err.message : err) };
   } finally {
     jendela.destroy();
+    // Kembalikan fokus keyboard ke jendela kasir yang meminta cetak (lihat buatJendela).
+    const kasir = BrowserWindow.fromWebContents(_e.sender);
+    if (kasir && !kasir.isDestroyed() && kasir.isFocused()) kasir.webContents.focus();
   }
 });
 
@@ -237,6 +240,15 @@ function buatJendela() {
   });
 
   win.loadURL(AWAL);
+
+  /*
+   * FOKUS KEYBOARD (temuan 16 Nov 2026: "kolom ketik sering tidak bisa, harus
+   * logout lalu login ulang"). Masalah Electron di Windows: sesudah jendela
+   * cetak tersembunyi atau kotak dialog sistem, jendela kasir aktif lagi tapi
+   * isinya tidak menerima ketikan. Setiap kali jendela kasir aktif, isinya
+   * ikut diberi fokus.
+   */
+  win.on("focus", () => { if (!win.isDestroyed()) win.webContents.focus(); });
 
   // Tautan ke luar dibuka di browser, bukan menimpa layar kasir.
   win.webContents.setWindowOpenHandler(({ url }) => {

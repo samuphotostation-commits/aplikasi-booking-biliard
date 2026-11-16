@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { TempatDialog } from "./lib/dialog";
 import { Suspense, lazy, useEffect } from "react";
 import { BottomNav } from "./components/UI";
 import { TiraiProvider } from "./components/motion/Tirai";
@@ -174,6 +175,7 @@ export default function App() {
       <StoreProvider>
         <TiraiProvider>
           <Shell />
+          <TempatDialog />
         </TiraiProvider>
       </StoreProvider>
     </AdminProvider>

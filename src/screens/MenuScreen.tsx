@@ -72,7 +72,7 @@ export default function MenuScreen() {
     const s = q.toLowerCase();
     return MENU.map((c) => ({ ...c, items: c.items.filter((i) => i.name.toLowerCase().includes(s)) }))
       .filter((c) => c.items.length > 0);
-  }, [q]);
+  }, [q, MENU]);
 
   const stockLeft = (id: string) => {
     const row = venue.stock.find((r) => r.itemId === id);

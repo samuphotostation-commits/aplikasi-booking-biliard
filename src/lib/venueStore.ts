@@ -142,6 +142,22 @@ const ACTIVE_STATUS = new Set(["booked", "hold", "running"]);
 /** Titik simpan: state tepat sesudah kejadian `upto` (jejak sampai situ sudah dilipat). */
 type Snapshot = { genesisAt: number; upto: { id: string; at: number }; count: number; state: State };
 
+/*
+ * AKUN YANG SEDANG MASUK MENGIKUTI DAFTAR STAF TERBARU (temuan 16 Nov 2026:
+ * "posisi manager masih tampak SPL dan Smokehouse padahal sudah diset ke SPL
+ * saja"). `me` disalin SEKALI saat login — venue/peran yang diubah pemilik
+ * sesudahnya tidak pernah terbaca sampai orangnya keluar-masuk lagi, bahkan
+ * tersimpan di sesi peramban. Sekarang nama, peran, dan venue selalu diambil
+ * dari daftar staf mesin (yang juga dipakai mesin untuk menilai izinnya).
+ */
+function akunTerkini(me: Employee | null, daftar: Employee[]): Employee | null {
+  if (!me) return me;
+  const akun = daftar.find((x) => x.id === me.id);
+  if (!akun) return me;
+  const { venue: _lama, ...sisa } = me;
+  return { ...sisa, name: akun.name, role: akun.role, ...(akun.venue ? { venue: akun.venue } : {}) };
+}
+
 function attempt<T>(fn: () => T): T | null {
   try { return fn(); } catch { return null; }
 }
@@ -366,7 +382,7 @@ export function createVenueStore(opts: VenueStoreOptions = {}) {
     // Begitu server mengonfirmasi, aksi itu masuk jejak dengan JAM SERVER dan tampilan
     // dihitung ulang — kalau ternyata ditolak aturan, tampilannya kembali sendiri.
     for (const p of outbox) st = applyAction(st, { id: p.id, at: Date.now(), by: p.by ?? me?.id ?? null, act: p.act });
-    view = { ...st, me };
+    view = { ...st, me: akunTerkini(me, st.employees) };
   }
 
   function notify() {

@@ -14,6 +14,7 @@
  * terkunci dari layarnya sendiri.
  */
 import { useState } from "react";
+import { konfirmasi, beritahu } from "../../lib/dialog";
 import { ROLE_LABEL, type Employee } from "../../data/staff";
 import { VENUE_LABEL } from "../../data/venue";
 import { pinAcak } from "./TambahBanyakAkun";
@@ -47,7 +48,7 @@ export function PinMassal({ karyawan, simpan, onSelesai }: {
   const [disalin, setDisalin] = useState(false);
 
   async function mulai() {
-    if (!confirm(`Buat PIN baru untuk ${karyawan.length} karyawan?\n\nPIN lama mereka langsung tidak berlaku. Akun yang sedang kamu pakai tidak ikut diganti.`)) return;
+    if (!(await konfirmasi(`Buat PIN baru untuk ${karyawan.length} karyawan?\n\nPIN lama mereka langsung tidak berlaku. Akun yang sedang kamu pakai tidak ikut diganti.`))) return;
     const sudah = new Set<string>();
     const hasil: Baris[] = [];
     setJalan(1);
@@ -68,7 +69,7 @@ export function PinMassal({ karyawan, simpan, onSelesai }: {
 
   async function salin() {
     try { await navigator.clipboard.writeText(teksWa(baris ?? [])); setDisalin(true); setTimeout(() => setDisalin(false), 3000); }
-    catch { alert("Salin gagal. Tekan lama teks di bawah lalu salin manual."); }
+    catch { void beritahu("Salin gagal. Tekan lama teks di bawah lalu salin manual."); }
   }
 
   if (!baris) {

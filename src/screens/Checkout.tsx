@@ -5,11 +5,10 @@ import { Button, Card, PageHeader } from "../components/UI";
 import { Ball } from "../components/motion/Billiard";
 import { useStore, type CartLine } from "../lib/store";
 import {
-  useAdmin, cartProblem, guestOrderProblem, complimentMeja, lineValue, runningOn, slotProblem, classOf, paketOf,
+  useAdmin, itemOf, cartProblem, guestOrderProblem, complimentMeja, lineValue, runningOn, slotProblem, classOf, paketOf,
   mejaDijual, cariMeja,
 } from "../lib/adminStore";
 import { slotStart } from "../lib/occupancy";
-import { findItem } from "../data/menu";
 import { venueTamu, useVenueTamu } from "../lib/venueAktif";
 import { TABLES, fmtHour, BOOKING_TERMS, CLASS_LABEL } from "../data/venue";
 import { bookingCode, fmtDateLong, rupiah } from "../lib/core";
@@ -309,7 +308,7 @@ export default function Checkout() {
             </div>
             <div className="divide-y divide-line">
               {cart.map((l) => {
-                const it = findItem(l.itemId);
+                const it = itemOf(venue, l.itemId);
                 if (!it) return null;
                 // Nilai per baris dari rumus mesin: harga terkini + jatah minuman gratis.
                 const priced = totals.lines.filter((x) => x.key === l.key || x.key === `${l.key}-gratis`);

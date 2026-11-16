@@ -15,6 +15,7 @@
  * Semua lewat mesin, jadi tercatat di Jejak dan sama di semua perangkat.
  */
 import { useState } from "react";
+import { konfirmasi } from "../../lib/dialog";
 import { useAdmin, susunKategori, type GrupMenu } from "../../lib/adminStore";
 import { grupKategori } from "./PilihMenu";
 import { JudulBagian, Kosong } from "./Tata";
@@ -94,8 +95,8 @@ export default function KategoriMenu() {
       <div>
         <JudulBagian judul="Urutan & isi kategori" jumlah={daftar.length}
           aksi={atur && (
-            <button onClick={() => {
-              if (!confirm("Kembalikan semua kategori ke susunan buku menu? Nama, urutan, kelompok, kategori baru, dan menu yang dipindah akan dihapus.")) return;
+            <button onClick={async () => {
+              if (!(await konfirmasi("Kembalikan semua kategori ke susunan buku menu? Nama, urutan, kelompok, kategori baru, dan menu yang dipindah akan dihapus."))) return;
               kirim({ t: "resetKategori" }, "Kategori kembali ke susunan buku menu.", "Tidak ada yang berubah.");
             }} className="text-[12px] text-dim underline underline-offset-2 hover:text-red-300">
               Kembalikan ke susunan awal

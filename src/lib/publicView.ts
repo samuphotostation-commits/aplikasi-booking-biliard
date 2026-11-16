@@ -50,6 +50,8 @@ export type PublicVenue = {
    */
   mejaPakai: State["mejaPakai"];
   menuPrices: State["menuPrices"];
+  /** Nama menu yang diganti pemilik — HP tamu menampilkan nama yang sama dengan kasir. */
+  menuNames?: State["menuNames"];
   /** Barang tambahan pemilik — tanpa ini pelanggan tidak bisa memesannya. */
   customItems: State["customItems"];
   /** Menu yang hanya dijual di satu venue — HP tamu menyaringnya juga. */
@@ -126,6 +128,7 @@ export function publicVenue(s: State, now: number, days = 14): PublicVenue {
     tableTypes: { ...(s.tableTypes ?? {}) },
     mejaPakai: { ...(s.mejaPakai ?? {}) },
     menuPrices: { ...s.menuPrices },
+    ...(s.menuNames && Object.keys(s.menuNames).length ? { menuNames: { ...s.menuNames } } : {}),
     customItems: [...(s.customItems ?? [])],
     menuVenue: { ...(s.menuVenue ?? {}) },
     ...(s.aturKategori ? { aturKategori: s.aturKategori } : {}),

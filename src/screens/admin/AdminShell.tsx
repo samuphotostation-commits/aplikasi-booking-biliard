@@ -293,6 +293,9 @@ export default function AdminShell() {
   if (!a.me) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-ink px-6">
+        {/* Layar dikunci tetap memantau paket habis: lampu mati & bill keluar
+            walau kasir sedang tidak login (temuan 16 Nov 2026). */}
+        <PemantauPaket />
         <div className="text-amber"><Mark size={52} /></div>
         <h1 className="mt-3 font-display text-2xl uppercase tracking-[0.14em] text-cream">
           Panel Operasional
@@ -409,6 +412,7 @@ export default function AdminShell() {
   if (!shiftIni && !bolehTanpaShift) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-ink px-6">
+        <PemantauPaket />
         <Ball n={8} size={48} />
         <h1 className="mt-4 font-display text-2xl uppercase tracking-wide text-cream">
           Buka Shift · {VENUE_LABEL[venue]}

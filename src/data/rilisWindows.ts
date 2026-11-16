@@ -8,10 +8,10 @@
  * menyimpan satu berkas .exe. Tautan manual di Pengaturan tetap cadangan.
  */
 export const RILIS_WINDOWS: { versi: string; nama: string; ukuranMb: number; sha256: string; tanggal: string; halaman: string } | null = {
-  versi: "1.3.4",
-  nama: "SPL-Kasir-Setup-1.3.4.exe",
+  versi: "1.3.5",
+  nama: "SPL-Kasir-Setup-1.3.5.exe",
   ukuranMb: 98,
-  sha256: "9920d3f0816bebf9221a8491974061078423fc4a33f2b86e33a7baaf5b372677",
+  sha256: "39db3d93f862a4ec439ab42160e2da5aaa4ad97283fbdfd8541394e2263fe01b",
   tanggal: "2026-11-16",
   halaman: "https://kasir.sportspoollounge.com/unduh/windows.html",
 };
