@@ -89,6 +89,81 @@ const Angka = ({ k, v, tebal, warna }: { k: string; v: string; tebal?: boolean; 
 );
 
 /** Kepala struk: sewa meja atau omzet per shift, atau per hari kalau rentang. */
+/*
+ * PER SHIFT PER KATEGORI (pemilik 17 Nov 2026, urgent: "pastikan semua data
+ * transaksi terekap detail per shift, dan keseluruhan shift sesuai kategori;
+ * pastikan sama antara transaksi yang masuk dengan rekap"). Satu baris per
+ * shift: sewa meja, resto, bar, counter — pesanan di dalam meja ikut
+ * kategorinya. Baris bawah menjumlah semua shift dan dicocokkan dengan total
+ * kategori di bawahnya; kalau beda, ditulis selisihnya.
+ */
+function TabelShiftKategori({ r }: { r: Rekap }) {
+  if (r.harian || r.shift.length === 0) return null;
+  const sewa = pakaiSewa(r.venue);
+  const jml = r.shift.reduce((t, sh) => ({
+    sewa: t.sewa + sh.sewaMeja, resto: t.resto + sh.kategori.resto, bar: t.bar + sh.kategori.bar,
+    counter: t.counter + sh.kategori.counter, omzet: t.omzet + sh.omzet,
+  }), { sewa: 0, resto: 0, bar: 0, counter: 0, omzet: 0 });
+  const cek = [
+    ...(sewa ? [["Sewa meja", jml.sewa, r.sewaMeja] as const] : []),
+    ...(r.rincianTersedia ? [
+      ["Resto", jml.resto, r.totalResto] as const, ["Bar", jml.bar, r.totalBar] as const,
+      ...(sewa ? [["Counter", jml.counter, r.totalBilliard] as const] : []),
+    ] : []),
+    ["Pendapatan", jml.omzet, r.pendapatan] as const,
+  ].filter(([, x, y]) => x !== y);
+  const th = "px-2 py-1.5 text-right font-semibold";
+  const td = "px-2 py-1.5 text-right tabular-nums";
+  return (
+    <Kartu judul="Per shift per kategori" ket="pesanan di dalam meja masuk sesuai kategorinya">
+      <div className="-mx-1 overflow-x-auto">
+        <table className="w-full min-w-[520px] text-[12px]">
+          <thead className="text-[10.5px] uppercase tracking-wider text-dim">
+            <tr className="border-b border-line">
+              <th className="px-2 py-1.5 text-left font-semibold">Shift</th>
+              {sewa && <th className={th}>Sewa meja</th>}
+              <th className={th}>Resto</th>
+              <th className={th}>Bar</th>
+              {sewa && <th className={th}>Counter</th>}
+              <th className={th}>Omzet</th>
+            </tr>
+          </thead>
+          <tbody className="text-cream">
+            {r.shift.map((sh) => (
+              <tr key={sh.id} className="border-b border-line/50">
+                <td className="px-2 py-1.5">
+                  {sh.nama}
+                  {sh.openedAt > 0 && <span className="ml-1 text-[11px] text-dim">{jamMenit(sh.openedAt)}–{sh.closedAt ? jamMenit(sh.closedAt) : "jalan"}</span>}
+                </td>
+                {sewa && <td className={td}>{rupiah(sh.sewaMeja)}</td>}
+                <td className={td}>{rupiah(sh.kategori.resto)}</td>
+                <td className={td}>{rupiah(sh.kategori.bar)}</td>
+                {sewa && <td className={td}>{rupiah(sh.kategori.counter)}</td>}
+                <td className={`${td} font-semibold`}>{rupiah(sh.omzet)}</td>
+              </tr>
+            ))}
+            <tr className="bg-amber/10 font-bold">
+              <td className="px-2 py-1.5">Semua shift</td>
+              {sewa && <td className={td}>{rupiah(jml.sewa)}</td>}
+              <td className={td}>{rupiah(jml.resto)}</td>
+              <td className={td}>{rupiah(jml.bar)}</td>
+              {sewa && <td className={td}>{rupiah(jml.counter)}</td>}
+              <td className={`${td} text-amber`}>{rupiah(jml.omzet)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {cek.length === 0 ? (
+        <p className="mt-2 text-[11px] text-emerald-300">✓ Jumlah semua shift sama dengan total per kategori dan pendapatan hari ini.</p>
+      ) : (
+        <div className="mt-2 rounded-lg border border-red-400/50 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
+          Tidak cocok: {cek.map(([k, x, y]) => `${k} per shift ${rupiah(x)} vs total ${rupiah(y)}`).join(" · ")}
+        </div>
+      )}
+    </Kartu>
+  );
+}
+
 function Kepala({ r, tanggal }: { r: Rekap; tanggal: (d: string) => string }) {
   const sewa = pakaiSewa(r.venue);
   return (
@@ -362,6 +437,7 @@ export default function RekapTigaJenis({ dari, sampai, venue, hariIni }: {
         </div>
       ) : (
         <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <div className="lg:col-span-2"><TabelShiftKategori r={r} /></div>
           {/* KIRI — PENJUALAN: semua yang menyusun pendapatan, dari atas ke bawah. */}
           <Kartu judul="Penjualan"
             ket={r.totalSemua === 0 && r.billiard.length + r.resto.length + r.bar.length === 0 ? "belum ada penjualan" : undefined}>

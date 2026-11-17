@@ -1,6 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
-import { useAdmin, shiftCashExpected, biayaLaci, omzetPerShift, businessDateOf, shiftDi } from "../../lib/adminStore";
+import {
+  useAdmin, shiftCashExpected, biayaLaci, omzetPerShift, businessDateOf, shiftDi, shiftMilik, shiftBukaDi, SHIFT_PER_KASIR,
+} from "../../lib/adminStore";
 import { PanelBiaya } from "./PanelBiaya";
 import { JudulBagian, KepalaHalaman, Kosong, TombolAksi } from "./Tata";
 import { rupiah } from "../../lib/core";
@@ -37,10 +39,46 @@ const lamanya = (ms: number) => {
 };
 
 export default function ShiftScreen() {
-  const { a, dispatchA } = useAdmin();
+  const { a, dispatchA, allow } = useAdmin();
   const venue = useVenueAktif();
-  const shift = shiftDi(a, venue, Date.now());
-  if (shift) return <ShiftBerjalan shift={shift} venue={venue} />;
+  /*
+   * SHIFT PER KASIR (pemilik 17 Nov 2026). Yang tampil: shift MILIK kasir
+   * yang login; pengurus keuangan bisa memilih shift kasir lain (mis. untuk
+   * menutup shift yang lupa ditutup). Kasir yang belum punya shift sendiri
+   * diberi tombol untuk membukanya, walau kasir lain sudah buka.
+   */
+  const perKasir = Date.now() >= SHIFT_PER_KASIR;
+  const daftar = shiftBukaDi(a, venue);
+  const milik = shiftMilik(a, venue, a.me?.id);
+  const [pilihId, setPilihId] = useState<string | null>(null);
+  const shift = daftar.find((x) => x.id === pilihId) ?? milik ?? shiftDi(a, venue, Date.now());
+  const bolehBukaSendiri = perKasir && !!a.me && a.me.role !== "waiter" && !milik && daftar.length > 0;
+  if (shift) {
+    return (
+      <div className="space-y-3">
+        {(daftar.length > 1 || bolehBukaSendiri) && (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-ink-2 px-3 py-2">
+            <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.14em] text-dim">Shift buka · {daftar.length}</span>
+            {daftar.map((x) => (
+              <button key={x.id} onClick={() => setPilihId(x.id)} aria-pressed={x.id === shift.id}
+                disabled={x.employeeId !== a.me?.id && !allow("lihatLaporanKeuangan")}
+                className={`min-h-[34px] rounded-full border px-3 text-[12px] font-semibold disabled:opacity-50 ${
+                  x.id === shift.id ? "border-amber bg-amber/15 text-amber" : "border-line text-mute hover:text-cream"}`}>
+                {x.employeeName}{x.employeeId === a.me?.id ? " (saya)" : ""} · {jam(x.openedAt)}
+              </button>
+            ))}
+            {bolehBukaSendiri && (
+              <button onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}
+                className="ml-auto min-h-[34px] rounded-full bg-amber px-4 text-[12px] font-bold text-ink">
+                + Buka shift saya
+              </button>
+            )}
+          </div>
+        )}
+        <ShiftBerjalan key={shift.id} shift={shift} venue={venue} />
+      </div>
+    );
+  }
 
   const bolehBuka = !!a.me && a.me.role !== "waiter";
   return (
@@ -76,7 +114,7 @@ export default function ShiftScreen() {
 }
 
 function ShiftBerjalan({ shift, venue }: { shift: Shift; venue: Venue }) {
-  const { a, dispatchA } = useAdmin();
+  const { a, dispatchA, peek } = useAdmin();
   /** Angka hitungan laci, hanya digit (tampilannya diberi titik ribuan). */
   const [hitung, setHitung] = useState("");
   const [konfirmasi, setKonfirmasi] = useState(false);
@@ -108,8 +146,12 @@ function ShiftBerjalan({ shift, venue }: { shift: Shift; venue: Venue }) {
   const trx = omzet.rincian.filter((r) => r.shiftId === shift.id);
 
   function tutup() {
-    const tolak = dispatchA({ t: "closeShift", countedCash: dihitung, venue });
-    if (tolak) setKabarTutup(tolak);
+    // Shift per kasir: sebut shiftnya, supaya yang tertutup tepat shift yang tampil.
+    const tolak = dispatchA({ t: "closeShift", countedCash: dihitung, venue, shiftId: shift.id });
+    if (tolak) { setKabarTutup(tolak); return; }
+    if (shiftBukaDi(peek(), venue).some((x) => x.id === shift.id)) {
+      setKabarTutup("Shift tidak tertutup — hanya pemilik shift atau pengurus keuangan yang bisa menutupnya.");
+    }
   }
 
   return (

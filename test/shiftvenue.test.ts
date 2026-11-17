@@ -48,7 +48,11 @@ t("shift SPL milik Rian", shiftDi(st(), "spl", jam(12, 2))?.employeeName, "Rian"
 t("shift Smokehouse milik Dewi", shiftDi(st(), "smh", jam(12, 2))?.employeeName, "Dewi");
 t("venue tercatat di shift", [shiftDi(st(), "spl", jam(12, 2))?.venue, shiftDi(st(), "smh", jam(12, 2))?.venue], ["spl", "smh"]);
 push(jam(12, 3), { t: "openShift", openingCash: 0, venue: "spl" }, YOGA);
-t("kasir SPL kedua tidak bisa membuka shift SPL yang sudah buka", shiftDi(st(), "spl", jam(12, 4))?.employeeName, "Rian");
+t("kasir SPL kedua membuka shift SENDIRI; shift di depan tetap Rian", shiftDi(st(), "spl", jam(12, 4))?.employeeName, "Rian");
+// Shift per kasir (17 Nov 2026) diuji di shiftkasir.test.ts. Di sini Yoga
+// langsung menutup shiftnya supaya alur satu-shift-per-venue di bawah tetap utuh.
+push(jam(12, 4), { t: "closeShift", countedCash: 0, venue: "spl" }, YOGA);
+t("…dan menutupnya tanpa menyentuh shift Rian", shiftDi(st(), "spl", jam(12, 5))?.employeeName, "Rian");
 
 console.log("\n-- 2 · Kasir hanya melayani meja venuenya --");
 push(jam(13), { t: "walkin", tableId: "T05", guest: "Tamu SPL" }, RIAN);

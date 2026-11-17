@@ -16,14 +16,17 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  useAdmin, settlementOf, splitPaidOf, itemOf, namaMeja, sesiBerwaktu, type State,
+  useAdmin, settlementOf, splitPaidOf, itemOf, namaMeja, sesiBerwaktu, businessDateOf, type State,
 } from "../../lib/adminStore";
 import type { LiveSession } from "../../data/live";
 import { venueDari, type Venue } from "../../data/venue";
 import { cetakElemen } from "../../lib/cetak";
+import { rupiah } from "../../lib/core";
 import { StrukResmi, barisStruk, infoMain, nomorStruk, type DataStruk } from "./StrukResmi";
 
 const K_DIBUKA = "spl:v1:dibuka-di-sini";
+/** Bill paket habis yang SUDAH dicetak di perangkat ini (otomatis atau manual). */
+const K_TERCETAK = "spl:v1:bill-paket-tercetak";
 const BATAS_CATATAN = 200;
 
 type Catatan = { id: string; at: number }[];
@@ -40,6 +43,16 @@ export function catatDibukaDiSini(id: string) {
   tulis([...x, { id, at: Date.now() }]);
 }
 
+const bacaTercetak = (): string[] => {
+  try { return JSON.parse(window.localStorage.getItem(K_TERCETAK) ?? "[]") as string[]; } catch { return []; }
+};
+function tandaiTercetak(id: string) {
+  try {
+    const x = bacaTercetak().filter((y) => y !== id);
+    window.localStorage.setItem(K_TERCETAK, JSON.stringify([...x, id].slice(-BATAS_CATATAN)));
+  } catch { /* mode privat */ }
+}
+
 /**
  * Tab paket yang baru saja habis waktunya. Termasuk yang MASIH di mejanya
  * (tempat tagihan di Kasir sedang penuh, atau tiknya belum diproses) — bill
@@ -50,7 +63,7 @@ const baruHabis = (x: LiveSession, now: number) => now - x.endsAt < 30 * 60_000 
   || (x.status === "running" && sesiBerwaktu(x) && now >= x.endsAt)
   || (x.status === "done" && x.settledAt === x.endsAt && !x.settledChannel && (x.settledAmount ?? 0) === 0));
 
-function dataBill(st: State, s: LiveSession): DataStruk {
+export function dataBill(st: State, s: LiveSession): DataStruk {
   const jalan = s.status === "running";
   const bill = settlementOf(s, st, s.endsAt);
   const meja = s.mejaAsal ?? s.tableId;
@@ -98,6 +111,7 @@ export default function PemantauPaket() {
           continue;
         }
         tulis(baca().filter((y) => y.id !== c.id));
+        tandaiTercetak(s.id);
         sedangCetak.current = true;
         setCetak({ data: dataBill(st, s), venue: venueDari(s.mejaAsal ?? s.tableId) });
         break;
@@ -124,3 +138,84 @@ export default function PemantauPaket() {
     </div>
   );
 }
+
+/** Paket/booking yang waktunya sudah habis HARI INI (tagihan di Kasir atau tab yang ditutup otomatis). */
+const paketHabisHariIni = (x: LiveSession, now: number, hari: string) =>
+  sesiBerwaktu(x) && !x.uji && x.endsAt <= now && businessDateOf(x.endsAt) === hari && (
+    x.status === "running"
+    || (x.status === "done" && x.settledAt === x.endsAt && !x.settledChannel));
+
+/*
+ * DAFTAR BILL PAKET HABIS DI KASIR (temuan 17 Nov 2026: "pastikan bill paket
+ * jika habis keluar otomatis; kalau tidak, buatkan kolom di Kasir untuk bill
+ * yang belum keluar, lengkap dengan datanya"). Semua paket yang habis hari
+ * ini, yang belum tercetak di PC ini paling atas, masing-masing dengan
+ * tombol cetak 2 lembar.
+ */
+export function DaftarBillPaket({ venue }: { venue: Venue }) {
+  const { a, tick } = useAdmin();
+  void tick;
+  const now = Date.now();
+  const [, segarkan] = useState(0);
+  const [cetak, setCetak] = useState<{ data: DataStruk; venue: Venue; id: string } | null>(null);
+  const lembar = useRef<HTMLDivElement>(null);
+  const tercetak = new Set(bacaTercetak());
+  const hari = businessDateOf(now);
+  const daftar = a.sessions
+    .filter((x) => venueDari(x.mejaAsal ?? x.tableId) === venue && paketHabisHariIni(x, now, hari))
+    .sort((x, y) => Number(tercetak.has(x.id)) - Number(tercetak.has(y.id)) || y.endsAt - x.endsAt);
+
+  useEffect(() => {
+    if (!cetak) return;
+    const t = window.setTimeout(() => {
+      const el = lembar.current?.querySelector<HTMLElement>("#struk");
+      const selesai = () => { tandaiTercetak(cetak.id); setCetak(null); segarkan((n) => n + 1); };
+      if (!el) { setCetak(null); return; }
+      void cetakElemen(el, 2).finally(selesai);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [cetak]);
+
+  if (daftar.length === 0) return null;
+  const belum = daftar.filter((x) => !tercetak.has(x.id)).length;
+  return (
+    <section className="mb-3 overflow-hidden rounded-xl border border-red-400/50 bg-red-500/5">
+      <div className="flex items-center justify-between border-b border-red-400/30 px-3 py-2">
+        <span className="text-[12px] font-bold uppercase tracking-wider text-red-200">Bill paket habis</span>
+        <span className="text-[11px] text-red-200/80">{belum > 0 ? `${belum} belum tercetak di PC ini` : "semua sudah tercetak"}</span>
+      </div>
+      <ul className="divide-y divide-line">
+        {daftar.map((x) => {
+          const meja = x.mejaAsal ?? x.tableId;
+          const bill = settlementOf(x, a, x.endsAt);
+          const sudah = tercetak.has(x.id);
+          const lunas = x.status === "done" || bill.due <= 0;
+          return (
+            <li key={x.id} className="flex items-center gap-2.5 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-semibold text-cream">
+                  {namaMeja(a, meja)} · {x.guest || "Tamu"}
+                </div>
+                <div className="truncate text-[11px] text-dim">
+                  {jamTeks(x.startsAt)}–{jamTeks(x.endsAt)} · {lunas ? "lunas" : `tagihan ${rupiah(bill.dueTampil)}`}
+                  {sudah ? " · sudah dicetak" : ""}
+                </div>
+              </div>
+              <button disabled={!!cetak}
+                onClick={() => setCetak({ data: dataBill(a, x), venue: venueDari(meja), id: x.id })}
+                className={`min-h-[36px] shrink-0 rounded-lg px-3 text-[12px] font-bold disabled:opacity-40 ${
+                  sudah ? "border border-line text-mute hover:text-cream" : "bg-amber text-ink"}`}>
+                {cetak?.id === x.id ? "Mencetak…" : sudah ? "Cetak lagi" : "Cetak bill"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div ref={lembar} className="cetak-saja" aria-hidden="true">
+        {cetak && <StrukResmi data={cetak.data} venue={cetak.venue} />}
+      </div>
+    </section>
+  );
+}
+
+const jamTeks = (ts: number) => new Date(ts).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });

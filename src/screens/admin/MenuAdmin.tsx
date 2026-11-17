@@ -2,6 +2,7 @@ import { KepalaHalaman, TombolAksi } from "./Tata";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { findItem, type MenuItem } from "../../data/menu";
+import { konfirmasi } from "../../lib/dialog";
 import { useAdmin, priceOf, kategoriJual, venueTerdampakMenu, itemOf } from "../../lib/adminStore";
 import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
@@ -27,6 +28,8 @@ export default function MenuAdmin() {
   const [tab, setTab] = useState<"semua" | "habis" | "stok">("semua");
   /** Daftar menu, atau pengaturan kategori (pemilik 15 Nov 2026). */
   const [lihat, setLihat] = useState<"menu" | "kategori">("menu");
+  /** Kartu menu yang sedang dibuka pengaturannya (satu saja). */
+  const [bukaAtur, setBukaAtur] = useState<string | null>(null);
   /*
    * PEMISAHAN VENUE (pemilik 14 Nov 2026), sama dengan Pengaturan & Promo.
    * Daftar menampilkan menu yang dijual di venue terpilih (termasuk menu
@@ -75,6 +78,15 @@ export default function MenuAdmin() {
   const semuaItem = MENU.flatMap((c) => c.items);
   const tersembunyi = jumlahSemua - semuaItem.length;
   const khusus = semuaItem.filter((i) => a.menuVenue?.[i.id] === venue).length;
+
+  async function hapusMenu(it: MenuItem) {
+    if (!(await konfirmasi(`Hapus "${it.name}" dari menu?
+
+Tidak bisa dipesan lagi di kasir maupun HP tamu. Pesanan & laporan lama tetap terbaca, dan menunya bisa dipulihkan kapan saja.`, "Ya, hapus"))) return;
+    dispatchA({ t: "removeMenuItem", id: it.id });
+    setBukaAtur(null);
+    bilang(`"${it.name}" dihapus dari menu.`);
+  }
 
   function ubahVenue(itemId: string, name: string, v: Venue | null) {
     const alasan = dispatchA({ t: "setMenuVenue", itemId, venue: v });
@@ -176,9 +188,12 @@ export default function MenuAdmin() {
                   <span className="tabular-nums text-mute">{rupiah(priceOf(a, it.id))}</span>
                   <button onClick={() => setForm({ id: it.id, name: it.name, price: String(priceOf(a, it.id)), station: it.station })}
                     className="min-h-[30px] rounded-lg border border-line px-2 text-[11px] text-mute">ubah</button>
-                  {it.aktif !== false && (
+                  {it.aktif !== false ? (
                     <button onClick={() => { dispatchA({ t: "removeMenuItem", id: it.id }); bilang(`"${it.name}" dinonaktifkan.`); }}
                       className="min-h-[30px] rounded-lg border border-line px-2 text-[11px] text-dim">nonaktifkan</button>
+                  ) : (
+                    <button onClick={() => { dispatchA({ t: "pulihkanMenu", id: it.id }); bilang(`"${it.name}" dipulihkan.`); }}
+                      className="min-h-[30px] rounded-lg border border-line px-2 text-[11px] text-amber">pulihkan</button>
                   )}
                 </div>
               ))}
@@ -229,7 +244,7 @@ export default function MenuAdmin() {
       </div>
 
       {/* Kategori: dua kolom di layar lebar supaya daftar tidak memanjang ke bawah. */}
-      <div className="mt-4 grid items-start gap-5 lg:grid-cols-2">
+      <div className="mt-4 grid items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
         {cats.map((c) => (
           <section key={c.id}>
             <h2 className="mb-2 font-display text-lg uppercase tracking-wide text-cream">{c.name}</h2>
@@ -239,85 +254,80 @@ export default function MenuAdmin() {
                 const st = stokOf(it.id);
                 const low = st?.qty !== null && st !== undefined && st.qty <= st.lowAt;
                 return (
+                  /*
+                   * KARTU RINGKAS (pemilik 17 Nov 2026: "Menu & Stok buat lebih compact,
+                   * tiap ubah stok jauh ke bawah"). Satu baris: nama, harga, stok −/+,
+                   * Ada/Habis. Pengaturan lain (dijual di, nama, harga, stok cepat,
+                   * hapus) dibuka lewat "Atur" — hanya satu kartu terbuka sekaligus.
+                   */
                   <motion.div key={it.id} layout
-                    className={`rounded-xl border p-3 ${
-                      off ? "border-red-500/40 bg-red-500/8" : "border-line bg-ink-2"
+                    className={`rounded-xl border px-2.5 py-1.5 ${
+                      off ? "border-red-500/40 bg-red-500/8" : bukaAtur === it.id ? "border-amber/60 bg-ink-2" : "border-line bg-ink-2"
                     }`}>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className={`truncate text-[13.5px] leading-tight ${off ? "text-dim line-through" : "text-cream"}`}>{it.name}</div>
+                        <div className="truncate text-[11px] text-dim">
+                          {rupiah(priceOf(a, it.id))}
+                          {priceOf(a, it.id) !== it.price && <span className="text-amber/80"> (buku {rupiah(it.price)})</span>}
+                          {" · "}{it.station === "bar" ? "Bar" : "Dapur"}
+                          {a.menuVenue?.[it.id] && <span className="text-amber"> · {labelDijual(a.menuVenue[it.id])}</span>}
+                        </div>
+                      </div>
+                      {allow("kelolaStok") && st && st.qty !== null && (
+                        <div className={`flex shrink-0 items-center rounded-lg border ${low ? "border-red-400/60" : "border-line"}`}>
+                          <button onClick={() => dispatchA({ t: "addStock", itemId: it.id, delta: -1 })} aria-label={`Kurangi stok ${it.name}`}
+                            className="h-8 w-7 text-amber hover:bg-white/5">−</button>
+                          <span className={`min-w-[30px] text-center font-serif text-[13px] font-bold tabular-nums ${low ? "text-red-300" : "text-cream"}`}>{st.qty}</span>
+                          <button onClick={() => dispatchA({ t: "addStock", itemId: it.id, delta: 1 })} aria-label={`Tambah stok ${it.name}`}
+                            className="h-8 w-7 text-amber hover:bg-white/5">+</button>
+                        </div>
+                      )}
                       <button
                         onClick={() => dispatchA({ t: "toggleSoldOut", itemId: it.id, name: it.name })}
-                        disabled={!allow("tandaiHabis")}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-50">
-                        <div className="min-w-0 flex-1">
-                          <div className={`truncate text-[14px] ${off ? "text-dim line-through" : "text-cream"}`}>
-                            {it.name}
-                          </div>
-                          <div className="text-[11px] text-dim">
-                            {rupiah(priceOf(a, it.id))}
-                            {priceOf(a, it.id) !== it.price && <span className="text-amber/80"> (buku menu {rupiah(it.price)})</span>}
-                            {" · "}{it.station === "bar" ? "Bar" : "Dapur"}
-                            {st?.qty !== null && st !== undefined && (
-                              <span className={low ? " text-red-300" : " text-mute"}>
-                                {" · sisa "}{st.qty}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <span className={`flex h-7 w-[52px] shrink-0 items-center rounded-full px-0.5
-                          transition-colors ${off ? "bg-red-500/70" : "bg-emerald-500/70"}`}>
-                          <motion.span layout transition={{ type: "spring", stiffness: 500, damping: 34 }}
-                            className={`h-6 w-6 rounded-full bg-cream ${off ? "ml-auto" : ""}`} />
-                        </span>
-                        <span className={`w-11 shrink-0 text-right text-[10px] font-bold uppercase
-                          tracking-wider ${off ? "text-red-300" : "text-emerald-400"}`}>
-                          {off ? "Habis" : "Ada"}
-                        </span>
+                        disabled={!allow("tandaiHabis")} aria-pressed={!off} aria-label={`${it.name}: ${off ? "habis" : "ada"}`}
+                        className={`h-8 w-[58px] shrink-0 rounded-lg text-[10.5px] font-bold uppercase tracking-wider disabled:opacity-50 ${
+                          off ? "bg-red-500/70 text-white" : "bg-emerald-500/20 text-emerald-300"}`}>
+                        {off ? "Habis" : "Ada"}
                       </button>
+                      {(allow("ubahTarif") || allow("kelolaStok")) && (
+                        <button onClick={() => setBukaAtur(bukaAtur === it.id ? null : it.id)} aria-expanded={bukaAtur === it.id}
+                          className={`h-8 shrink-0 rounded-lg border px-2 text-[11px] font-semibold ${
+                            bukaAtur === it.id ? "border-amber bg-amber/15 text-amber" : "border-line text-mute hover:border-amber hover:text-amber"}`}>
+                          Atur {bukaAtur === it.id ? "▴" : "▾"}
+                        </button>
+                      )}
                     </div>
 
-                    {/* DIJUAL DI — venue tempat menu ini muncul di kasir & HP tamu. */}
-                    {allow("ubahTarif") ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-line pt-2">
-                        <span className="text-[11px] text-dim">Dijual di</span>
-                        {PILIHAN_VENUE.map(([v, label]) => {
-                          const kini = a.menuVenue?.[it.id] ?? null;
-                          const pilih = kini === v;
-                          const boleh = !venueAkun || venueTerdampakMenu(kini, v).every((x) => x === venueAkun);
-                          return (
-                            <button key={label} aria-pressed={pilih} disabled={pilih || !boleh}
-                              onClick={() => ubahVenue(it.id, it.name, v)}
-                              className={`h-8 rounded-lg border px-2.5 text-[11px] font-semibold disabled:cursor-default ${
-                                pilih ? (v ? "border-amber bg-amber/15 text-amber" : "border-sky-400/50 bg-sky-400/10 text-sky-300")
-                                  : "border-line text-mute hover:border-amber hover:text-amber disabled:opacity-35"
-                              }`}>{label}</button>
-                          );
-                        })}
-                      </div>
-                    ) : a.menuVenue?.[it.id] && (
-                      <div className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-amber">
-                        {labelDijual(a.menuVenue[it.id])}
-                      </div>
-                    )}
+                    {bukaAtur === it.id && (<>
+                      {/* DIJUAL DI — venue tempat menu ini muncul di kasir & HP tamu. */}
+                      {allow("ubahTarif") && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-line pt-2">
+                          <span className="text-[11px] text-dim">Dijual di</span>
+                          {PILIHAN_VENUE.map(([v, label]) => {
+                            const kini = a.menuVenue?.[it.id] ?? null;
+                            const pilih = kini === v;
+                            const boleh = !venueAkun || venueTerdampakMenu(kini, v).every((x) => x === venueAkun);
+                            return (
+                              <button key={label} aria-pressed={pilih} disabled={pilih || !boleh}
+                                onClick={() => ubahVenue(it.id, it.name, v)}
+                                className={`h-8 rounded-lg border px-2.5 text-[11px] font-semibold disabled:cursor-default ${
+                                  pilih ? (v ? "border-amber bg-amber/15 text-amber" : "border-sky-400/50 bg-sky-400/10 text-sky-300")
+                                    : "border-line text-mute hover:border-amber hover:text-amber disabled:opacity-35"
+                                }`}>{label}</button>
+                            );
+                          })}
+                        </div>
+                      )}
 
-                    {/* Nama & harga menu — superadmin saja */}
-                    {allow("ubahTarif") && <NamaEditor item={it} />}
-                    {allow("ubahTarif") && <PriceEditor item={it} />}
+                      {allow("ubahTarif") && <NamaEditor item={it} />}
+                      {allow("ubahTarif") && <PriceEditor item={it} />}
 
-                    {/* Pengelolaan stok — superadmin saja */}
-                    {allow("kelolaStok") && (
-                      <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
-                        {st && st.qty !== null ? (
-                          <>
-                            <span className="text-[11px] text-dim">Stok</span>
-                            <button onClick={() => dispatchA({ t: "addStock", itemId: it.id, delta: -1 })}
-                              className="h-8 w-8 rounded-lg border border-line text-amber">−</button>
-                            <span className="min-w-[36px] text-center font-serif text-sm font-bold text-cream">
-                              {st.qty}
-                            </span>
-                            <button onClick={() => dispatchA({ t: "addStock", itemId: it.id, delta: 1 })}
-                              className="h-8 w-8 rounded-lg border border-line text-amber">+</button>
-                            {/* Tambah cepat (permintaan pemilik 8 Okt 2026) — mengisi
-                                stok sekardus tidak perlu dua puluh ketukan. */}
+                      {allow("kelolaStok") && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-line pt-2">
+                          <span className="text-[11px] text-dim">Stok</span>
+                          {st && st.qty !== null ? (<>
+                            {/* Tambah cepat — mengisi stok sekardus tidak perlu dua puluh ketukan. */}
                             {[5, 10, 20].map((n) => (
                               <button key={n} onClick={() => dispatchA({ t: "addStock", itemId: it.id, delta: n })}
                                 className="h-8 rounded-lg border border-line px-2 text-[11px] text-mute hover:border-amber hover:text-amber">
@@ -325,18 +335,26 @@ export default function MenuAdmin() {
                               </button>
                             ))}
                             <button onClick={() => dispatchA({ t: "setStock", itemId: it.id, qty: null })}
-                              className="ml-auto text-[11px] text-dim underline underline-offset-2">
-                              lepas
+                              className="ml-auto text-[11px] text-dim underline underline-offset-2">berhenti lacak stok</button>
+                          </>) : (
+                            <button onClick={() => dispatchA({ t: "setStock", itemId: it.id, qty: 24 })}
+                              className="h-8 rounded-lg border border-line px-2 text-[11px] text-mute hover:border-amber hover:text-amber">
+                              Lacak stok barang ini
                             </button>
-                          </>
-                        ) : (
-                          <button onClick={() => dispatchA({ t: "setStock", itemId: it.id, qty: 24 })}
-                            className="text-[11px] text-dim underline underline-offset-2">
-                            Lacak stok barang ini
+                          )}
+                        </div>
+                      )}
+
+                      {/* HAPUS MENU (pemilik 17 Nov 2026). Bisa dipulihkan dari daftar di bawah. */}
+                      {allow("ubahTarif") && (
+                        <div className="mt-2 flex items-center justify-end border-t border-line pt-2">
+                          <button onClick={() => void hapusMenu(it)}
+                            className="h-8 rounded-lg border border-red-500/50 px-3 text-[11px] font-semibold text-red-300 hover:bg-red-500/15">
+                            Hapus menu
                           </button>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      )}
+                    </>)}
                   </motion.div>
                 );
               })}
@@ -350,6 +368,22 @@ export default function MenuAdmin() {
           </div>
         )}
       </div>
+
+      {allow("ubahTarif") && (a.menuDihapus ?? []).length > 0 && (
+        <div className="mt-4 rounded-xl border border-line bg-ink-2 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">Menu yang dihapus · {(a.menuDihapus ?? []).length}</div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {(a.menuDihapus ?? []).map((id) => (
+              <span key={id} className="flex items-center gap-1.5 rounded-lg border border-line bg-ink px-2 py-1 text-[12px] text-dim">
+                <span className="line-through">{itemOf(a, id)?.name ?? id}</span>
+                <button onClick={() => { dispatchA({ t: "pulihkanMenu", id }); bilang(`"${itemOf(a, id)?.name ?? id}" dipulihkan.`); }}
+                  className="rounded border border-line px-1.5 text-[11px] text-amber hover:border-amber">pulihkan</button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {kabar && <p role="status" className="mt-2 text-[12px] text-amber">{kabar}</p>}
 
       {tersembunyi > 0 && (
         <p className="mt-4 text-[11px] leading-relaxed text-dim">

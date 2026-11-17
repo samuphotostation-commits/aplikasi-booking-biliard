@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MenuItem } from "../../data/menu";
 import {
@@ -55,6 +55,28 @@ export default function OrderPicker({
    */
   const [bayarLangsung, setBayarLangsung] = useState(false);
 
+
+  /*
+   * KETUKAN HANTU SAAT MENGGULIR (temuan 17 Nov 2026: "lagi input makanan,
+   * tapi roti bakar tiba-tiba ke CO padahal tidak diinput"). Di layar sentuh,
+   * menggeser daftar menu lalu mengangkat jari bisa terbaca sebagai ketukan
+   * pada kartu di bawah jari. Ketukan kartu dalam 350 ms sesudah gulir
+   * diabaikan; tombol + / − kecil tetap langsung bekerja.
+   */
+  const terakhirGulir = useRef(0);
+  useEffect(() => {
+    const catat = () => { terakhirGulir.current = Date.now(); };
+    window.addEventListener("scroll", catat, true);
+    window.addEventListener("touchmove", catat, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("scroll", catat, true);
+      window.removeEventListener("touchmove", catat, true);
+    };
+  }, []);
+  const ketukKartu = (it: MenuItem) => {
+    if (Date.now() - terakhirGulir.current < 350) return;
+    if (it.variant) setPick(it); else tambah(it);
+  };
 
   const stokOf = (id: string) => a.stock.find((r) => r.itemId === id);
   const keyOf = (id: string, v?: string) => (v ? `${id}::${v}` : id);
@@ -158,6 +180,33 @@ export default function OrderPicker({
       + sesi.fnb.reduce((n, l) => n + lineValue(l), 0)
     : 0;
 
+  /*
+   * SUDAH DIPESAN DI MEJA INI (temuan 17 Nov 2026: "pastikan semua list
+   * tambahan pesanan di meja terlihat, tidak harus klik lihat bill dulu").
+   * Selalu tampil di layar pesan, supaya kasir tidak memesan dobel dan bisa
+   * mencocokkan pesanan tambahan dengan yang sudah ada.
+   */
+  const blokSudah = sesi && sesi.fnb.length > 0 && (
+    <div className="rounded-xl border border-sky-400/30 bg-sky-400/5">
+      <div className="flex items-center justify-between border-b border-sky-400/20 px-3 py-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-sky-200">Sudah dipesan di meja ini</span>
+        <span className="text-[11px] tabular-nums text-sky-200/80">{sesi.fnb.reduce((n, l) => n + l.qty, 0)} item</span>
+      </div>
+      <ul className="max-h-[30vh] divide-y divide-line/60 overflow-y-auto">
+        {sesi.fnb.map((l) => (
+          <li key={l.key} className="flex items-baseline gap-2 px-3 py-1 text-[12.5px]">
+            <span className="w-7 shrink-0 text-right font-bold tabular-nums text-cream">{l.qty}×</span>
+            <span className="min-w-0 flex-1 text-cream">
+              {l.name ?? itemOf(a, l.itemId)?.name ?? l.itemId}{l.variant ? ` (${l.variant})` : ""}
+              {l.note && <span className="block text-[11px] text-dim">{l.note}</span>}
+            </span>
+            <span className="shrink-0 tabular-nums text-dim">{rupiah(lineValue(l))}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
   /** Foto per HIDANGAN. Kosong sampai pemilik mengirim fotonya satu-satu. */
   const fotoItem = (id: string) => FOTO_ITEM[id];
 
@@ -183,7 +232,7 @@ export default function OrderPicker({
             return (
               <div key={it.id} className="relative">
               <button disabled={habis}
-                onClick={() => (it.variant ? setPick(it) : tambah(it))}
+                onClick={() => ketukKartu(it)}
                 className={`relative h-full w-full overflow-hidden rounded-xl border text-left disabled:opacity-40 ${
                   sudah > 0 ? "border-amber bg-amber/10" : "border-line bg-ink"
                 }`}>
@@ -401,6 +450,7 @@ export default function OrderPicker({
         {langkah === "menu" ? (<>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             {blokAtas}
+            {blokSudah}
             {pilihMenu}
             {blokVarian}
           </div>
@@ -438,6 +488,7 @@ export default function OrderPicker({
                 </div>
               )}
               {blokDaftar}
+              {blokSudah}
               {nItem > 0 && pilihBayar}
             </div>
           </div>
@@ -459,6 +510,7 @@ export default function OrderPicker({
       {pilihMenu}
       {blokVarian}
       {blokDaftar}
+      {blokSudah}
       {lines.length > 0 && pilihBayar}
       {tombolKirim}
     </div>

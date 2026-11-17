@@ -56,6 +56,7 @@ function stateDariRingkasan(pv: Partial<PublicVenue>, genesis: Genesis, milikSay
     tableTypes: pv.tableTypes ?? {},
     menuPrices: pv.menuPrices ?? {},
     ...(pv.menuNames ? { menuNames: pv.menuNames } : {}),
+    ...(pv.menuDihapus ? { menuDihapus: pv.menuDihapus } : {}),
     promos: pv.promos ?? [],
     // Paket ikut ringkasan sejak 14 Nov 2026; ringkasan lama → paket bawaan.
     packages: pv.packages ?? kosong.packages,

@@ -599,6 +599,23 @@ export default function Pengaturan() {
             PPN &amp; service per lini usaha
           </div>
 
+          {/* PAKET BERISI MINUMAN BEBAS PAJAK (pemilik 17 Nov 2026). */}
+          <button role="switch" aria-checked={!!a.paketBebasPajak}
+            onClick={() => { dispatchA({ t: "setPaketBebasPajak", aktif: !a.paketBebasPajak }); void terbitkanSekarang?.(); }}
+            className="mt-2 flex w-full items-center gap-3 rounded-lg border border-line bg-ink px-3 py-2.5 text-left hover:border-amber">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-semibold text-cream">Paket yang termasuk minuman: tanpa pajak</span>
+              <span className="block text-[10px] leading-snug text-dim">
+                Sewa meja paket yang berisi minuman tidak dipecah PPN/service di laporan, dan baris
+                "termasuk PPN" tidak dicetak di bill. Pesanan tambahan di luar paket tetap kena pajak.
+                {a.paketBebasPajak ? ` Aktif sejak ${new Date(a.paketBebasPajak.sejak).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.` : ""}
+              </span>
+            </span>
+            <span className={`flex h-7 w-[52px] shrink-0 items-center rounded-full px-0.5 transition-colors ${a.paketBebasPajak ? "bg-emerald-500/80" : "bg-ink-3"}`}>
+              <span className={`h-6 w-6 rounded-full bg-cream transition-all ${a.paketBebasPajak ? "ml-auto" : ""}`} />
+            </span>
+          </button>
+
           <div className="mt-2 space-y-2">
             {LINI.map((lini) => {
               const p = persenLini(a, lini);

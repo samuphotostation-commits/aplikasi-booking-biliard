@@ -193,8 +193,9 @@ html, body { margin: 0 !important; padding: 0 !important; background: #fff !impo
 *, *::before, *::after { box-sizing: border-box; }
 #struk {
   position: static !important; visibility: visible !important; display: block !important;
-  width: 100% !important; max-width: ${LEBAR_KERTAS_MM}mm !important; margin: 0 auto !important; padding: 1mm 2mm 2mm !important;
-  border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+  width: 100% !important; max-width: ${LEBAR_KERTAS_MM}mm !important; margin: 0 auto !important; padding: 1.5mm 2.5mm 2mm !important;
+  /* Bingkai hitam di kertas (pemilik 17 Nov 2026). */
+  border: 0.6mm solid #000 !important; border-radius: 0 !important; box-shadow: none !important;
   background: #fff !important; color: #000 !important; font-size: 11px;
 }
 #struk * { visibility: visible !important; color: #000 !important; max-width: 100%; }

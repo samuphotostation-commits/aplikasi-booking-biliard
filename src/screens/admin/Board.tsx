@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QrisKasir } from "./QrisKasir";
-import { konfirmasi, beritahu } from "../../lib/dialog";
+import { konfirmasi, beritahu, peringatanBesar } from "../../lib/dialog";
 import { KonfirmasiBayar } from "./KonfirmasiBayar";
 import { cetakSenyapMungkin, cetakStruk, cetakHtmlStruk } from "../../lib/cetak";
 import { htmlCafeOrderTerpisah, coOtomatis, type BarisCO } from "../../lib/strukCO";
@@ -424,7 +424,8 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
      */
     const labelStatus = main ? (berwaktu ? namaPaketSesi(a, s!) : "Open Bill")
       : pesan ? (status === "hold" ? "Menunggu bayar" : "Booking") : rusak ? "Rusak" : "Kosong";
-    const pitaStatus = main ? (akhir ? "bg-red-600 text-white" : "bg-[#06303b] text-[#aeefff]")
+    // Paket dibedakan dari open bill lewat warna LABEL-nya saja (pemilik 17 Nov 2026).
+    const pitaStatus = main ? (akhir ? "bg-red-600 text-white" : berwaktu ? "bg-violet-700 text-white" : "bg-[#06303b] text-[#aeefff]")
       : pesan ? "bg-amber text-ink" : rusak ? "bg-ink-3 text-dim" : "bg-emerald-500 text-ink";
     return (
       <div className="relative h-full">
@@ -490,8 +491,13 @@ function Tile({ table, onOpen }: { table: (typeof TABLES)[number]; onOpen: () =>
               </div>
             )}
             {persen !== null && (
-              <div className="mt-1 h-1 overflow-hidden rounded-full bg-black/15" aria-hidden="true">
-                <div className={`h-full rounded-full ${akhir ? "bg-red-600" : "bg-sky-700"}`} style={{ width: `${persen}%` }} />
+              /* BAR WAKTU PAKET (pemilik 17 Nov 2026): lebih tebal, dan warnanya
+                 berubah makin dekat waktu habis — hijau → kuning → oranye → merah
+                 berkedip di menit-menit terakhir. */
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-black/25 ring-1 ring-black/20" aria-hidden="true">
+                <div className={`h-full rounded-full transition-[width,background-color] duration-700 ${
+                  akhir ? "animate-pulse bg-red-600" : persen >= 85 ? "bg-orange-500" : persen >= 60 ? "bg-amber" : "bg-emerald-500"
+                }`} style={{ width: `${persen}%` }} />
               </div>
             )}
             {tabPanjang && <div className="text-[9.5px] font-extrabold uppercase text-red-800">≥ {PERINGATAN_TAB_JAM} jam — cek tab</div>}
@@ -735,6 +741,7 @@ export function TableSheet({
 }: { table: (typeof TABLES)[number]; session?: LiveSession; onClose: () => void }) {
   const { a, dispatchA, allow, peek } = useAdmin();
   const [guest, setGuest] = useState("");
+  const kolomNama = useRef<HTMLInputElement>(null);
   /**
    * SMH-2: di Smokehouse, mengetuk meja yang sedang dipakai LANGSUNG membuka
    * daftar menu — itu yang dikerjakan pelayan sepanjang malam. Di SPL meja
@@ -1272,10 +1279,10 @@ export function TableSheet({
                   compliment di laporan. Stok tetap berkurang dan pesanan tetap masuk dapur. Isi nama penerimanya.
                 </div>
               )}
-              <input value={guest} onChange={(e) => setGuest(e.target.value)}
+              <input ref={kolomNama} value={guest} onChange={(e) => setGuest(e.target.value)}
                 placeholder={table.tanpaMeja ? "Nama pelanggan (wajib) — tertulis di checker & bill"
                   : komp === "entertain" ? "Untuk siapa? (wajib, mis. Band Akustik Senja)"
-                  : komp === "owner" ? "Untuk siapa? (wajib, mis. Pak Budi & keluarga)" : "Nama tamu (opsional)"}
+                  : komp === "owner" ? "Untuk siapa? (wajib, mis. Pak Budi & keluarga)" : "Nama pelanggan (wajib)"}
                 className="w-full rounded-xl border border-line bg-ink px-4 py-3 text-cream
                   placeholder:text-dim focus:border-amber focus:outline-none" />
 
@@ -1449,9 +1456,16 @@ export function TableSheet({
                   sebelum {jam(harusSelesai)}. Peringatan muncul 10 menit sebelumnya.
                 </p>
               )}
-              <Button full disabled={!bisaBuka || !allow("bukaMeja") || (jamPaket !== null && jamPaket > maksJam)
-                || ((!!komp || !!table.tanpaMeja) && !guest.trim())}
-                onClick={() => {
+              <Button full disabled={!bisaBuka || !allow("bukaMeja") || (jamPaket !== null && jamPaket > maksJam)}
+                onClick={async () => {
+                  /* NAMA PELANGGAN WAJIB (pemilik 17 Nov 2026: "agar crew patuh
+                     aturan, buat notif besar di tengah layar kalau nama tidak
+                     diisi"). Meja tidak dibuka sampai namanya diisi. */
+                  if (!guest.trim()) {
+                    await peringatanBesar("Nama pelanggan wajib diisi sebelum meja dibuka");
+                    kolomNama.current?.focus();
+                    return;
+                  }
                   dispatchA({
                     t: "walkin", tableId: table.id, guest,
                     ...(paketDipakai ? { paketId: paketDipakai.id } : jamPaket !== null ? { hours: jamPaket } : {}),
@@ -1653,12 +1667,12 @@ export function TableSheet({
                                     ? `${l.qty}× ${it.name} jadi compliment — ${rupiah(after.comp)} ditanggung venue.`
                                     : "Compliment ditolak — baris sudah dibayar atau sudah gratis.");
                                 }}
-                                className="min-h-[32px] rounded px-1.5 text-[11px] text-sky-300">compliment</button>
+                                className="min-h-[32px] cursor-pointer rounded-md border border-sky-400/40 px-2 text-[11px] font-semibold text-sky-300 transition-colors hover:border-sky-300 hover:bg-sky-400/20 hover:text-white active:scale-95">compliment</button>
                             )}
                             {voidBaris?.status !== "menunggu" && (
                               <button
                                 onClick={() => { setVoidKey(l.key); setMode("void"); }}
-                                className="min-h-[32px] rounded px-1.5 text-[11px] text-red-300">void</button>
+                                className="min-h-[32px] cursor-pointer rounded-md border border-red-400/40 px-2 text-[11px] font-semibold text-red-300 transition-colors hover:border-red-300 hover:bg-red-500/25 hover:text-white active:scale-95">void</button>
                             )}
                           </>
                         )}

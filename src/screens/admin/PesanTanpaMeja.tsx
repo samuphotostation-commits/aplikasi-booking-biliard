@@ -28,11 +28,13 @@ import type { MenuItem } from "../../data/menu";
 import { useAdmin, priceOf, kategoriJual } from "../../lib/adminStore";
 import { bookingCode, rupiah } from "../../lib/core";
 import { venueAktif } from "../../lib/venueAktif";
+import { peringatanBesar } from "../../lib/dialog";
 
 export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kode: string | null) => void; lebar?: boolean }) {
   const { a, dispatchA, peek } = useAdmin();
   const MENU = kategoriJual(a, { staf: true, venue: venueAktif() });
   const [nama, setNama] = useState("");
+  const kolomNama = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<Record<string, { item: MenuItem; qty: number }>>({});
   const [galat, setGalat] = useState<string | null>(null);
   /** Kabar sukses di layar Counter lebar (layar tetap terbuka sesudah membuat pesanan). */
@@ -76,6 +78,11 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
 
   function kirim() {
     if (sent.current || lines.length === 0) return;
+    // Nama pelanggan wajib (pemilik 17 Nov 2026) — peringatan besar di tengah layar.
+    if (!nama.trim()) {
+      void peringatanBesar("Nama pelanggan wajib diisi sebelum pesanan dikirim").then(() => kolomNama.current?.focus());
+      return;
+    }
     sent.current = true;
     const code = bookingCode();
     const id = `k-${code}`;
@@ -143,8 +150,8 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
         <section className="min-w-0" aria-label="Menu">{menuPilih}</section>
         <section className="min-w-0 space-y-3 lg:border-l lg:border-line lg:pl-5" aria-label="Pesanan">
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-dim">Pesanan</div>
-      <input value={nama} onChange={(e) => setNama(e.target.value.slice(0, 40))}
-        placeholder="Nama tamu (boleh dikosongkan)"
+      <input ref={kolomNama} value={nama} onChange={(e) => setNama(e.target.value.slice(0, 40))}
+        placeholder="Nama pelanggan (wajib)"
         className="w-full rounded-xl border border-line bg-ink px-4 py-2.5 text-[13px] text-cream placeholder:text-dim focus:border-amber focus:outline-none" />
 
           {lines.length === 0 && (
@@ -246,8 +253,8 @@ export default function PesanTanpaMeja({ onDone, lebar = false }: { onDone: (kod
 
   return (
     <div className="space-y-3">
-      <input value={nama} onChange={(e) => setNama(e.target.value.slice(0, 40))}
-        placeholder="Nama tamu (boleh dikosongkan)"
+      <input ref={kolomNama} value={nama} onChange={(e) => setNama(e.target.value.slice(0, 40))}
+        placeholder="Nama pelanggan (wajib)"
         className="w-full rounded-xl border border-line bg-ink px-4 py-2.5 text-[13px] text-cream placeholder:text-dim focus:border-amber focus:outline-none" />
 
       {menuPilih}

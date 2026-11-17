@@ -190,10 +190,24 @@ html.lenis, html.lenis body { height: auto; }
   #struk {
     position: fixed; inset: 0 auto auto 0; width: 100% !important; max-width: 80mm;
     margin: 0 !important; padding: 2mm 3mm !important;
-    border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+    border: 0.6mm solid #000 !important; border-radius: 0 !important; box-shadow: none !important;
     background: #fff !important;
   }
 }
 
 /* Hanya muncul di kertas — dipakai struk rekap harian di tab Rekap. */
 @media screen { .cetak-saja { display: none !important; } }
+
+/* Tombol yang bisa ditekan menunjukkan kursor tangan (pemilik 17 Nov 2026:
+   "tombol void / compliment ada efek kena kursor, agar pasti untuk diklik").
+   Tailwind v4 mengembalikan kursor tombol ke panah biasa. */
+@layer base {
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary { cursor: pointer; }
+}
+
+/* Getar singkat untuk peringatan besar (nama pelanggan wajib, 17 Nov 2026). */
+@keyframes getar {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-10px); } 40% { transform: translateX(10px); }
+  60% { transform: translateX(-6px); } 80% { transform: translateX(6px); }
+}

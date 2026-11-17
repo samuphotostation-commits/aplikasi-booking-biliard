@@ -13,15 +13,15 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-type Permintaan = { pesan: string; ok: string; batal: string | null; selesai: (ya: boolean) => void };
+type Permintaan = { pesan: string; ok: string; batal: string | null; besar?: boolean; selesai: (ya: boolean) => void };
 
 let antre: Permintaan[] = [];
 const pendengar = new Set<() => void>();
 const kabari = () => pendengar.forEach((f) => f());
 
-function minta(pesan: string, ok: string, batal: string | null): Promise<boolean> {
+function minta(pesan: string, ok: string, batal: string | null, besar = false): Promise<boolean> {
   return new Promise((selesai) => {
-    antre = [...antre, { pesan, ok, batal, selesai }];
+    antre = [...antre, { pesan, ok, batal, besar, selesai }];
     kabari();
   });
 }
@@ -30,6 +30,11 @@ function minta(pesan: string, ok: string, batal: string | null): Promise<boolean
 export const konfirmasi = (pesan: string, ok = "Ya, lanjutkan", batal = "Batal") => minta(pesan, ok, batal);
 /** Pemberitahuan satu tombol. */
 export const beritahu = (pesan: string) => minta(pesan, "OK", null).then(() => undefined);
+/**
+ * PERINGATAN BESAR di tengah layar (pemilik 17 Nov 2026: "agar crew patuh
+ * aturan, buat efek notif besar di tengah layar kalau nama tidak diisi").
+ */
+export const peringatanBesar = (pesan: string, ok = "Saya isi sekarang") => minta(pesan, ok, null, true).then(() => undefined);
 
 /** Dipasang SEKALI di akar aplikasi. */
 export function TempatDialog() {
@@ -49,6 +54,22 @@ export function TempatDialog() {
     kini.selesai(ya);
     kabari();
   };
+  if (kini.besar) {
+    return (
+      <div role="presentation" className="fixed inset-0 z-[300] flex items-center justify-center bg-black/75 p-4"
+        onKeyDown={(e) => { if (e.key === "Escape") jawab(true); }}>
+        <div role="alertdialog" aria-modal="true" aria-label="Peringatan"
+          className="w-full max-w-xl animate-[getar_0.45s_ease-in-out] rounded-3xl border-4 border-red-500 bg-ink-2 px-6 py-8 text-center shadow-[0_0_60px_rgba(239,68,68,0.55)]">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-600 text-[46px] font-black leading-none text-white">!</div>
+          <p className="mt-4 whitespace-pre-line font-display text-[30px] uppercase leading-tight tracking-wide text-red-200">{kini.pesan}</p>
+          <button ref={tombolOk} onClick={() => jawab(true)}
+            className="mt-6 min-h-[56px] w-full rounded-2xl bg-red-600 px-6 text-[18px] font-extrabold uppercase tracking-wider text-white hover:bg-red-500">
+            {kini.ok}
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div role="presentation" className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4"
       onKeyDown={(e) => { if (e.key === "Escape") jawab(false); }}>

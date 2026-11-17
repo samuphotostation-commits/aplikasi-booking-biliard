@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { KonfirmasiBayar } from "./KonfirmasiBayar";
-import { catatDibukaDiSini } from "./PemantauPaket";
+import { catatDibukaDiSini, DaftarBillPaket } from "./PemantauPaket";
 import { konfirmasi } from "../../lib/dialog";
 import { QrisKasir } from "./QrisKasir";
 import { LayarCounter } from "./PesanTanpaMeja";
@@ -12,7 +12,7 @@ import { infoMain } from "./StrukResmi";
 import { useCetakPesanan } from "./CetakPesanan";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../components/UI";
-import { shiftDi,
+import { shiftDi, shiftMilik,
   useAdmin, settlementOf, checkinProblem, restoreProblem, businessDateOf, bookingLapsed, unservedLinesOf, lineValue,
   classOf, sessionType, meterEndOf, splitPaidOf, mesinEdc, mejaDijual, cariMeja, bayarPesanan, sesiBerwaktu,
   type GuestOrder, type State,
@@ -218,7 +218,8 @@ export default function Kasir() {
     flash(voidOutcome(before, peek(), what, o.pay === "online"));
   }
 
-  const shiftIni = shiftDi(a, venue, now);
+  // Shift per kasir: yang ditampilkan shift milik kasir yang login, kalau ada.
+  const shiftIni = shiftMilik(a, venue, a.me?.id) ?? shiftDi(a, venue, now);
   const jumlahTab: Record<TabKasir, number> = {
     booking: pending.length + holds.length,
     meja: running.length,
@@ -280,7 +281,7 @@ export default function Kasir() {
                         <div className="truncate text-[10px] text-dim">
                           {jam(o.at)} · <span className="font-mono">{o.code}</span> · {rupiah(o.status === "diterima" ? o.value : o.paidOnline)}
                           {bisaVoid && voidFor !== o.id && (
-                            <button onClick={() => setVoidFor(o.id)} className="ml-1.5 text-red-300 underline underline-offset-2">void</button>
+                            <button onClick={() => setVoidFor(o.id)} className="ml-1.5 cursor-pointer rounded px-1 text-red-300 underline underline-offset-2 hover:bg-red-500/20 hover:text-white">void</button>
                           )}
                         </div>
                       </div>
@@ -674,6 +675,7 @@ ${rupiah(s.paidOnline)} yang sudah dibayar akan dicatat untuk dikembalikan.` : "
       {(lebar || tabPakai === "meja") && (
         <KolomKasir judul={venue === "smh" ? "Meja" : "Billiard"} jumlah={mejaHariIni.filter((x) => x.status === "running").length}
           warna="billiard" lebar={lebar}>
+          <DaftarBillPaket venue={venue} />
           {mejaHariIni.length === 0 ? (
             <Empty text={venue === "smh" ? "Belum ada bill meja hari ini." : "Belum ada bill meja biliar hari ini."} />
           ) : (

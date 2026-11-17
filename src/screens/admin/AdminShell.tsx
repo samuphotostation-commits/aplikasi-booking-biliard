@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Mark } from "../../components/UI";
 import { Ball } from "../../components/motion/Billiard";
-import { useAdmin, recap, businessDateOf, venueTiket, shiftDi } from "../../lib/adminStore";
+import { useAdmin, recap, businessDateOf, venueTiket, shiftDi, shiftMilik, shiftBukaDi, SHIFT_PER_KASIR } from "../../lib/adminStore";
 import { can, EMPLOYEES, ROLE_LABEL, type Permission, type Role } from "../../data/staff";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
 import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
@@ -406,10 +406,23 @@ export default function AdminShell() {
   }
 
   /* ── Sudah login, shift belum dibuka ─────────────────────────── */
-  const shiftIni = shiftDi(a, venue, Date.now());
+  /*
+   * SHIFT PER KASIR (pemilik 17 Nov 2026): tiap kasir memegang shift & laci
+   * sendiri. `shiftIni` = shift yang menampung uang dari layar ini — milik
+   * kasir yang login kalau ada, kalau tidak shift venue (pemilik/manajer).
+   * Kasir yang belum punya shift sendiri diminta membukanya, walau kasir lain
+   * di PC lain sudah membuka shift.
+   */
+  const perKasir = Date.now() >= SHIFT_PER_KASIR;
+  const shiftSaya = shiftMilik(a, venue, a.me.id);
+  const shiftVenue = shiftDi(a, venue, Date.now());
+  const shiftIni = perKasir ? shiftSaya ?? shiftVenue : shiftVenue;
+  const jumlahShiftBuka = shiftBukaDi(a, venue).length;
   // Pemilik dan pengurus keuangan boleh memeriksa tempat yang shiftnya belum buka.
   const bolehTanpaShift = can(role, "lihatLaporanKeuangan");
-  if (!shiftIni && !bolehTanpaShift) {
+  // Waiter tidak memegang laci: cukup ada shift kasir yang buka di venue ini.
+  const perluShiftSendiri = perKasir && role !== "waiter" ? !shiftSaya : !shiftVenue;
+  if (perluShiftSendiri && !bolehTanpaShift) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-ink px-6">
         <PemantauPaket />
@@ -421,6 +434,12 @@ export default function AdminShell() {
           Hai {a.me.name}. Shift dimulai dengan laci <span className="text-cream">kosong</span> —
           semua tunai shift sebelumnya sudah disetor.
         </p>
+        {perKasir && role !== "waiter" && shiftVenue && (
+          <p className="mt-2 max-w-[36ch] rounded-xl border border-sky-400/40 bg-sky-400/10 px-3 py-2 text-center text-[12px] leading-snug text-sky-200">
+            {jumlahShiftBuka} shift kasir lain sedang buka di {VENUE_LABEL[venue]}. Anda membuka shift
+            <span className="font-semibold"> sendiri</span> — uang yang Anda terima masuk laci Anda.
+          </p>
+        )}
 
         <div className="mt-6 w-full max-w-[300px]">
           {/*
@@ -503,7 +522,7 @@ export default function AdminShell() {
               {a.me.name}
             </div>
             <div className="truncate text-[10px] uppercase tracking-wider text-dim">
-              {role ? ROLE_LABEL[role] : "—"} · {VENUE_LABEL[venue]} · {!shiftIni ? "shift belum buka" : shiftOrangLain ? `shift ${shiftIni.employeeName}` : "shift jalan"}
+              {role ? ROLE_LABEL[role] : "—"} · {VENUE_LABEL[venue]} · {!shiftIni ? "shift belum buka" : shiftOrangLain ? `shift ${shiftIni.employeeName}` : "shift saya jalan"}{perKasir && jumlahShiftBuka > 1 ? ` · ${jumlahShiftBuka} shift buka` : ""}
             </div>
           </div>
           {/* Halaman Meja (pemilik 16 Nov 2026: "notif ini dihapus saja dari tampilan

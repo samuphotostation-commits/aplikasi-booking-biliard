@@ -8,7 +8,7 @@
  * "** CETAK ULANG **" di kepala dan jam cetak ulang di kaki — supaya kertas
  * kedua tidak bisa dipakai seolah-olah transaksi baru.
  */
-import { lineValue, paketOf, meterEndOf, persenLini, pecahPajak, type State } from "../../lib/adminStore";
+import { lineValue, paketOf, meterEndOf, persenLini, pecahPajak, sesiBebasPajak, type State } from "../../lib/adminStore";
 import { LOGO_STRUK } from "../../data/logoStruk";
 import type { LiveSession } from "../../data/live";
 import { rupiah } from "../../lib/core";
@@ -110,17 +110,20 @@ export function StrukResmi({ data, venue, cetakUlang }: {
   const smh = venue === "smh";
   const nomorMeja = data.meja.replace(/^meja\s+/i, "");
   return (
-    <div id="struk" className="rounded-xl bg-cream px-3 py-2.5 font-mono text-[11px] leading-[1.35] text-ink">
+    // Bingkai hitam (pemilik 17 Nov 2026).
+    <div id="struk" className="rounded-xl border-2 border-black bg-cream px-3 py-2.5 font-mono text-[11px] leading-[1.35] text-ink">
       {/* ── Kepala: logo kiri, nama 3 baris, BILLING kanan ── */}
       <div className="flex items-center gap-2 border-b-2 border-ink pb-1">
-        {!smh && <img src={LOGO_STRUK} alt="SPL" className="h-[44px] w-auto shrink-0" />}
+        {/* Logo 30% lebih besar (pemilik 17 Nov 2026): 44 → 57 px. */}
+        {!smh && <img src={LOGO_STRUK} alt="SPL" className="h-[57px] w-auto shrink-0" />}
         <div className="min-w-0 flex-1 font-bold leading-[1.05]">
           {smh ? (
             <><div className="text-[14px] tracking-widest">SMOKE HOUSE</div><div className="text-[11px] tracking-[0.3em]">RESTO</div></>
           ) : (
-            <><div className="text-[15px] tracking-[0.18em]">SPORTS</div>
-              <div className="text-[10px] tracking-[0.35em]">POOL</div>
-              <div className="text-[10px] tracking-[0.35em]">LOUNGE</div></>
+            // SPORTS sama besar dengan POOL & LOUNGE (pemilik 17 Nov 2026).
+            <><div className="text-[12px] tracking-[0.3em]">SPORTS</div>
+              <div className="text-[12px] tracking-[0.3em]">POOL</div>
+              <div className="text-[12px] tracking-[0.3em]">LOUNGE</div></>
           )}
         </div>
         <div className="shrink-0 text-right">
@@ -136,8 +139,12 @@ export function StrukResmi({ data, venue, cetakUlang }: {
         <span className="text-[13px] font-bold">{data.jenis === "billiard" ? `Meja #${nomorMeja}` : nomorMeja}</span>
         <span className="text-right text-[10px] leading-tight">{data.no}<br />{tanggalStruk(dicetak)} {jamMenit(dicetak)}</span>
       </div>
+      {/* NAMA PELANGGAN 40% lebih besar (pemilik 17 Nov 2026): 10 → 14 px, tebal. */}
+      {data.tamu.trim() && (
+        <div className="truncate text-[14px] font-bold leading-tight">{data.tamu}</div>
+      )}
       <div className="flex justify-between gap-2 text-[10px]">
-        <span className="min-w-0 truncate italic">{data.jenis === "billiard" ? data.paket ?? "Open Table" : data.tamu}</span>
+        <span className="min-w-0 truncate italic">{data.jenis === "billiard" ? data.paket ?? "Open Table" : "F&B"}</span>
         <span className="shrink-0">Kasir: {data.kasir}</span>
       </div>
 
@@ -226,7 +233,7 @@ function durasi(mulai: number, selesai?: number, menit?: number | null): string 
  * Meja Smokehouse dan tab tanpa meja = BILL F&B (tidak ada sewa meja).
  */
 export function infoMain(
-  st: Pick<State, "packages" | "pajak" | "pajakLini">, s: LiveSession, venue: Venue, tanpaMeja: boolean, now: number,
+  st: Pick<State, "packages" | "pajak" | "pajakLini"> & Partial<Pick<State, "customItems" | "paketBebasPajak">>, s: LiveSession, venue: Venue, tanpaMeja: boolean, now: number,
 ): Pick<DataStruk, "jenis" | "paket" | "checkout" | "pajakMeja"> {
   if (venue === "smh" || (tanpaMeja && !s.mejaAsal)) return { jenis: "fnb" };
   const openBill = s.source === "walkin" && !s.blockHours && !s.paket;
@@ -239,7 +246,9 @@ export function infoMain(
   const checkout = s.status === "running"
     ? (!openBill ? s.endsAt : undefined)
     : openBill ? meterEndOf(s, now) : Math.min(s.endsAt, now);
-  return { jenis: "billiard", paket, ...(checkout ? { checkout } : {}), pajakMeja: persenLini(st, "biliar") };
+  // Paket berisi minuman yang bebas pajak: baris "termasuk PPN" tidak dicetak.
+  return { jenis: "billiard", paket, ...(checkout ? { checkout } : {}),
+    ...(sesiBebasPajak(st, s) ? {} : { pajakMeja: persenLini(st, "biliar") }) };
 }
 
 const jamDetik = (ts: number) =>

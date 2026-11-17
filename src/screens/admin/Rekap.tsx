@@ -648,6 +648,10 @@ function RekapKeuangan() {
                   <div className="divide-y divide-line border-t border-line">
                     <Line k="Sewa meja" v={rupiah(barisShift.sewaMeja)} muted />
                     <Line k="Makanan & minuman" v={rupiah(barisShift.barang)} muted />
+                    {/* Per kategori (pemilik 17 Nov 2026): pesanan di dalam meja ikut kategorinya. */}
+                    <Line k="· Resto" v={rupiah(barisShift.kategori.resto)} muted />
+                    <Line k="· Bar" v={rupiah(barisShift.kategori.bar)} muted />
+                    <Line k="· Counter (rokok & botolan)" v={rupiah(barisShift.kategori.counter)} muted />
                     {barisShift.diskon > 0 && <Line k="Diskon diberikan" v={`− ${rupiah(barisShift.diskon)}`} warn />}
                     {barisShift.compliment > 0 && (
                       <Line k="Compliment (ditanggung venue)" v={`− ${rupiah(barisShift.compliment)}`} warn />
@@ -683,7 +687,7 @@ function RekapKeuangan() {
             nilai={u.billiard} total={u.billiard + u.fnb} warna="text-amber" bar="bg-amber"
           />
           <LineCard
-            nama="Smokehouse" sub="makanan & minuman"
+            nama="Makanan & minuman" sub="resto · bar · counter"
             nilai={u.fnb} total={u.billiard + u.fnb} warna="text-emerald-400" bar="bg-emerald-500"
           />
         </div>
