@@ -39,10 +39,10 @@ import { buatKunciAlat, tampilKunciAlat, useLampuAlat } from "../../lib/lampuAla
    dibekukan sebagai snapshot saat hold dibuat (PRD §7.2), dan kelas meja
    dibekukan di sesinya saat meja dibuka. */
 
-// Pemilik 16 Nov 2026: "untuk VIP ini masih ada, harusnya semuanya jadi VICTORY".
-// Kelas VIP tidak ditawarkan lagi; ruang yang masih VIP dipindah lewat tombol
-// "Jadikan VICTORY" (kunci "vip" tetap dikenal mesin supaya jejak lama terbaca).
-const KELAS_BILIAR: TableType[] = ["regular", "vvip"];
+// Kelas VIP DITAWARKAN LAGI (pemilik 18 Nov 2026: "vip masih belum ada" —
+// meja VIP2 & VIP3 perlu berkelas VIP di samping VIP 1). VICTORY tetap kelas
+// tersendiri. (16 Nov kelas VIP sempat disembunyikan saat VIP → VICTORY.)
+const KELAS_BILIAR: TableType[] = ["regular", "vip", "vvip"];
 
 /**
  * SPL-5 · Bunyi & notifikasi — setelan PER PERANGKAT, bukan data venue.
@@ -355,19 +355,6 @@ export default function Pengaturan() {
 
   // TAMBAH MEJA: lihat `TambahMeja` — satu formulir untuk Pengaturan dan Papan.
 
-  /** Semua ruang yang masih VIP → VICTORY, satu ketukan. */
-  async function jadikanVictory() {
-    const vip = biliar.filter((t) => classOf(peek(), t.id) === "vip");
-    if (!vip.length) return;
-    if (!(await konfirmasi(`${vip.length} ruang masih berkelas VIP (${vip.map((t) => namaMeja(a, t.id)).join(", ")}). Jadikan kelas VICTORY? Tarifnya ikut tarif VICTORY.`))) return;
-    for (const t of vip) dispatchA({ t: "setTableClass", tableId: t.id, type: "vvip" });
-    const gagal = vip.filter((t) => classOf(peek(), t.id) === "vip");
-    setTableNote(gagal.length
-      ? `${gagal.map((t) => namaMeja(a, t.id)).join(", ")} belum bisa diubah — selesaikan atau pindahkan dulu tamu/booking di ruang itu, lalu tekan lagi.`
-      : null);
-    void terbitkanSekarang?.();
-  }
-
   function setKelas(tableId: string, type: TableType) {
     dispatchA({ t: "setTableClass", tableId, type });
     if (classOf(peek(), tableId) !== type) {
@@ -514,7 +501,7 @@ export default function Pengaturan() {
             ["vip", "vipWe", "VIP (bebas asap rokok)", `sepanjang jam · ${hitung("vip")} ruang`],
             ["vvip", "vvipWe", "VICTORY siang", `11.00 – 18.00 · ${hitung("vvip")} ruang`],
             ["vvipNight", "vvipNightWe", "VICTORY malam", "18.00 – tutup & lembur · kosong = sama dengan siang"],
-          ] as const).filter(([k]) => k !== "vip" || hitung("vip") > 0).map(([k, kWe, label, hint]) => (
+          ] as const).map(([k, kWe, label, hint]) => (
             <div key={k} className="grid grid-cols-[minmax(0,1fr)_112px_112px] items-center gap-2 border-b border-line/60 px-3 py-2.5 last:border-b-0">
               <div className="min-w-0">
                 <div className="truncate text-[13px] text-cream">{label}</div>
@@ -703,12 +690,7 @@ export default function Pengaturan() {
         <div className="mb-2 flex flex-wrap gap-3 text-[12px] text-dim">
           {venue === "spl" ? (<>
             <span>{hitung("regular")} reguler</span>
-            {hitung("vip") > 0 && (
-              <button onClick={() => void jadikanVictory()}
-                className="rounded-full border border-amber/60 bg-amber/10 px-2.5 py-0.5 font-semibold text-amber hover:bg-amber/20">
-                {hitung("vip")} ruang masih VIP · Jadikan VICTORY
-              </button>
-            )}
+            <span className="text-amber">{hitung("vip")} VIP (bebas asap rokok)</span>
             <span className="text-brick-lit">{hitung("vvip")} VICTORY (boleh merokok)</span>
           </>) : (
             <span>{hitung("resto")} meja makan · tanpa sewa waktu</span>
