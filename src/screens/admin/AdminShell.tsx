@@ -3,7 +3,10 @@ import { motion } from "framer-motion";
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Mark } from "../../components/UI";
 import { Ball } from "../../components/motion/Billiard";
-import { useAdmin, recap, businessDateOf, venueTiket, shiftDi, shiftMilik, shiftBukaDi, SHIFT_PER_KASIR } from "../../lib/adminStore";
+import {
+  useAdmin, recap, businessDateOf, venueTiket, shiftDi, shiftMilik, shiftBukaDi, SHIFT_PER_KASIR, operasionalBuka, kelasShift,
+  alasanBelumTutup,
+} from "../../lib/adminStore";
 import { can, EMPLOYEES, ROLE_LABEL, type Permission, type Role } from "../../data/staff";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
 import { setVenueAktif, useVenueAktif } from "../../lib/venueAktif";
@@ -12,6 +15,7 @@ import { usePantauKabar } from "../../lib/pantauKabar";
 import { usePantauCetak } from "../../lib/pantauCetak";
 import { SpandukPembaruan } from "./PembaruanPanel";
 import PemantauPaket from "./PemantauPaket";
+import { JamHidup, PilihShift, TombolOperasional, labelKelas } from "./KepalaOperasional";
 import { masukDenganGoogle, memberMungkin, selesaikanGoogleStaf } from "../../lib/member";
 
 /* Login per KARYAWAN (bukan per peran) supaya setiap tindakan punya nama
@@ -79,15 +83,19 @@ const TABS: {
   // checker menutupnya saat hidangan diantar. Alamatnya tetap /admin/dapur
   // supaya pintasan lama di komputer dapur tidak putus; /admin/antar
   // diarahkan ke sini juga (lihat App.tsx).
-  { to: "/admin/dapur", label: "Checker", roles: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "waiter", "karyawan"], grup: "Lantai" },
+  { to: "/admin/dapur", label: "Checker", roles: ["superadmin", "manager", "captain", "kru_kasir", "kru_kitchen", "kru_bar", "waiter", "karyawan"], grup: "Lantai" },
   { to: "/admin/menu", label: "Menu & Stok", izin: "kelolaStok", grup: "Stok" },
-  { to: "/admin/gudang", label: "Gudang", izin: "kelolaStok", grup: "Stok" },
+  // Kasir ikut masuk Gudang (pemilik 18 Nov 2026) — hanya gudang venuenya
+  // (Billiard & Bar untuk SPL, Resto untuk Smokehouse); pagarnya di mesin.
+  { to: "/admin/gudang", label: "Gudang", izin: "aturStokGudang", grup: "Stok" },
   { to: "/admin/void", label: "Void", izin: "ajukanVoid", grup: "Kasir" },
   // Buka/tutup shift sengaja tidak berizin di mesin: hampir semua aksi uang
   // menuntut shift terbuka, jadi yang bekerja di lantai harus bisa membukanya.
-  { to: "/admin/shift", label: "Shift", roles: ["superadmin", "manager", "kru_kasir", "karyawan"], grup: "Kasir" },
-  // Absen dipakai SEMUA karyawan — identitasnya dari PIN masing-masing.
-  { to: "/admin/absen", label: "Absen", grup: "Kasir" },
+  { to: "/admin/shift", label: "Shift", roles: ["superadmin", "manager", "captain", "kru_kasir", "karyawan"], grup: "Kasir" },
+  // Absen dipakai SEMUA karyawan — identitasnya dari PIN masing-masing. Owner
+  // hanya membaca laporan, jadi tidak absen.
+  { to: "/admin/absen", label: "Absen", grup: "Kasir",
+    roles: ["superadmin", "manager", "captain", "finance", "kru_gudang", "kru_kasir", "kru_kitchen", "kru_bar", "waiter", "karyawan"] },
   { to: "/admin/promo", label: "Promo", izin: "kelolaPromo", grup: "Tamu" },
   { to: "/admin/pelanggan", label: "Pelanggan", roles: ["superadmin", "manager"], grup: "Tamu" },
   // Karyawan boleh mengirim pemberitahuan booking; blast promo di dalamnya
@@ -99,8 +107,11 @@ const TABS: {
   { to: "/admin/jejak", label: "Jejak", izin: "lihatJejak", grup: "Laporan" },
   // Atur memuat beberapa bagian dengan izin berbeda (tarif, meja, akun staf).
   // Finance ikut masuk untuk mengatur harga; isinya dipagari sendiri-sendiri.
-  { to: "/admin/atur", label: "Pengaturan", roles: ["superadmin", "manager", "finance"], grup: "Pengaturan" },
+  { to: "/admin/atur", label: "Pengaturan", roles: ["superadmin", "manager", "captain", "finance"], grup: "Pengaturan" },
 ];
+
+/** Saat operasional TUTUP hanya tab ini yang terbuka (PDF revisi 18 Nov 2026, poin 3). */
+const TAB_SAAT_TUTUP = new Set(["/admin/menu", "/admin/gudang", "/admin/rekap", "/admin/jejak", "/admin/atur"]);
 
 /** Boleh membuka tab ini? Dipakai untuk daftar tab DAN untuk alamat langsung. */
 const bolehTab = (t: (typeof TABS)[number], role: Role | null) =>
@@ -422,7 +433,9 @@ export default function AdminShell() {
   const bolehTanpaShift = can(role, "lihatLaporanKeuangan");
   // Waiter tidak memegang laci: cukup ada shift kasir yang buka di venue ini.
   const perluShiftSendiri = perKasir && role !== "waiter" ? !shiftSaya : !shiftVenue;
-  if (perluShiftSendiri && !bolehTanpaShift) {
+  /** Operasional venue ini BUKA? Saat TUTUP tidak ada shift yang diminta. */
+  const opBuka = operasionalBuka(a, venue);
+  if (perluShiftSendiri && !bolehTanpaShift && opBuka) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-ink px-6">
         <PemantauPaket />
@@ -468,10 +481,17 @@ export default function AdminShell() {
               Shift dibuka oleh kasir. Tunggu kasir {VENUE_LABEL[venue]} membuka shift, lalu masuk lagi.
             </p>
           ) : (
-          <button
-            onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}
-            className="mt-4 min-h-[52px] w-full rounded-xl bg-amber font-semibold text-ink"
-          >Mulai Shift</button>
+            <div className="mt-4">
+              <p className="mb-1.5 text-center text-[11px] font-bold uppercase tracking-[0.16em] text-dim">Mulai shift</p>
+              <PilihShift venue={venue} />
+            </div>
+          )}
+          {/* Akhir malam: shift terakhir sudah ditutup, meja kosong — TUTUP operasional di sini. */}
+          {role !== "waiter" && !alasanBelumTutup(a, venue) && (
+            <div className="mt-4 border-t border-line pt-3">
+              <p className="mb-1.5 text-center text-[11px] text-dim">Selesai hari ini? Tutup operasional {VENUE_LABEL[venue]}:</p>
+              <TombolOperasional venue={venue} besar />
+            </div>
           )}
           <button
             onClick={() => { signOut(); dispatchA({ t: "logout" }); }}
@@ -483,10 +503,15 @@ export default function AdminShell() {
   }
 
   /* ── Panel utama ─────────────────────────────────────────────── */
-  const tabs = TABS.filter((t) => bolehTab(t, role));
+  const bolehDiSini = (t: (typeof TABS)[number]) => bolehTab(t, role) && (opBuka || TAB_SAAT_TUTUP.has(t.to));
+  const tabs = TABS.filter(bolehDiSini);
   // Menyembunyikan tab tidak cukup: halaman laporan uang juga bisa dibuka lewat alamat langsung.
   const current = TABS.find((t) => !t.end && (path === t.to || path.startsWith(`${t.to}/`)));
-  const terlarang = !!current && !bolehTab(current, role);
+  const terlarang = !!current && !bolehDiSini(current);
+  // Operasional TUTUP: halaman yang ditutup dialihkan ke tab pertama yang masih terbuka.
+  if (!opBuka && tabs.length > 0 && ((path === "/admin" || path === "/admin/") || terlarang)) {
+    return <Navigate to={tabs[0].to} replace />;
+  }
   // Peran tanpa Papan (Kru Kitchen, Kru Gudang, Finance) langsung dibawa ke
   // tab pertamanya — Kru Kitchen ke Checker, lalu Menu & Stok dan Gudang.
   const papan = TABS[0];
@@ -517,27 +542,33 @@ export default function AdminShell() {
       <header className="safe-t sticky top-0 z-30 border-b border-line bg-ink/95 backdrop-blur-md">
         <div className={`mx-auto flex ${lebarHalaman} items-center gap-3 px-4 py-2.5 lg:px-6`}>
           <span className="text-amber"><Mark size={26} /></span>
-          <div className="min-w-0 flex-1 leading-none">
+          <div className="min-w-0 max-w-[45%] leading-none">
             <div className="truncate font-display text-sm uppercase tracking-[0.14em] text-cream">
               {a.me.name}
             </div>
             <div className="truncate text-[10px] uppercase tracking-wider text-dim">
-              {role ? ROLE_LABEL[role] : "—"} · {VENUE_LABEL[venue]} · {!shiftIni ? "shift belum buka" : shiftOrangLain ? `shift ${shiftIni.employeeName}` : "shift saya jalan"}{perKasir && jumlahShiftBuka > 1 ? ` · ${jumlahShiftBuka} shift buka` : ""}
+              {VENUE_LABEL[venue]} · {role ? ROLE_LABEL[role] : "—"} ·{" "}
+              {!opBuka ? <span className="font-bold text-red-300">operasional tutup</span>
+                : !shiftIni ? "shift belum buka"
+                : <span className="font-bold text-cream">{labelKelas(kelasShift(shiftIni))}{shiftOrangLain ? ` · ${shiftIni.employeeName}` : ""}</span>}
+              {opBuka && perKasir && jumlahShiftBuka > 1 ? ` · ${jumlahShiftBuka} shift buka` : ""}
             </div>
           </div>
+          <JamHidup />
+          <span className="flex-1" />
           {/* Halaman Meja (pemilik 16 Nov 2026: "notif ini dihapus saja dari tampilan
               meja agar tidak sempit"): spanduk demo & shift diganti tanda kecil di sini. */}
           {diMeja && a.jamBebas && (
             <span title="Mode demo menyala — matikan di Pengaturan"
               className="shrink-0 rounded-full border border-amber/60 bg-amber/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber">Demo</span>
           )}
-          {diMeja && !shiftIni && (
-            <button onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}
-              title={`Shift ${VENUE_LABEL[venue]} belum buka — meja & pembayaran belum bisa dipakai`}
-              className="shrink-0 rounded-full border border-red-400/60 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/20">
-              Shift belum buka · <span className="underline underline-offset-2">Buka</span>
-            </button>
+          {diMeja && !shiftIni && opBuka && role !== "owner" && (
+            <span title={`Shift ${VENUE_LABEL[venue]} belum buka — meja & pembayaran belum bisa dipakai`}
+              className="flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-red-300">
+              Shift belum buka <PilihShift venue={venue} kecil />
+            </span>
           )}
+          <TombolOperasional venue={venue} />
           {/* PENANDA SINKRON (16 Nov 2026): nomor data terakhir dari server. Dua PC
               yang menunjukkan nomor SAMA pasti melihat data yang sama. */}
           {sync.mode === "server" && (() => {
@@ -745,13 +776,18 @@ export default function AdminShell() {
             )}
           </p>
         )}
-        {!shiftIni && !diMeja && (
+        {!opBuka && (
+          <p className="mb-3 rounded-xl border border-red-500/60 bg-red-500/10 px-4 py-2.5 text-[12px] leading-snug text-red-200">
+            <span className="font-semibold">Operasional {VENUE_LABEL[venue]} TUTUP.</span> Yang terbuka hanya Menu &amp; Stok,
+            Gudang, Rekap, Jejak, dan Pengaturan. Tekan tombol merah TUTUP di atas untuk membuka lagi.
+          </p>
+        )}
+        {opBuka && !shiftIni && !diMeja && role !== "owner" && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber/50 bg-amber/10 px-4 py-2.5">
             <p className="text-[12px] leading-snug text-amber">
               Shift {VENUE_LABEL[venue]} belum buka. Laporan tetap bisa dilihat, tapi meja dan pembayaran di sini belum bisa dipakai.
             </p>
-            <button onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}
-              className="min-h-[40px] rounded-lg bg-amber px-3 text-[13px] font-bold text-ink">Buka shift</button>
+            <PilihShift venue={venue} kecil />
           </div>
         )}
         {shiftIni && shiftOrangLain && !diMeja && (

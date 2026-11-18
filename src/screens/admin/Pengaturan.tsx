@@ -1036,6 +1036,8 @@ function AkunStaf() {
     daftarGmail?: () => Promise<Record<string, boolean>>;
   };
   const [buka, setBuka] = useState(false);
+  /** Captain tidak bisa memberi peran puncak (mesin juga menolaknya — `saveEmployee`). */
+  const bolehPeran = (r: Role) => a.me?.role !== "captain" || !(r === "superadmin" || r === "owner" || r === "manager");
   const [form, setForm] = useState<{ id: string; name: string; pin: string; nip: string; role: Role; venue?: Venue }>({
     id: "", name: "", pin: "", nip: "", role: "kru_kasir", venue: "spl",
   });
@@ -1054,6 +1056,8 @@ function AkunStaf() {
     && (ROLES as string[]).includes(x.peran));
   /** Akun yang PIN-nya sedang diatur ulang. */
   const [ulangPin, setUlangPin] = useState<{ id: string; pin: string } | null>(null);
+  /** Akun yang namanya sedang diubah (pemilik 18 Nov 2026: nama "GITA" di SPL001 jadi "SPL"). */
+  const [ubahNama, setUbahNama] = useState<{ id: string; nama: string } | null>(null);
   const [banyak, setBanyak] = useState(false);
   /**
    * Simpanan ke server dikirim satu per satu. Kalau dikirim bersamaan, dua
@@ -1184,10 +1188,24 @@ function AkunStaf() {
             )}
           <div className="flex items-center gap-2 px-3 py-2.5">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] text-cream">
-                {e.name}
-                {!e.active && <span className="ml-2 text-[11px] text-dim">(nonaktif)</span>}
-              </div>
+              {ubahNama?.id === e.id ? (
+                <div className="flex items-center gap-1.5">
+                  <input value={ubahNama.nama} autoFocus aria-label={`Nama baru ${e.name}`} maxLength={40}
+                    onChange={(ev) => setUbahNama({ id: e.id, nama: ev.target.value })}
+                    className="min-h-[34px] w-40 rounded-lg border border-line bg-ink px-2 text-[12px] text-cream" />
+                  <button disabled={!ubahNama.nama.trim() || ubahNama.nama.trim() === e.name}
+                    onClick={() => { if (simpan({ ...e, name: ubahNama.nama.trim() })) setUbahNama(null); }}
+                    className="min-h-[34px] rounded-lg bg-amber px-2.5 text-[11px] font-bold text-ink disabled:opacity-40">Simpan</button>
+                  <button onClick={() => setUbahNama(null)} className="min-h-[34px] px-1 text-[11px] text-dim">Batal</button>
+                </div>
+              ) : (
+                <div className="truncate text-[13px] text-cream">
+                  {e.name}
+                  {!e.active && <span className="ml-2 text-[11px] text-dim">(nonaktif)</span>}
+                  <button onClick={() => setUbahNama({ id: e.id, nama: e.name })}
+                    className="ml-2 text-[11px] text-mute underline underline-offset-2 hover:text-amber">ubah nama</button>
+                </div>
+              )}
               <div className="text-[11px] text-dim">
                 NIP {dataNip[e.id]?.nip ?? e.nip ?? "belum ada"} · {ROLE_LABEL[e.role]} · {e.venue ? VENUE_LABEL[e.venue] : "kedua venue"}
               </div>
@@ -1236,7 +1254,7 @@ function AkunStaf() {
                 simpan(!e.venue && PERAN_SATU_VENUE.includes(role) ? { ...e, role, venue: venueAktif } : { ...e, role });
               }}
               className="min-h-[36px] shrink-0 rounded-lg border border-line bg-ink px-2 text-[11px] text-cream">
-              {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+              {ROLES.filter((r) => r === e.role || bolehPeran(r)).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
               {e.role === "karyawan" && <option value="karyawan">{ROLE_LABEL.karyawan}</option>}
             </select>
             <select
@@ -1290,7 +1308,7 @@ function AkunStaf() {
             placeholder="PIN 4 angka"
             className="min-h-[44px] w-full rounded-lg border border-line bg-ink px-3 text-sm tracking-[0.3em] text-cream placeholder:tracking-normal placeholder:text-dim" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {ROLES.map((r) => (
+            {ROLES.filter(bolehPeran).map((r) => (
               <button key={r} aria-pressed={form.role === r}
                 onClick={() => setForm({ ...form, role: r, ...(PERAN_SATU_VENUE.includes(r) && !form.venue ? { venue: venueAktif } : {}) })}
                 className={`min-h-[44px] rounded-lg border px-1 text-[12px] leading-tight ${

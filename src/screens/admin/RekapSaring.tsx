@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import {
-  useAdmin, rekapSaring, menuSaring, labelKanal, UNIT_LABEL,
+  useAdmin, rekapSaring, menuSaring, sewaMejaSaring, labelKanal, UNIT_LABEL,
   type UnitRekap, type KelasShift,
 } from "../../lib/adminStore";
 import { fmtDateLong, rupiah } from "../../lib/core";
 import { unduhExcel } from "../../lib/excel";
 import { cetakHtmlStruk } from "../../lib/cetak";
-import { htmlRekapPenjualan, seksiRekap, tanggalPanjang } from "../../lib/strukRekap";
+import { htmlRekapPenjualan, seksiRekap, sewaPagiSore, tanggalPanjang, type SewaMeja } from "../../lib/strukRekap";
 
 /**
  * REKAP DENGAN SARINGAN (permintaan pemilik 14 Nov 2026). Pilihannya —
@@ -42,16 +42,23 @@ export default function RekapSaring({ unit, dari, sampai, shift, kanal, hariIni,
       })
     : h.hari.filter((x) => x.total !== 0).map((x) => ({ label: fmtDateLong(x.bizDate), total: x.total }));
 
+  /** Sewa meja saja (tanpa barang counter), dipisah PAGI / SORE — lihat `sewaMejaSaring`. */
+  function sewaStruk(): SewaMeja | undefined {
+    const w = sewaMejaSaring(a, opsi);
+    if (!w.terpecah) return w.total > 0 ? { sesi: 0, total: w.total } : undefined;
+    return sewaPagiSore(w.pagi, w.sore);
+  }
+
   /** Struk "KAS KASIR" untuk saringan yang sedang dipilih. */
   function htmlStruk(): string {
     const menu = menuSaring(a, opsi);
-    const sewa = unit === "spl" || unit === "semua" ? h.perLini.biliar : 0;
+    const sewa = sewaStruk();
     return htmlRekapPenjualan({
       venue: unit === "smh" ? "smh" : "spl", bizDate: dari,
       outlet: OUTLET_UNIT[unit], rekening: labelBayar,
       keterangan: [labelPeriode, ...(shift === "semua" ? [] : [labelShift])],
       seksi: seksiRekap(menu.baris),
-      ...(sewa > 0 ? { sewaMeja: { sesi: 0, total: sewa } } : {}),
+      ...(sewa ? { sewaMeja: sewa } : {}),
       pembayaran: Object.entries(h.perKanal).sort((p, q) => q[1] - p[1]).map(([k, v]) => ({ label: labelKanal(k).toUpperCase(), nilai: v })),
     });
   }
@@ -158,7 +165,8 @@ export default function RekapSaring({ unit, dari, sampai, shift, kanal, hariIni,
       <p className="text-[11px] leading-relaxed text-dim">
         Semua yang dipesan di SPL Sport (sewa meja, makanan, minuman bar, rokok) masuk SPL Sport; yang dipesan di
         Smokehouse masuk Smokehouse.
-        Shift pagi = shift yang dibuka antara 06.00 dan 16.00 WIB; selebihnya sore/malam. Hari ini: {fmtDateLong(hariIni)}.
+        Pagi / sore = pilihan kasir saat mulai shift (shift sebelum 18 Nov 2026: dibuka 06.00–16.00 WIB = pagi).
+        Sewa meja di struk dipisah pagi & sore. Hari ini: {fmtDateLong(hariIni)}.
       </p>
     </section>
   );

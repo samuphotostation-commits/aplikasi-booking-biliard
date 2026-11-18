@@ -109,6 +109,43 @@ export function StrukResmi({ data, venue, cetakUlang }: {
   const grand = data.billiard + totalBarang - data.diskon;
   const smh = venue === "smh";
   const nomorMeja = data.meja.replace(/^meja\s+/i, "");
+  /*
+   * DESAIN STRUK BILL SPL (pemilik 18 Nov 2026, PDF revisi poin 9): bingkai
+   * HITAM tebal seperti tiket — kepala hitam berlogo & SPORTS / POOL LOUNGE,
+   * BILLING · BILLIARD di kanan; isi di panel putih bertakik; kaki hitam
+   * "• A NEW KIND OF BILLIARD EXPERIENCE •" dan "Thank You!". Smokehouse
+   * tetap memakai bentuk lama.
+   */
+  if (!smh) {
+    return (
+      <div id="struk" className="struk-bingkai struk-gelap overflow-hidden rounded-xl bg-black font-mono text-[11px] leading-[1.35]">
+        <div className="flex items-center gap-2 px-3 pb-1.5 pt-2">
+          <img src={LOGO_STRUK} alt="SPL" className="struk-logo-putih h-[40px] w-auto shrink-0" />
+          <div className="min-w-0 flex-1 leading-none">
+            <div className="font-serif text-[27px] font-bold leading-none tracking-wide">SPORTS</div>
+            <div className="mt-0.5 pl-0.5 text-[7.5px] tracking-[0.32em]">POOL LOUNGE</div>
+          </div>
+          <div className="shrink-0 text-right text-[9.5px] font-bold leading-tight tracking-[0.12em]">
+            BILLING<br />{data.jenis === "billiard" ? "BILLIARD" : "F&B"}
+          </div>
+        </div>
+        <div className="struk-panel relative mx-2.5 rounded-[6px] bg-white px-2.5 py-2 text-black">
+          {/* Takik tiket: lingkaran hitam di tepi panel putih. */}
+          <span className="struk-takik left-0 top-0 -translate-x-1/2 -translate-y-1/2" />
+          <span className="struk-takik right-0 top-0 translate-x-1/2 -translate-y-1/2" />
+          <span className="struk-takik left-0 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+          <span className="struk-takik right-0 top-1/2 translate-x-1/2 -translate-y-1/2" />
+          <span className="struk-takik bottom-0 left-0 -translate-x-1/2 translate-y-1/2" />
+          <span className="struk-takik bottom-0 right-0 translate-x-1/2 translate-y-1/2" />
+          {isiStruk(data, dicetak, cetakUlang, pembulatan, biayaMeja, totalBarang, grand, nomorMeja, true)}
+        </div>
+        <div className="px-3 pb-2 pt-1.5 text-center">
+          <div className="text-[8.5px] font-semibold tracking-[0.12em]">• A NEW KIND OF BILLIARD EXPERIENCE •</div>
+          <div className="font-script text-[22px] leading-tight">Thank You!</div>
+        </div>
+      </div>
+    );
+  }
   return (
     // Bingkai hitam (pemilik 17 Nov 2026).
     <div id="struk" className="rounded-xl border-2 border-black bg-cream px-3 py-2.5 font-mono text-[11px] leading-[1.35] text-ink">
@@ -131,6 +168,20 @@ export function StrukResmi({ data, venue, cetakUlang }: {
           <div className="text-[9px] font-bold">{data.jenis === "billiard" ? "BILLIARD" : "F&B"}</div>
         </div>
       </div>
+      {isiStruk(data, dicetak, cetakUlang, pembulatan, biayaMeja, totalBarang, grand, nomorMeja, false)}
+    </div>
+  );
+}
+
+/** Isi struk (meja, barang, total, kaki) — sama untuk bentuk SPL baru dan bentuk lama. */
+function isiStruk(
+  data: DataStruk, dicetak: number, cetakUlang: { at: number; oleh: string } | undefined,
+  pembulatan: number, biayaMeja: number, totalBarang: number, grand: number, nomorMeja: string,
+  /** Bentuk SPL baru: salam "A new kind…" sudah di kaki hitam. */
+  kakiHitam: boolean,
+) {
+  return (
+    <>
       {cetakUlang && <div className="mt-1 border-y border-ink text-center text-[12px] font-bold tracking-widest">** CETAK ULANG **</div>}
       {data.belumLunas && <div className="mt-1 border-y border-ink text-center text-[11px] font-bold tracking-wider">BILL SEMENTARA · BELUM DIBAYAR</div>}
 
@@ -196,11 +247,11 @@ export function StrukResmi({ data, venue, cetakUlang }: {
       <div className="mt-1 border-t-2 border-ink pt-0.5 text-center text-[10px] leading-tight">
         {data.belumLunas
           ? <div className="font-bold">Bukan bukti pembayaran. Mohon diperiksa dulu.</div>
-          : <div className="font-bold italic">A new kind of Billiard Experience</div>}
+          : !kakiHitam && <div className="font-bold italic">A new kind of Billiard Experience</div>}
         <div>Terima Kasih Sudah Berkunjung</div>
         {cetakUlang && <div className="text-[9px]">Dicetak ulang {tanggalStruk(cetakUlang.at)} {jamDetik(cetakUlang.at)} oleh {cetakUlang.oleh}</div>}
       </div>
-    </div>
+    </>
   );
 }
 

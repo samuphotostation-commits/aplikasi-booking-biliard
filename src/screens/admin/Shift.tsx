@@ -2,7 +2,9 @@ import { useMemo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
   useAdmin, shiftCashExpected, biayaLaci, omzetPerShift, businessDateOf, shiftDi, shiftMilik, shiftBukaDi, SHIFT_PER_KASIR,
+  kelasShift, operasionalBuka,
 } from "../../lib/adminStore";
+import { PilihShift, labelKelas } from "./KepalaOperasional";
 import { PanelBiaya } from "./PanelBiaya";
 import { JudulBagian, KepalaHalaman, Kosong, TombolAksi } from "./Tata";
 import { rupiah } from "../../lib/core";
@@ -64,14 +66,13 @@ export default function ShiftScreen() {
                 disabled={x.employeeId !== a.me?.id && !allow("lihatLaporanKeuangan")}
                 className={`min-h-[34px] rounded-full border px-3 text-[12px] font-semibold disabled:opacity-50 ${
                   x.id === shift.id ? "border-amber bg-amber/15 text-amber" : "border-line text-mute hover:text-cream"}`}>
-                {x.employeeName}{x.employeeId === a.me?.id ? " (saya)" : ""} · {jam(x.openedAt)}
+                {labelKelas(kelasShift(x))} · {x.employeeName}{x.employeeId === a.me?.id ? " (saya)" : ""} · {jam(x.openedAt)}
               </button>
             ))}
             {bolehBukaSendiri && (
-              <button onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}
-                className="ml-auto min-h-[34px] rounded-full bg-amber px-4 text-[12px] font-bold text-ink">
-                + Buka shift saya
-              </button>
+              <span className="ml-auto flex items-center gap-1.5 text-[11px] font-semibold text-dim">
+                + Buka shift saya <PilihShift venue={venue} kecil />
+              </span>
             )}
           </div>
         )}
@@ -80,16 +81,13 @@ export default function ShiftScreen() {
     );
   }
 
-  const bolehBuka = !!a.me && a.me.role !== "waiter";
+  const bolehBuka = !!a.me && a.me.role !== "waiter" && a.me.role !== "owner" && operasionalBuka(a, venue);
   return (
     <div className="space-y-6 pb-6">
       <KepalaHalaman judul="Shift" venue={venue}
-        ket={<>Belum ada shift yang buka di {VENUE_LABEL[venue]}. Tanpa shift, meja dan pembayaran belum bisa dipakai.</>}
-        aksi={bolehBuka && (
-          <TombolAksi utama onClick={() => dispatchA({ t: "openShift", openingCash: 0, venue })}>
-            Buka shift {VENUE_LABEL[venue]}
-          </TombolAksi>
-        )} />
+        ket={<>Belum ada shift yang buka di {VENUE_LABEL[venue]}. Tanpa shift, meja dan pembayaran belum bisa dipakai.
+          Pilih <span className="text-cream">PAGI</span> (11.00–18.00) atau <span className="text-cream">SORE</span> (18.00 sampai TUTUP).</>}
+        aksi={bolehBuka && <PilihShift venue={venue} kecil />} />
       <div className="rounded-2xl border border-dashed border-line p-4">
         <JudulBagian judul="Alur satu shift" />
         <ol className="grid gap-2 sm:grid-cols-3">

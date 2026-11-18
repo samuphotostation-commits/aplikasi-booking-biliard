@@ -14,7 +14,7 @@
    — dengan urutan terima acak — dan hasilnya harus identik.
    ═══════════════════════════════════════════════════════════════════ */
 import {
-  reducer, init, shiftDi, setClock, resetIds, nextId, recap, billiardTotalOf, fnbTotalOf, lineValue, gudangDari,
+  reducer, init, shiftDi, setClock, resetIds, nextId, recap, billiardTotalOf, fnbTotalOf, lineValue, gudangDari, bolehGudang,
   priceLines, priceOf, settlementOf, tickState, applyAction, applyEntry, replay, entryOrder, slotProblem,
   shiftCashExpected, classOf, omzetPerShift, penjualanProduk, rekapTigaJenis, bolehDariCentral, mesinEdc, punyaLampu,
   grupSesi, tagihanGrup, venueOrder, rekapSaring, menuSaring, ringkasSaring, menuShift, shiftHariItu,
@@ -266,8 +266,10 @@ const diffKeys = (x: State, y: State) =>
   (Object.keys(x) as (keyof State)[]).filter((k) => k !== "me" && JSON.stringify(x[k]) !== JSON.stringify(y[k])).join(", ");
 const PERM: Partial<Record<Action["t"], Parameters<typeof can>[1]>> = {
   walkin: "bukaMeja", settle: "tutupTab", addFnb: "orderFnb", setRate: "ubahTarif", setMenuPrice: "ubahTarif",
-  savePromo: "kelolaPromo", deletePromo: "kelolaPromo", setStock: "kelolaStok",
-  addStock: "kelolaStok", decideVoid: "setujuiVoid", toggleMaintenance: "kelolaMeja",
+  // Kasir ikut mengatur stok gudang venuenya (18 Nov 2026); gudang mana yang
+  // boleh dijaga terpisah di bawah INV-10 (`bolehGudang`).
+  savePromo: "kelolaPromo", deletePromo: "kelolaPromo", setStock: "aturStokGudang",
+  addStock: "aturStokGudang", decideVoid: "setujuiVoid", toggleMaintenance: "kelolaMeja",
   toggleSoldOut: "tandaiHabis", toggleLight: "kontrolLampu", allLights: "kontrolLampu",
   restoreNoShow: "bukaMeja", settleRefund: "lihatLaporanKeuangan",
   editFnb: "koreksiPesanan", moveFnb: "koreksiPesanan", paySplit: "tutupTab", stopMeter: "koreksiWaktu",
@@ -537,6 +539,10 @@ function runSim(sim: number) {
     // INV-10 izin
     const perm = PERM[act.t];
     if (perm && !can(role, perm) && ok) f("INV-10", `${b.me?.name ?? "tanpa login"} berhasil ${act.t}`);
+    if ((act.t === "setStock" || act.t === "addStock") && ok
+      && !bolehGudang(b, act.gudang === "central" ? "central" : gudangDari(act.itemId, b))) {
+      f("INV-10", `${b.me?.name ?? "tanpa login"} mengubah stok gudang yang bukan bagiannya (${act.itemId})`);
+    }
 
     // INV-11 shift
     if (NEEDS_SHIFT.has(act.t) && !b.shift && ok) f("INV-11", `${act.t} diterima tanpa shift terbuka`);

@@ -9,7 +9,7 @@ import { TABLES, CLASS_LABEL, CLASS_SHORT, COMPLIMENT_LABEL, VENUE_LABEL, tableL
 import { VOID_REASONS, type VoidRequest } from "../../data/staff";
 import { STATUS_DAPUR, URUT_MENDESAK, mulaiStatus, menitSejak, lamaSingkat } from "../../lib/statusDapur";
 import {
-  useAdmin, recap, canOpenWalkin, blockEndOf, TURNAROUND_MIN, canExtend, nextSessionOn, hourIdx, OPEN_IDX, CLOSE_IDX, namaMeja, rateWith, shiftVenueBuka, hariOperasional, PERINGATAN_TAB_JAM,
+  useAdmin, recap, hargaJamPaket, canOpenWalkin, blockEndOf, TURNAROUND_MIN, canExtend, nextSessionOn, hourIdx, OPEN_IDX, CLOSE_IDX, namaMeja, rateWith, shiftVenueBuka, hariOperasional, PERINGATAN_TAB_JAM,
   dalamJamBuka, batasJamTutup,
   settlementOf, lineValue, maintenanceBlockers, relocationTargets, classOf, sessionType, meterEndOf,
   splitPaidOf, paidLineKeys, porsiTerbayar, sisaPorsi, nilaiPorsi, GRACE_MIN, maxWalkinHours, priceWith, grupSesi, mesinEdc, punyaLampu,
@@ -67,8 +67,21 @@ export default function Board() {
    * dulu menurut nomor, lalu ruang VICTORY menurut nomor — tidak bergantung
    * pada urutan katalog (meja cadangan yang diaktifkan belakangan ikut urut).
    */
+  /*
+   * URUT KELOMPOK (pemilik 18 Nov 2026, PDF revisi poin 2: "pindahkan VIP2 VIP3
+   * ke sebelah VIP1, VCTR paling akhir"): reguler → semua meja VIP (kelas VIP
+   * ATAU bernama "VIP…", walau kelasnya reguler) → VICTORY paling akhir.
+   */
+  const kelompok = (id: string) => {
+    const k = classOf(a, id);
+    const nama = namaMeja(a, id).toUpperCase();
+    if (k === "vvip" || /^(VCTR|VICTORY)/.test(nama)) return 2;
+    if (k === "vip" || nama.startsWith("VIP")) return 1;
+    return 0;
+  };
+  const angkaNama = (id: string, no: number) => Number(/\d+/.exec(namaMeja(a, id))?.[0] ?? no);
   const rows = mejaVenueIni.filter(cocok).sort((x, y) =>
-    (classOf(a, x.id) === "regular" ? 0 : 1) - (classOf(a, y.id) === "regular" ? 0 : 1) || x.no - y.no);
+    kelompok(x.id) - kelompok(y.id) || angkaNama(x.id, x.no) - angkaNama(y.id, y.no) || x.no - y.no);
   /*
    * + MEJA PER LANTAI (panduan UI/UX pemilik 15 Nov 2026). Mejanya diambil
    * dari katalog yang dikenal mesin — sama persis dengan Pengaturan → Meja —
@@ -853,7 +866,8 @@ export function TableSheet({
   /** Harga, jatah minuman & isi paket yang berlaku SEKARANG (weekday/weekend). */
   const hargaKini = (pk: Paket) => hargaPaketPada(pk, nowTs);
   const paketDipakai = paketPilih ? paketMeja.find((pk) => pk.id === paketPilih) : undefined;
-  const hargaPaket = (j: number) => priceWith(a.rates, kelas, hourIdx(Date.now()), j, hariOperasional(Date.now()));
+  // Sama persis dengan mesin (`hargaJamPaket`): siang sampai 18.00, malam sesudahnya, per menit.
+  const hargaPaket = (j: number) => hargaJamPaket(a.rates, kelas, Date.now(), j);
   const extendProblem = (minutes: number) => {
     if (!session || canExtend(a, session.id, minutes)) return null;
     return hourIdx(session.endsAt) + minutes / 60 > CLOSE_IDX ? "melewati jam tutup 06.00 dan shift tidak buka" : "bentrok dengan booking berikutnya";
@@ -1299,7 +1313,7 @@ export function TableSheet({
                       aria-pressed={jamPaket !== null} disabled={maksJam < 1}
                       className={`min-h-[44px] rounded-lg border px-2 text-[13px] font-semibold disabled:opacity-35 ${
                         jamPaket !== null ? "border-amber bg-amber/15 text-amber" : "border-line bg-ink-2 text-cream"
-                      }`}>Paket per jam<div className="text-[10px] font-normal text-dim">harga tetap</div></button>
+                      }`}>Paket per jam<div className="text-[10px] font-normal text-dim">timer lampu · tarif siang/malam</div></button>
                   </div>
 
                   {/* PAKET PEMILIK — permintaan pemilik 21 Okt 2026: *"untuk paket
@@ -1355,6 +1369,9 @@ export function TableSheet({
                           </button>
                         ))}
                       </div>
+                      <p className="mt-1.5 text-[11px] leading-snug text-dim">
+                        Dihitung seperti open bill: tarif siang sampai 18.00, tarif malam sesudahnya. Lampu mati otomatis saat waktu habis.
+                      </p>
                       {maksJam < 4 && (
                         <p className="mt-1.5 text-[11px] text-dim">
                           {maksJam < 1

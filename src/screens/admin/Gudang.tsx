@@ -27,9 +27,12 @@
  */
 import { useMemo, useState, type ReactNode } from "react";
 import {
-  useAdmin, gudangDari, bolehDariCentral, semuaItem, itemOf, kategoriJual,
+  useAdmin, gudangDari, bolehDariCentral, semuaItem, itemOf, kategoriJual, bolehGudang,
   type Gudang as JenisGudang,
 } from "../../lib/adminStore";
+import { ROLE_LABEL } from "../../data/staff";
+import { cetakHtmlStruk } from "../../lib/cetak";
+import { htmlCetakGudang } from "../../lib/strukGudang";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
 import type { MenuItem } from "../../data/menu";
 import { KepalaHalaman, Kosong } from "./Tata";
@@ -64,12 +67,19 @@ type Status = "habis" | "menipis" | "aman" | "kosong";
 type Mode = "tambah" | "kurangi" | "hitung" | "kirim";
 
 export default function Gudang() {
-  const { a, dispatchA, allow } = useAdmin();
-  const bolehUbah = allow("kelolaStok");
+  const { a, dispatchA } = useAdmin();
+  /*
+   * GUDANG YANG TAMPIL (pemilik 18 Nov 2026): kasir Billiard hanya melihat
+   * Gudang Billiard & Bar, kasir Smokehouse hanya Gudang Resto. Pengurus stok
+   * melihat keempatnya. Pagar yang sebenarnya di mesin (`bolehGudang`).
+   */
+  const gudangSaya = URUTAN.filter((g) => bolehGudang(a, g));
   // Termasuk barang tambahan pemilik — kalau tidak, barang itu punya stok
   // tapi tidak pernah muncul di layar gudang.
   const SEMUA_BARANG = semuaItem(a);
-  const [pilih, setPilih] = useState<JenisGudang>("central");
+  const [pilihan, setPilih] = useState<JenisGudang>(gudangSaya[0] ?? "central");
+  const pilih: JenisGudang = gudangSaya.includes(pilihan) ? pilihan : gudangSaya[0] ?? "central";
+  const bolehUbah = bolehGudang(a, pilih);
   const [q, setQ] = useState("");
   const [saring, setSaring] = useState<Saring>("ada");
   const [venue, setVenue] = useState<Venue | "semua">("semua");
@@ -201,11 +211,28 @@ export default function Gudang() {
   const pindahGudang = (g: JenisGudang) => { setPilih(g); setBuka(null); setSaring(g === "central" ? "ada" : "semua"); setLipat(new Set()); };
   const r = ringkas[pilih];
 
+  /** CETAK lembar hitung gudang yang sedang dipilih: No · Produk · Sisa · Aktual (kosong, diisi tangan). */
+  async function cetakGudang() {
+    const baris = [...dasar].sort((x, y) => x.name.localeCompare(y.name, "id"))
+      .map((it) => ({ nama: namaBarang(it.id), sisa: qtyDi(it.id, pilih) }));
+    const hasil = await cetakHtmlStruk(htmlCetakGudang({
+      jenis: LABEL[pilih], pencetak: a.me?.name ?? "-", posisi: a.me ? ROLE_LABEL[a.me.role] : "-",
+      at: Date.now(), baris,
+    }));
+    bilang(hasil.ok ? `Lembar ${LABEL[pilih]} terkirim ke printer.` : `Gagal mencetak: ${hasil.alasan ?? "printer tidak menjawab"}`);
+  }
+
   return (
     <div className="space-y-4 pb-24">
       <KepalaHalaman judul="Gudang"
         ket={<>Pilih gudang di bawah, cari barangnya, lalu tekan <span className="text-cream">Kelola</span> untuk
           menambah, mengurangi, menghitung ulang, atau mengirim dari Central.</>}
+        aksi={
+          <button onClick={() => void cetakGudang()}
+            className="min-h-[40px] rounded-lg bg-amber px-4 text-[13px] font-bold text-ink hover:brightness-110">
+            Cetak {LABEL[pilih]}
+          </button>
+        }
         angka={pilih === "central" ? [
           { label: "Barang ada isi", nilai: r.barang - r.kosong },
           { label: "Total unit", nilai: r.unit.toLocaleString("id-ID") },
@@ -218,8 +245,8 @@ export default function Gudang() {
         ]} />
 
       {/* ── KARTU GUDANG ── */}
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" role="tablist" aria-label="Pilih gudang">
-        {URUTAN.map((g) => {
+      <div className={`grid grid-cols-2 gap-2 ${gudangSaya.length >= 4 ? "lg:grid-cols-4" : ""}`} role="tablist" aria-label="Pilih gudang">
+        {gudangSaya.map((g) => {
           const x = ringkas[g];
           const aktif = pilih === g;
           return (

@@ -35,24 +35,31 @@ const PETA: Record<Exclude<Role, "superadmin" | "manager">, Permission[]> = {
   // Keuangan: rekap, tarif, dan stok gudang. TIDAK menyentuh lantai.
   // Finance ikut melihat JEJAK AKTIVITAS: dialah yang mencocokkan kas, dan
   // selisih laci tidak pernah bisa dijelaskan tanpa melihat siapa melakukan apa.
-  finance: ["lihatLaporanKeuangan", "lihatRekapPenjualan", "lihatJejak", "ubahTarif", "kelolaStok", "catatBiaya"],
+  finance: ["lihatLaporanKeuangan", "lihatRekapPenjualan", "lihatJejak", "ubahTarif", "kelolaStok", "aturStokGudang", "catatBiaya"],
   // Gudang: hanya stok.
-  kru_gudang: ["kelolaStok"],
+  kru_gudang: ["kelolaStok", "aturStokGudang"],
   // Kasir: meja, kasir, dapur — tanpa akses uang laporan & tanpa diskon.
   // Kru kasir ikut melihat LAPORAN REKAP PENJUALAN — apa yang terjual dan
   // berapa — tapi bukan laporan keuangan (kas shift, pajak, MDR, selisih
   // laci, uang bersih). Permintaan pemilik 19 Okt 2026.
   kru_kasir: ["catatBiaya", "bukaMeja", "tutupTab", "orderFnb", "koreksiPesanan", "kontrolLampu", "tandaiHabis", "ajukanVoid",
-    "lihatRekapPenjualan"],
+    "lihatRekapPenjualan", "aturStokGudang"],
   // Dapur & bar: tiket + stok gudangnya sendiri.
-  kru_kitchen: ["kelolaStok", "tandaiHabis", "ajukanVoid"],
-  kru_bar: ["kelolaStok", "tandaiHabis", "ajukanVoid"],
+  kru_kitchen: ["kelolaStok", "aturStokGudang", "tandaiHabis", "ajukanVoid"],
+  kru_bar: ["kelolaStok", "aturStokGudang", "tandaiHabis", "ajukanVoid"],
   // Waiter: buka meja, catat pesanan, antar. TIDAK memegang uang.
   waiter: ["bukaMeja", "orderFnb", "koreksiPesanan", "tandaiHabis", "ajukanVoid"],
   // Peran lama yang DIPERTAHANKAN supaya jejak staf lama tetap bisa diputar
   // ulang. Haknya sama dengan kru kasir.
   karyawan: ["catatBiaya", "bukaMeja", "tutupTab", "orderFnb", "koreksiPesanan", "kontrolLampu", "tandaiHabis", "ajukanVoid",
-    "lihatRekapPenjualan"],
+    "lihatRekapPenjualan", "aturStokGudang"],
+  // CAPTAIN (pemilik 18 Nov 2026): seperti superadmin, TANPA void, pesan,
+  // pelanggan, atur harga, promo — dan tanpa mode demo.
+  captain: ["lihatLaporanKeuangan", "lihatRekapPenjualan", "lihatJejak", "kelolaMeja", "kelolaKaryawan",
+    "beriDiskonManual", "koreksiWaktu", "kelolaStok", "aturStokGudang", "bukaMeja", "tutupTab", "orderFnb", "koreksiPesanan",
+    "kontrolLampu", "tandaiHabis", "catatBiaya", "hapusBiaya"],
+  // OWNER: Rekap lengkap dengan laporan keuangan — itu saja.
+  owner: ["lihatLaporanKeuangan", "lihatRekapPenjualan"],
 };
 
 const SEMUA_IZIN = Object.keys(CAN) as Permission[];
@@ -60,7 +67,7 @@ const SEMUA_IZIN = Object.keys(CAN) as Permission[];
 console.log("-- Tujuh peran yang DITAWARKAN, plus satu peran lama yang masih SAH --");
 // Yang bisa dipilih pemilik saat membuat akun: tepat tujuh.
 t("peran yang ditawarkan", [...ROLES].sort(), [
-  "finance", "kru_bar", "kru_gudang", "kru_kasir", "kru_kitchen", "manager", "superadmin", "waiter",
+  "captain", "finance", "kru_bar", "kru_gudang", "kru_kasir", "kru_kitchen", "manager", "owner", "superadmin", "waiter",
 ].sort());
 // `karyawan` SENGAJA tidak ditawarkan lagi, tapi tetap sah: jejak venue
 // menyimpan peran di dalam kejadiannya, jadi membuangnya membuat riwayat staf
@@ -106,8 +113,8 @@ for (const p of ["lihatLaporanKeuangan", "beriDiskonManual", "setujuiVoid", "kel
 }
 // Diskon manual & compliment (SMH-11b) berbagi satu izin — keduanya memotong
 // uang yang sudah ditagih, jadi keduanya setinggi manajer.
-t("beriDiskonManual hanya superadmin & manager",
-  (ROLES_SAH as readonly Role[]).filter((r) => can(r, "beriDiskonManual")), ["superadmin", "manager"]);
+t("beriDiskonManual hanya superadmin, manager & captain",
+  (ROLES_SAH as readonly Role[]).filter((r) => can(r, "beriDiskonManual")), ["superadmin", "manager", "captain"]);
 // Finance mengatur harga tapi TIDAK boleh menyentuh meja & tab.
 t("finance tidak bisa membuka meja", can("finance", "bukaMeja"), false);
 t("finance tidak bisa menutup tab", can("finance", "tutupTab"), false);

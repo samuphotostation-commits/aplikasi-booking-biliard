@@ -1,11 +1,12 @@
 import { useState } from "react";
 import {
-  useAdmin, omzetPerShift, menuShift, menuSaring, rekapSaring, labelKanal,
+  useAdmin, omzetPerShift, menuShift, menuSaring, rekapSaring, sewaMejaSaring, labelKanal, kelasShift, shiftTerbuka,
   type BarisTransaksi,
 } from "../../lib/adminStore";
 import { cetakHtmlStruk } from "../../lib/cetak";
 import {
-  htmlDetailTransaksi, htmlRekapPenjualan, kolomBayar, seksiRekap, tanggalPanjang, type BlokRekap,
+  htmlDetailTransaksi, htmlRekapPenjualan, kolomBayar, seksiRekap, sewaPagiSore, tanggalPanjang, type BlokRekap,
+  type SewaMeja,
 } from "../../lib/strukRekap";
 import { VENUE_LABEL, type Venue } from "../../data/venue";
 
@@ -41,18 +42,30 @@ export default function CetakKasKasir({ dari, sampai, venue, shiftId, namaShift,
     omzetPerShift(a, dari, v).rincian.filter((x) => !shiftId || x.shiftId === shiftId);
 
   let kurang = false;
+  /** PAGI / SORE tiap shift (pilihan kasir; shift lama dari jam bukanya). */
+  const kelasDari = new Map([...shiftTerbuka(a), ...a.shiftHistory].map((sh) => [sh.id, kelasShift(sh)] as const));
   function blokVenue(v: Venue): BlokRekap {
     if (satuHari) {
       const m = menuShift(a, dari, v, shiftId);
       if (!m.tersedia) kurang = true;
       const os = omzetPerShift(a, dari, v);
-      const sewa = v === "spl" ? (shiftId ? os.shift.find((x) => x.id === shiftId)?.sewaMeja ?? (os.tanpaShift?.id === shiftId ? os.tanpaShift.sewaMeja : 0) : os.semua.sewaMeja) : 0;
-      return { judul: venue ? undefined : VENUE_LABEL[v].toUpperCase(), seksi: seksiRekap(m.baris), ...(sewa > 0 ? { sewaMeja: { sesi: 0, total: sewa } } : {}) };
+      let sewa: SewaMeja | undefined;
+      if (v === "spl" && shiftId) {
+        const n = os.shift.find((x) => x.id === shiftId)?.sewaMeja ?? (os.tanpaShift?.id === shiftId ? os.tanpaShift.sewaMeja : 0);
+        sewa = n > 0 ? { sesi: 0, total: n } : undefined;
+      } else if (v === "spl") {
+        // SEMUA SHIFT: sewa meja dibedakan PAGI dan SORE (pemilik 18 Nov 2026).
+        const per = { pagi: 0, sore: 0 };
+        for (const b of os.shift) per[kelasDari.get(b.id) ?? "sore"] += b.sewaMeja;
+        sewa = sewaPagiSore(per.pagi, per.sore, os.tanpaShift?.sewaMeja ?? 0);
+      }
+      return { judul: venue ? undefined : VENUE_LABEL[v].toUpperCase(), seksi: seksiRekap(m.baris), ...(sewa ? { sewaMeja: sewa } : {}) };
     }
     const m = menuSaring(a, { dari, sampai, unit: v });
     if (m.hariTanpaRincian.length) kurang = true;
-    const sewa = v === "spl" ? rekapSaring(a, { dari, sampai, unit: "spl" }).perLini.biliar : 0;
-    return { judul: venue ? undefined : VENUE_LABEL[v].toUpperCase(), seksi: seksiRekap(m.baris), ...(sewa > 0 ? { sewaMeja: { sesi: 0, total: sewa } } : {}) };
+    // Sewa meja SAJA — lini biliar dikurangi barang counter (lihat `sewaMejaSaring`).
+    const n = v === "spl" ? sewaMejaSaring(a, { dari, sampai, unit: "spl" }).total : 0;
+    return { judul: venue ? undefined : VENUE_LABEL[v].toUpperCase(), seksi: seksiRekap(m.baris), ...(n > 0 ? { sewaMeja: { sesi: 0, total: Math.round(n) } } : {}) };
   }
 
   function htmlRekap(): string {

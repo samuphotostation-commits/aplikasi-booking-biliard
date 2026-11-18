@@ -32,11 +32,18 @@ export type Role =
   /** Pelayan: membuka meja, mencatat pesanan, mengantar. Tidak memegang uang. */
   | "waiter"
   /** Peran lama sebelum 8 Okt 2026 — sama dengan `kru_kasir`. */
-  | "karyawan";
+  | "karyawan"
+  /**
+   * CAPTAIN (pemilik 18 Nov 2026): seperti superadmin, TANPA void, pesan,
+   * pelanggan, atur harga, dan promo.
+   */
+  | "captain"
+  /** OWNER (pemilik 18 Nov 2026): Rekap lengkap dengan laporan keuangan — itu saja. */
+  | "owner";
 
 /** Urutan tampil di layar pemilihan peran. `karyawan` sengaja tidak ikut. */
 export const ROLES: Role[] = [
-  "superadmin", "manager", "finance", "kru_gudang", "kru_kasir", "kru_kitchen", "kru_bar", "waiter",
+  "superadmin", "owner", "captain", "manager", "finance", "kru_gudang", "kru_kasir", "kru_kitchen", "kru_bar", "waiter",
 ];
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -49,12 +56,15 @@ export const ROLE_LABEL: Record<Role, string> = {
   kru_bar: "Kru Bar",
   waiter: "Waiter",
   karyawan: "Kru Kasir (akun lama)",
+  captain: "Captain",
+  owner: "Owner",
 };
 
 /** Dipakai `validAction` memeriksa kejadian dari perangkat lain. `karyawan`
  *  ikut supaya jejak lama tetap bisa diputar ulang. */
 export const ROLES_SAH = [
   "superadmin", "manager", "finance", "kru_gudang", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan", "waiter",
+  "captain", "owner",
 ] as const;
 
 /** Peran yang boleh membuka seluruh aplikasi. */
@@ -118,7 +128,7 @@ export const EMPLOYEES: Employee[] = [
  */
 export const CAN = {
   // ── Uang & pengaturan ─────────────────────────────────────
-  lihatLaporanKeuangan: ["superadmin", "manager", "finance"],
+  lihatLaporanKeuangan: ["superadmin", "manager", "finance", "captain", "owner"],
   /**
    * LAPORAN REKAP PENJUALAN — apa yang terjual dan berapa, itu saja.
    *
@@ -129,7 +139,7 @@ export const CAN = {
    * kasir akses ke seluruh tab itu supaya ia bisa melihat satu angka
    * penjualan berarti membuka sepuluh angka lain yang bukan urusannya.
    */
-  lihatRekapPenjualan: ["superadmin", "manager", "finance", "kru_kasir", "karyawan"],
+  lihatRekapPenjualan: ["superadmin", "manager", "finance", "kru_kasir", "karyawan", "captain", "owner"],
   /**
    * PANEL JEJAK AKTIVITAS — siapa melakukan apa, kapan.
    *
@@ -141,7 +151,7 @@ export const CAN = {
    * yang diawasi tidak perlu melihat apa yang tercatat tentang dirinya
    * sebelum manajer melihatnya.
    */
-  lihatJejak: ["superadmin", "manager", "finance"],
+  lihatJejak: ["superadmin", "manager", "finance", "captain"],
   /**
    * BUKA 24 JAM (mode demo) — superadmin SAJA, bukan manajer.
    *
@@ -153,27 +163,33 @@ export const CAN = {
   bukaKunciJam: ["superadmin"],
   ubahTarif: ["superadmin", "manager", "finance"],
   kelolaPromo: ["superadmin", "manager"],
-  kelolaMeja: ["superadmin", "manager"],
-  kelolaKaryawan: ["superadmin", "manager"],
+  kelolaMeja: ["superadmin", "manager", "captain"],
+  kelolaKaryawan: ["superadmin", "manager", "captain"],
   setujuiVoid: ["superadmin", "manager"],
-  beriDiskonManual: ["superadmin", "manager"],
-  koreksiWaktu: ["superadmin", "manager"],
+  beriDiskonManual: ["superadmin", "manager", "captain"],
+  koreksiWaktu: ["superadmin", "manager", "captain"],
   // ── Stok gudang ──────────────────────────────────────────
-  kelolaStok: ["superadmin", "manager", "finance", "kru_gudang", "kru_kitchen", "kru_bar"],
+  kelolaStok: ["superadmin", "manager", "finance", "kru_gudang", "kru_kitchen", "kru_bar", "captain"],
+  /**
+   * STOK GUDANG MILIK KASIR (pemilik 18 Nov 2026): kasir Billiard mengatur
+   * Gudang Billiard & Bar, kasir Smokehouse hanya Gudang Resto. Ini pintu
+   * tab-nya; gudang mana yang boleh disentuh dipagari mesin (`bolehGudang`).
+   */
+  aturStokGudang: ["superadmin", "manager", "finance", "kru_gudang", "kru_kitchen", "kru_bar", "captain", "kru_kasir", "karyawan"],
   // ── Lantai: meja, kasir, dapur ───────────────────────────────
   // Waiter membuka meja dan mencatat pesanan, tapi tidak pernah memegang uang.
-  bukaMeja: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter"],
-  tutupTab: ["superadmin", "manager", "kru_kasir", "karyawan"],
-  orderFnb: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter"],
-  koreksiPesanan: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter"],
-  kontrolLampu: ["superadmin", "manager", "kru_kasir", "karyawan"],
-  tandaiHabis: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan", "waiter"],
+  bukaMeja: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter", "captain"],
+  tutupTab: ["superadmin", "manager", "kru_kasir", "karyawan", "captain"],
+  orderFnb: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter", "captain"],
+  koreksiPesanan: ["superadmin", "manager", "kru_kasir", "karyawan", "waiter", "captain"],
+  kontrolLampu: ["superadmin", "manager", "kru_kasir", "karyawan", "captain"],
+  tandaiHabis: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan", "waiter", "captain"],
   ajukanVoid: ["superadmin", "manager", "kru_kasir", "kru_kitchen", "kru_bar", "karyawan", "waiter"],
   // ── Biaya harian ─────────────────────────────────────────
   // Kasir yang mengeluarkan uang dari laci, jadi kasir yang mencatat.
   // Menghapus dipegang atasan, karena tiap hapus menaikkan kas seharusnya.
-  catatBiaya: ["superadmin", "manager", "finance", "kru_kasir", "karyawan"],
-  hapusBiaya: ["superadmin", "manager"],
+  catatBiaya: ["superadmin", "manager", "finance", "kru_kasir", "karyawan", "captain"],
+  hapusBiaya: ["superadmin", "manager", "captain"],
 } as const;
 
 export type Permission = keyof typeof CAN;
@@ -198,6 +214,11 @@ export type Shift = {
   countedCash?: number;
   /** Selisih hitung vs sistem — ini angka yang paling dilihat pemilik. */
   variance?: number;
+  /**
+   * SHIFT PAGI / SORE yang dipilih kasir saat mulai (pemilik 18 Nov 2026).
+   * Shift lama tanpa pilihan digolongkan dari jam bukanya (`kelasShift`).
+   */
+  kelas?: "pagi" | "sore";
 };
 
 /* ── Void ───────────────────────────────────────────────────────── */

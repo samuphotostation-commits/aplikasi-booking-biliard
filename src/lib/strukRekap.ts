@@ -95,7 +95,25 @@ export function seksiRekap(baris: Pick<MenuSaring, "station" | "nama" | "qty" | 
 }
 
 /** Satu blok penjualan (satu venue): seksi-seksinya + sewa meja. */
-export type BlokRekap = { judul?: string; seksi: SeksiRekap[]; sewaMeja?: { sesi: number; total: number } };
+export type BlokRekap = { judul?: string; seksi: SeksiRekap[]; sewaMeja?: SewaMeja };
+
+/**
+ * Sewa meja biliar. `rincian` = pecahan per shift (pemilik 18 Nov 2026: saat
+ * mencetak "Semua shift", sewa meja dibedakan PAGI dan SORE). `total` tetap
+ * jumlah seluruhnya.
+ */
+export type SewaMeja = { sesi: number; total: number; rincian?: { nama: string; total: number }[] };
+
+/** Sewa meja per PAGI/SORE untuk struk; baris bernilai 0 tidak dicetak. */
+export function sewaPagiSore(pagi: number, sore: number, lain = 0): SewaMeja | undefined {
+  const rincian = [
+    { nama: "SEWA MEJA PAGI", total: Math.max(0, Math.round(pagi)) },
+    { nama: "SEWA MEJA SORE", total: Math.max(0, Math.round(sore)) },
+    { nama: "SEWA MEJA TANPA SHIFT", total: Math.max(0, Math.round(lain)) },
+  ].filter((x) => x.total > 0);
+  const total = rincian.reduce((n, x) => n + x.total, 0);
+  return total > 0 ? { sesi: 0, total, rincian } : undefined;
+}
 
 const totalSeksi = (s: SeksiRekap) => s.baris.reduce((n, b) => n + b.total, 0);
 
@@ -103,7 +121,9 @@ function lengkapiSewa(b: BlokRekap): SeksiRekap[] {
   const seksi = [...b.seksi];
   if (b.sewaMeja && b.sewaMeja.total > 0) {
     seksi.push({ judul: "SEWA MEJA BILIAR", label: "Sewa Meja",
-      baris: [{ qty: b.sewaMeja.sesi, nama: b.sewaMeja.sesi ? "SEWA MEJA (SESI)" : "SEWA MEJA", total: b.sewaMeja.total }] });
+      baris: b.sewaMeja.rincian?.length
+        ? b.sewaMeja.rincian.map((r) => ({ qty: 0, nama: r.nama, total: r.total }))
+        : [{ qty: b.sewaMeja.sesi, nama: b.sewaMeja.sesi ? "SEWA MEJA (SESI)" : "SEWA MEJA", total: b.sewaMeja.total }] });
   }
   return seksi;
 }
@@ -136,7 +156,7 @@ ${s.baris.map((b) => `<tr><td class="r" style="padding:0 1mm">${b.qty ? angkaQty
 export function htmlRekapPenjualan(o: {
   venue: Venue; bizDate: string; seksi?: SeksiRekap[];
   /** Sewa meja biliar (SPL). 0/kosong = tidak dicetak. */
-  sewaMeja?: { sesi: number; total: number };
+  sewaMeja?: SewaMeja;
   /** Gabungan: satu blok per venue. Menggantikan `seksi`/`sewaMeja`. */
   blok?: BlokRekap[];
   /** Baris kedua kepala struk. Bawaan: nama outlet venue (SPL SPORT / SHR). */
