@@ -63,9 +63,13 @@ export default function CetakKasKasir({ dari, sampai, venue, shiftId, namaShift,
     }
     const m = menuSaring(a, { dari, sampai, unit: v });
     if (m.hariTanpaRincian.length) kurang = true;
-    // Sewa meja SAJA — lini biliar dikurangi barang counter (lihat `sewaMejaSaring`).
-    const n = v === "spl" ? sewaMejaSaring(a, { dari, sampai, unit: "spl" }).total : 0;
-    return { judul: venue ? undefined : VENUE_LABEL[v].toUpperCase(), seksi: seksiRekap(m.baris), ...(n > 0 ? { sewaMeja: { sesi: 0, total: Math.round(n) } } : {}) };
+    // Sewa meja SAJA (tanpa barang counter), dipisah PAGI / SORE — lihat `sewaMejaSaring`.
+    let sewa: SewaMeja | undefined;
+    if (v === "spl") {
+      const w = sewaMejaSaring(a, { dari, sampai, unit: "spl" });
+      sewa = w.terpecah ? sewaPagiSore(w.pagi, w.sore) : w.total > 0 ? { sesi: 0, total: w.total } : undefined;
+    }
+    return { judul: venue ? undefined : VENUE_LABEL[v].toUpperCase(), seksi: seksiRekap(m.baris), ...(sewa ? { sewaMeja: sewa } : {}) };
   }
 
   function htmlRekap(): string {
